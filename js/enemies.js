@@ -99,11 +99,14 @@ function buildSkag(look, parts) {
 function spawnEnemy(key, level, pos) {
   const def = ENEMY_DEFS[key];
   const parts = [];
-  const model = def.body === 'skag' ? buildSkag(def.look, parts) : buildHuman(def.look, parts);
+  let model, rig = null;
+  if (RIG.ready && RIG_LOOKS[key]) { const m = makeRigEnemy(key, def); model = { root: m.root }; rig = m.rig; }
+  else model = def.body === 'skag' ? buildSkag(def.look, parts) : buildHuman(def.look, parts);
   model.root.scale.setScalar(def.scale);
   const sc = levelScale(level);
   const e = {
-    key, def, level, model, parts,
+    key, def, level, model, parts, rig,
+    dodgeCd: rand(2, 4), dashCd: rand(1, 3), tauntCd: rand(4, 8), dashDir: new THREE.Vector3(), dashSpeed: 0,
     pos: pos.clone(), vel: new THREE.Vector3(), vy: 0, grounded: true,
     yaw: Math.atan2(-pos.x, -pos.z),
     maxHp: def.hp * sc, maxShield: def.shield * sc,
@@ -121,6 +124,7 @@ function spawnEnemy(key, level, pos) {
   scene.add(model.root);
   enemies.push(e);
   burst(e.pos.clone().setY(e.pos.y + 1), 0x7fd6ff, 12, 5, 0.12, 0.5, 0.2, true);
+  if (rig && !def.boss && Math.random() < 0.35) { e.state = 'taunt'; e.stateT = 1.0; rigOnce(rig, 'Pointing', 1.6, 0.3, 1.9); }
   return e;
 }
 
@@ -131,6 +135,7 @@ const _sph = [];
 function enemySpheres(e) {
   const s = e.def.scale, p = e.pos;
   _sph.length = 0;
+  if (e.rig) { rigSpheres(e, _sph); return _sph; }
   if (e.def.body === 'skag') {
     const fx = Math.sin(e.yaw), fz = Math.cos(e.yaw);
     _sph.push([p.x, p.y + 0.78 * s, p.z, 0.5 * s, false]);
@@ -213,7 +218,8 @@ function killEnemy(e, opts = {}) {
   e.alive = false;
   const center = enemyCenter(e, new THREE.Vector3());
   const violent = opts.explosive || opts.crit || opts.overkill;
-  e.model.root.updateMatrixWorld(true);
+  if (e.rig) rigDie(e, violent);
+  else e.model.root.updateMatrixWorld(true);
   for (const m of e.parts) {
     scene.attach(m);
     const v = new THREE.Vector3(m.position.x - e.pos.x, 0, m.position.z - e.pos.z).normalize().multiplyScalar(violent ? rand(4, 9) : rand(0.5, 2));
@@ -221,7 +227,7 @@ function killEnemy(e, opts = {}) {
     if (opts.dir) v.addScaledVector(opts.dir, violent ? 4 : 1.5);
     addDebris(m, v, new THREE.Vector3(rand(-6, 6), 0, rand(-6, 6)), rand(3.5, 5));
   }
-  scene.remove(e.model.root);
+  if (!e.rig) scene.remove(e.model.root);
   burst(center, 0x8a1d1d, violent ? 22 : 10, violent ? 8 : 4, 0.14, 0.9);
   if (violent) burst(center, 0xefe4cc, 6, 7, 0.12, 1.2);
   for (const d of e.dots) if (d.elem === 'fire') burst(center, 0xff8a2a, 8, 4, 0.15, 0.6, -0.3, true);
@@ -245,6 +251,7 @@ function explode(pos, radius, dmg, elem = 'explosive', opts = {}) {
         const dir = c.clone().sub(pos).normalize();
         e.vel.addScaledVector(dir, 6 * k); if (e.grounded && !e.def.boss) { e.vy = 4 * k; e.grounded = false; }
         damageEnemy(e, dmg * k, elem, { explosive: true, fromPlayer: opts.fromPlayer, dir });
+        if (e.alive && e.rig && !e.def.boss && k > 0.55 && e.state !== 'down') { e.state = 'down'; e.stateT = 1.9; rigOnce(e.rig, 'Getting Up', 1.4, 0, Infinity, 0.05); }
         if (opts.dotElem && opts.dotDps) applyDot(e, opts.dotElem, opts.dotDps);
       }
     }
@@ -390,13 +397,30 @@ function updateEnemy(e, dt) {
   const chase = chaseDir(e, tgt, fwd, side, dt);
 
   const ai = e.def.ai;
-  if (ai === 'ranged') {
+  const special = e.state === 'taunt' || e.state === 'down' || e.state === 'dash';
+  if (special) {
+    e.stateT -= dt;
+    if (e.state === 'dash') { _want.copy(e.dashDir).multiplyScalar(e.dashSpeed); }
+    if (e.state === 'down') face = false;
+    if (e.stateT <= 0) e.state = 'move';
+  } else if (ai === 'ranged') {
     e.strafeT -= dt;
     if (e.strafeT <= 0) { e.strafeDir = Math.random() < 0.5 ? -1 : 1; e.strafeT = rand(1.2, 2.8); }
     const eye = _a.set(e.pos.x, e.pos.y + 1.6 * e.def.scale, e.pos.z);
     e.losCheck = (e.losCheck || 0) - dt;
     if (e.losCheck <= 0) { e.los = lineOfSight(eye, tgt.eye); e.losCheck = 0.3; }
     const [rMin, rMax] = e.def.range;
+    e.dodgeCd -= dt; e.tauntCd -= dt;
+    if (e.rig && e.dodgeCd <= 0 && e.grounded && (e.flinchCrit && e.flinchT > 0 || (assist.current === e && player.adsK > 0.6 && Math.random() < dt * 1.5))) {
+      e.dodgeCd = rand(3.5, 6);
+      e.state = 'dash'; e.stateT = 0.62; e.dashSpeed = 6.5;
+      e.dashDir.copy(fwd).multiplyScalar(-0.6).addScaledVector(side, Math.random() < 0.5 ? -0.8 : 0.8).normalize();
+      rigOnce(e.rig, 'Rifle Jump Backward', 1.4, 0, Infinity, 0.06);
+    } else if (e.rig && playerDowned && e.tauntCd <= 0 && dist < 28) {
+      e.tauntCd = rand(6, 10);
+      e.state = 'taunt'; e.stateT = 1.8;
+      if (Math.random() < 0.5) rigOnce(e.rig, 'Loser', 1.4, 0.2, 2.8); else rigOnce(e.rig, 'Slap thigh Taunt', 1.5, 0.5, 3.2);
+    }
     if (!e.los || dist > rMax) _want.copy(chase).multiplyScalar(sp);
     else if (dist < rMin) _want.copy(fwd).multiplyScalar(-sp * 0.8).addScaledVector(side, e.strafeDir * sp * 0.4);
     else _want.copy(side).multiplyScalar(e.strafeDir * sp * 0.6);
@@ -428,15 +452,33 @@ function updateEnemy(e, dt) {
       killEnemy(e, { selfDestruct: true, explosive: true, noXp: true });
       return;
     }
-    e.attackCd -= dt;
-    if (e.state === 'swing') {
+    e.attackCd -= dt; e.dashCd -= dt;
+    if (e.state === 'swing' && e.rig) {
+      _want.multiplyScalar(0.25);
+      const t = rigTime(e.rig);
+      while (e.atkHit < e.atk.hits.length && t >= e.atk.hits[e.atkHit]) {
+        if (dist < 2.5 && !tgt.isTurret) player.hurt(e.def.dmg * e.dmgScale * e.atk.dmg[e.atkHit], e.pos);
+        SFX.swing();
+        e.atkHit++;
+      }
+      if (!e.rig.one || t >= e.atk.end - 0.02) e.state = 'move';
+    } else if (e.state === 'swing') {
       e.stateT -= dt;
       _want.multiplyScalar(0.3);
       if (e.stateT <= 0) {
         e.state = 'move';
         if (dist < 2.6) { if (tgt.isTurret) {} else player.hurt(e.def.dmg * e.dmgScale, e.pos); SFX.swing(); }
       }
-    } else if (dist < 2.0 && e.attackCd <= 0) { e.state = 'swing'; e.stateT = 0.32; e.attackCd = 1.1; }
+    } else if (dist < 2.0 && e.attackCd <= 0) {
+      e.state = 'swing'; e.stateT = 0.32; e.attackCd = 1.1;
+      if (e.rig && ai === 'melee') startRigAttack(e);
+      else if (e.rig) e.state = 'move';
+    } else if (e.rig && ai === 'melee' && e.direct && dist > 5 && dist < 9 && e.dashCd <= 0 && e.grounded) {
+      e.dashCd = rand(3, 6);
+      e.state = 'dash'; e.dashDir.copy(fwd);
+      if (Math.random() < 0.5) { e.stateT = 0.75; e.dashSpeed = 10; rigOnce(e.rig, 'Running Forward Flip', 1.4, 0, Infinity, 0.06); }
+      else { e.stateT = 0.8; e.dashSpeed = 11; rigOnce(e.rig, 'Running Slide 2', 1.6, 0.1, Infinity, 0.06); }
+    }
   } else if (ai === 'skag') {
     e.leapCd -= dt; e.attackCd -= dt;
     if (e.state === 'leap') {
@@ -470,10 +512,10 @@ function updateEnemy(e, dt) {
   const px = e.pos.x, pz = e.pos.z;
 
   // movement
-  if (e.state !== 'leap' && e.state !== 'charge') {
+  if (e.state !== 'leap' && e.state !== 'charge' && e.state !== 'dash') {
     const k = e.grounded ? 1 - Math.exp(-8 * dt) : 1 - Math.exp(-1 * dt);
     e.vel.x = lerp(e.vel.x, _want.x, k); e.vel.z = lerp(e.vel.z, _want.z, k);
-  } else if (e.state === 'charge') { e.vel.x = _want.x; e.vel.z = _want.z; }
+  } else if (e.state === 'charge' || e.state === 'dash') { e.vel.x = _want.x; e.vel.z = _want.z; }
   e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt;
   e.vy -= 22 * dt;
   e.pos.y += e.vy * dt;
@@ -525,6 +567,7 @@ function separateEnemies() {
 }
 
 function animateEnemy(e, dt) {
+  if (e.rig) { animateRig(e, dt); return; }
   const M = e.model, r = M.root;
   r.position.copy(e.pos);
   r.rotation.y = e.yaw;
@@ -633,6 +676,7 @@ function updateHazards(dt) {
 }
 
 function clearEnemies() {
+  clearRigCorpses();
   for (const e of enemies) if (e.alive) scene.remove(e.model.root);
   enemies.length = 0;
   for (const s of enemyShots) scene.remove(s.mesh);

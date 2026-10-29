@@ -612,6 +612,7 @@ function update(dt) {
   updatePlayerProj(dt);
   updateDrops(dt);
   updateFx(dt);
+  updateRigCorpses(dt);
   updateWaves(dt);
   updateInteraction(dt);
   if (IS_TOUCH) updateUseButton();
@@ -650,6 +651,13 @@ function frame(now) {
 
 // boot
 show('menu');
+(function waitForRigs() {
+  const btn = $('btnDeploy');
+  btn.disabled = true; btn.textContent = 'LOADING…';
+  const ready = () => { btn.disabled = false; btn.textContent = 'DEPLOY'; };
+  const fallback = setTimeout(ready, 15000);
+  loadRigs().then(() => { clearTimeout(fallback); ready(); });
+})();
 renderBest();
 $('ctlDesktop').hidden = IS_TOUCH;
 $('ctlTouch').hidden = !IS_TOUCH;
