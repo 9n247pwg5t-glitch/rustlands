@@ -421,13 +421,15 @@ function startGame() {
   game.state = 'play';
   show(null);
   lockPointer();
+  if (IS_TOUCH) setAds(false);
   hud.log('Shoot bandits. Grab loot. Don\'t die.', '#ffd23a');
   hud.log(IS_TOUCH ? 'Left thumb moves. Drag right side to aim.' : 'WASD move · Mouse aim · Q turret · G grenade', '#fff3dc');
 }
 function pauseGame() {
   if (game.state !== 'play') return;
   game.state = 'paused';
-  input.fire = false; input.ads = false;
+  input.fire = false;
+  if (IS_TOUCH) setAds(false); else input.ads = false;
   show('pause');
 }
 function resumeGame() {
@@ -523,31 +525,111 @@ window.addEventListener('blur', () => { input.keys = Object.create(null); input.
 
 // ---------------------------------------------------------------------------
 // Touch controls
+//  - left side: floating move stick (push all the way to sprint)
+//  - right side: drag to look
+//  - FIRE: tap to shoot, hold for automatic fire, swipe left to aim down sights, swipe right for hip fire;
+//    after the first moment it also drags the camera
+//  - weapon wheel (bottom-right): tap to reload; hold or slide to pick a gun, a grenade or the turret
 const touchEl = $('touch');
 const stickBase = $('stickBase'), stickKnob = $('stickKnob');
+const fireBtn = $('fireBtn'), wheelBtn = $('wheelBtn'), wheelEl = $('wheel');
 const pointers = new Map();
-function touchAct(act, down, btn) {
-  if (game.state !== 'play') return;
-  if (act === 'fire') { input.fire = down; if (down) input.firePressed = true; return; }
-  if (!down) return;
-  switch (act) {
-    case 'ads': input.ads = !input.ads; btn.classList.toggle('on', input.ads); break;
-    case 'jump': input.jumpPressed = true; break;
-    case 'use': interact(); break;
-    case 'gren': throwGrenade(); break;
-    case 'skill': deployTurret(); break;
+const FIRE_HOLD = 90, SWIPE_PX = 34, SWIPE_MS = 280;
+let wheelOpen = false;
+
+function setAds(on) {
+  input.ads = on;
+  fireBtn.classList.toggle('ads', on);
+  $('fireHint').textContent = on ? 'HIP ▶' : '◀ AIM';
+}
+function fireStart(p) { if (p.decided) return; p.decided = 'fire'; input.fire = true; input.firePressed = true; }
+
+// ----- weapon wheel
+function wheelEntries() {
+  const out = [];
+  for (let i = 0; i < 4; i++) {
+    const w = player.weapons[i];
+    out.push({ act: 'gun', i, label: w ? TYPES[w.type].label.split(' ')[0] : '—', sub: w ? (w.special === 'infinite' ? '∞' : w.inMag + '/' + player.ammo[w.ammo]) : 'empty', color: w ? RARITY[w.rarity].css : null, off: !w, cur: i === player.cur });
   }
+  out.push({ act: 'gren', label: 'GREN', sub: player.grenades + ' left', off: player.grenades <= 0 });
+  const cd = turret.active ? Math.ceil(turret.t) + 's on' : player.skillCd > 0 ? Math.ceil(player.skillCd) + 's' : 'ready';
+  out.push({ act: 'skill', label: 'TURRET', sub: cd, off: turret.active || player.skillCd > 0 });
+  return out;
+}
+// The wheel opens in the middle of the screen; slide from where you pressed toward an item to pick it.
+function openWheel(p) {
+  wheelOpen = true; p.open = true;
+  const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+  const items = wheelEntries();
+  const R = Math.min(120, window.innerHeight * 0.32);
+  p.items = items.map((it, k) => {
+    const ang = Math.PI / 2 - k * (Math.PI * 2 / items.length); // clockwise from the top
+    return Object.assign(it, { x: cx + Math.cos(ang) * R, y: cy - Math.sin(ang) * R, ang });
+  });
+  wheelEl.innerHTML = `<div class="whint" style="left:${cx}px;top:${cy}px">SLIDE<br>TO PICK</div>` +
+    p.items.map((it, k) => `<div class="wslot${it.cur ? ' cur' : ''}${it.off ? ' off' : ''}" data-k="${k}" style="left:${it.x}px;top:${it.y}px;${it.color ? 'border-color:' + it.color : ''}"><b>${it.label}</b><small>${it.sub}</small></div>`).join('');
+  wheelEl.hidden = false;
+}
+function wheelPick(p, x, y) {
+  const dx = x - p.x0, dy = p.y0 - y, d = Math.hypot(dx, dy);
+  let sel = -1;
+  if (d > 28) {
+    const a = Math.atan2(dy, dx);
+    let best = Math.PI / p.items.length;
+    p.items.forEach((it, k) => { if (it.off) return; let da = Math.abs(a - it.ang); da = Math.min(da, Math.PI * 2 - da); if (da < best) { best = da; sel = k; } });
+  }
+  if (sel !== p.sel) {
+    p.sel = sel;
+    wheelEl.querySelectorAll('.wslot').forEach((el) => el.classList.toggle('sel', +el.dataset.k === sel));
+  }
+}
+function closeWheel(p, apply) {
+  wheelOpen = false;
+  wheelEl.hidden = true;
+  if (!apply || p.sel == null || p.sel < 0) return;
+  const it = p.items[p.sel];
+  if (it.act === 'gun') switchWeapon(it.i);
+  else if (it.act === 'gren') throwGrenade();
+  else if (it.act === 'skill') deployTurret();
+}
+function updateWheelButton() {
+  const g = player.gun();
+  if (!g) return;
+  $('wbName').textContent = g.name;
+  $('wbName').style.color = RARITY[g.rarity].css;
+  $('wbAmmo').textContent = g.special === 'infinite' ? '∞' : player.reloadT > 0 ? '··' : g.inMag;
+  $('wbPool').textContent = player.ammo[g.ammo];
+  wheelBtn.style.borderColor = RARITY[g.rarity].css;
+  wheelBtn.classList.toggle('empty', g.special !== 'infinite' && g.inMag <= Math.ceil(g.mag * 0.2));
+}
+
+function touchAct(act, btn) {
+  if (game.state !== 'play') return;
+  if (act === 'jump') input.jumpPressed = true;
+  else if (act === 'use') interact();
 }
 touchEl.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse') return;
   e.preventDefault();
   SFX.init();
   const btn = e.target.closest('[data-act]');
-  if (btn) {
-    const act = btn.dataset.act;
+  const now = performance.now();
+  if (btn && btn.dataset.act === 'fire') {
+    const p = { kind: 'fire', btn, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t0: now, decided: null };
+    pointers.set(e.pointerId, p);
     btn.classList.add('down');
-    touchAct(act, true, btn);
-    pointers.set(e.pointerId, { kind: act === 'fire' ? 'look' : 'btn', act, btn, x: e.clientX, y: e.clientY });
+    // a short wait tells a swipe (aim toggle) from a press (shoot)
+    p.timer = setTimeout(() => { if (pointers.get(e.pointerId) === p && !p.decided && Math.hypot(p.x - p.x0, p.y - p.y0) < 12) fireStart(p); }, FIRE_HOLD);
+    p.timer2 = setTimeout(() => { if (pointers.get(e.pointerId) === p && !p.decided) fireStart(p); }, SWIPE_MS);
+  } else if (btn && btn.dataset.act === 'wheel') {
+    const p = { kind: 'wheel', btn, x0: e.clientX, y0: e.clientY, t0: now, open: false, sel: -1 };
+    pointers.set(e.pointerId, p);
+    btn.classList.add('down');
+    p.timer = setTimeout(() => { if (pointers.get(e.pointerId) === p && !p.open && game.state === 'play') openWheel(p); }, 220);
+  } else if (btn) {
+    btn.classList.add('down');
+    touchAct(btn.dataset.act, btn);
+    pointers.set(e.pointerId, { kind: 'btn', btn });
   } else if (e.clientX < window.innerWidth * 0.42) {
     pointers.set(e.pointerId, { kind: 'stick', x0: e.clientX, y0: e.clientY });
     stickBase.hidden = false;
@@ -569,24 +651,48 @@ touchEl.addEventListener('pointermove', (e) => {
   } else if (p.kind === 'look') {
     input.lookDX += (e.clientX - p.x) * 2.4; input.lookDY += (e.clientY - p.y) * 2.4;
     p.x = e.clientX; p.y = e.clientY;
+  } else if (p.kind === 'fire') {
+    const dx = e.clientX - p.x0, dy = e.clientY - p.y0;
+    const swipe = Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy) * 1.5 && performance.now() - p.t0 < SWIPE_MS;
+    if (swipe && p.decided !== 'swipe' && !p.lookStarted) {
+      // a quick sideways swipe toggles aiming, even if the press had already started shooting
+      p.decided = 'swipe';
+      input.fire = false;
+      setAds(dx < 0);
+    } else if (!p.decided) {
+      if (Math.abs(dy) > 16 && Math.abs(dy) > Math.abs(dx)) fireStart(p);
+    } else if (p.decided === 'fire' && performance.now() - p.t0 < SWIPE_MS && Math.abs(dx) < SWIPE_PX) {
+      // still might be a swipe: hold the camera still for a moment
+    } else {
+      p.lookStarted = true;
+      // once decided, the fire button turns the camera too
+      input.lookDX += (e.clientX - p.x) * 2.4; input.lookDY += (e.clientY - p.y) * 2.4;
+    }
+    p.x = e.clientX; p.y = e.clientY;
+  } else if (p.kind === 'wheel') {
+    if (!p.open && Math.hypot(e.clientX - p.x0, e.clientY - p.y0) > 14 && game.state === 'play') openWheel(p);
+    if (p.open) wheelPick(p, e.clientX, e.clientY);
   }
 }, { passive: false });
 function endPointer(e) {
   const p = pointers.get(e.pointerId);
   if (!p) return;
   pointers.delete(e.pointerId);
+  if (p.btn) p.btn.classList.remove('down');
   if (p.kind === 'stick') { input.touchMove.x = 0; input.touchMove.y = 0; stickBase.hidden = true; }
-  if (p.btn) { p.btn.classList.remove('down'); if (p.act === 'fire') touchAct('fire', false, p.btn); }
+  else if (p.kind === 'fire') {
+    clearTimeout(p.timer); clearTimeout(p.timer2);
+    if (!p.decided && game.state === 'play') input.firePressed = true; // quick tap: one shot
+    input.fire = false;
+  } else if (p.kind === 'wheel') {
+    clearTimeout(p.timer);
+    if (p.open) closeWheel(p, e.type === 'pointerup');
+    else if (game.state === 'play' && performance.now() - p.t0 < 300) startReload(); // tap: reload
+  }
 }
 touchEl.addEventListener('pointerup', endPointer);
 touchEl.addEventListener('pointercancel', endPointer);
 document.addEventListener('gesturestart', (e) => e.preventDefault());
-if (IS_TOUCH) {
-  const tap = (el, fn) => el.addEventListener('pointerdown', (e) => { if (game.state !== 'play') return; e.preventDefault(); e.stopPropagation(); fn(e); });
-  tap($('ammoMag').parentNode, () => startReload());
-  tap($('gunName'), () => cycleWeapon(1));
-  tap($('slots'), (e) => { const s = e.target.closest('.slot'); if (s) switchWeapon(+s.dataset.i); });
-}
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -616,7 +722,7 @@ function update(dt) {
   updateRigCorpses(dt);
   updateWaves(dt);
   updateInteraction(dt);
-  if (IS_TOUCH) updateUseButton();
+  if (IS_TOUCH) { updateUseButton(); updateWheelButton(); }
   if (game.chest) {
     const c = game.chest;
     c.t += dt;
@@ -643,6 +749,7 @@ function frame(now) {
   let dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (game.hitstop > 0) { game.hitstop -= dt; dt *= 0.12; }
+  if (wheelOpen) dt *= 0.3;
   if (game.state === 'play') update(dt);
   else if (game.state === 'menu') updateMenu(dt);
   renderer.clear();

@@ -170,18 +170,32 @@
   #stickKnob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 210, 58, 0.75); border: 2px solid var(--ink); }
   .tb { position: absolute; display: grid; place-items: center; border-radius: 50%; border: 3px solid var(--ink); background: rgba(28, 17, 10, 0.55); color: var(--paper); font: 15px/1 var(--display); letter-spacing: 0.06em; box-shadow: 2px 2px 0 var(--ink); }
   .tb.down, .tb.on { background: rgba(255, 210, 58, 0.85); color: var(--ink); }
-  /* Right thumb rests on JUMP; FIRE sits one short reach up-left of it. */
-  .tb[data-act="jump"] { width: 72px; height: 72px; right: calc(20px + var(--sar)); bottom: calc(24px + var(--sab)); font-size: 17px; }
-  .tb[data-act="fire"] { width: 96px; height: 96px; right: calc(110px + var(--sar)); bottom: calc(66px + var(--sab)); font-size: 24px; background: rgba(196, 80, 43, 0.75); }
-  .tb[data-act="ads"] { width: 60px; height: 60px; right: calc(26px + var(--sar)); bottom: calc(118px + var(--sab)); }
-  .tb[data-act="gren"] { width: 46px; height: 46px; right: calc(34px + var(--sar)); bottom: calc(194px + var(--sab)); font-size: 12px; }
-  .tb[data-act="skill"] { width: 46px; height: 46px; right: calc(96px + var(--sar)); bottom: calc(184px + var(--sab)); font-size: 11px; }
-  .tb[data-act="use"] { width: 64px; height: 64px; right: calc(222px + var(--sar)); bottom: calc(150px + var(--sab)); border-color: var(--hazard); background: rgba(255, 210, 58, 0.85); color: var(--ink); font-size: 17px; }
+  /* Right thumb: the weapon wheel sits in the corner, FIRE one reach up-left of it, JUMP above it. */
+  #fireBtn { width: 100px; height: 100px; right: calc(112px + var(--sar)); bottom: calc(50px + var(--sab)); background: rgba(196, 80, 43, 0.75); align-content: center; gap: 2px; }
+  #fireBtn span { font-size: 25px; }
+  #fireBtn small { font: 600 11px/1 var(--body); letter-spacing: 0.08em; opacity: 0.85; }
+  #fireBtn.ads { background: rgba(255, 138, 28, 0.85); box-shadow: 0 0 0 4px rgba(255, 210, 58, 0.6), 2px 2px 0 var(--ink); }
+  .tb[data-act="jump"] { width: 64px; height: 64px; right: calc(24px + var(--sar)); bottom: calc(118px + var(--sab)); font-size: 16px; }
+  .tb[data-act="use"] { width: 64px; height: 64px; right: calc(232px + var(--sar)); bottom: calc(140px + var(--sab)); border-color: var(--hazard); background: rgba(255, 210, 58, 0.85); color: var(--ink); font-size: 17px; }
+  #wheelBtn { position: absolute; right: calc(14px + var(--sar)); bottom: calc(14px + var(--sab)); width: 92px; height: 92px; border-radius: 50%; border: 4px solid var(--paper); background: rgba(28, 17, 10, 0.7); box-shadow: 2px 2px 0 var(--ink); display: grid; place-items: center; align-content: center; text-align: center; color: var(--paper); }
+  #wheelBtn i { font: 700 10px/1 var(--body); font-style: normal; letter-spacing: 0.08em; text-transform: uppercase; max-width: 74px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  #wheelBtn b { font: 30px/1 var(--display); font-weight: 400; }
+  #wheelBtn small { font: 600 11px/1 var(--body); opacity: 0.8; }
+  #wheelBtn.empty b { color: #ff6a5a; }
+  #wheelBtn.down { background: rgba(255, 210, 58, 0.35); }
+  #wheel { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 50%, rgba(28, 17, 10, 0.6), rgba(28, 17, 10, 0.25) 60%); }
+  .whint { position: absolute; transform: translate(-50%, -50%); font: 600 12px/1.2 var(--body); letter-spacing: 0.12em; text-align: center; color: var(--paper); opacity: 0.8; }
+  .wslot { position: absolute; width: 74px; height: 74px; margin: -37px 0 0 -37px; border-radius: 50%; border: 3px solid rgba(255, 243, 220, 0.4); background: rgba(28, 17, 10, 0.85); color: var(--paper); display: grid; place-items: center; align-content: center; text-align: center; box-shadow: 2px 2px 0 var(--ink); transition: transform 0.08s; }
+  .wslot b { font: 15px/1 var(--display); font-weight: 400; letter-spacing: 0.04em; }
+  .wslot small { font: 600 10px/1.1 var(--body); opacity: 0.85; }
+  .wslot.cur { box-shadow: 0 0 0 3px var(--paper), 2px 2px 0 var(--ink); }
+  .wslot.sel { transform: scale(1.18); background: rgba(255, 210, 58, 0.92); color: var(--ink); }
+  .wslot.off { opacity: 0.4; }
   #stickBase.sprint { border-color: var(--hazard); }
   #stickBase.sprint #stickKnob { background: rgba(255, 138, 28, 0.9); }
 
   @media (pointer: coarse) {
-    .br { right: calc(232px + var(--sar)); bottom: calc(12px + var(--sab)); transform: scale(0.6); transform-origin: bottom right; pointer-events: auto; }
+    .br { display: none; }
     .slot { padding: 10px 12px; font-size: 16px; }
     .br .kit { display: none; }
     .bl { transform: scale(0.85); transform-origin: bottom left; bottom: calc(10px + var(--sab)); }
@@ -261,12 +275,11 @@
 
 <div id="touch" hidden>
   <div id="stickBase" hidden><div id="stickKnob"></div></div>
-  <div class="tb" data-act="fire">FIRE</div>
+  <div class="tb" data-act="fire" id="fireBtn"><span>FIRE</span><small id="fireHint">◀ AIM</small></div>
   <div class="tb" data-act="jump">JUMP</div>
-  <div class="tb" data-act="ads">AIM</div>
-  <div class="tb" data-act="gren">GREN</div>
-  <div class="tb" data-act="skill">SKILL</div>
   <div class="tb" data-act="use" id="useBtn" hidden>USE</div>
+  <div id="wheelBtn" data-act="wheel"><i id="wbName">PISTOL</i><b id="wbAmmo">12</b><small id="wbPool">120</small></div>
+  <div id="wheel" hidden></div>
 </div>
 
 <div id="menu" class="screen">
@@ -285,8 +298,8 @@
     </div>
     <div class="controls" id="ctlTouch" hidden>
       <div><b>LEFT</b>Drag to move, push all the way to sprint</div><div><b>RIGHT</b>Drag to aim</div>
-      <div><b>FIRE</b>Hold to shoot, drag to aim</div><div><b>AIM</b>Toggle zoom</div>
-      <div><b>AMMO</b>Tap the ammo count to reload</div><div><b>GUNS</b>Tap a weapon slot to switch</div>
+      <div><b>FIRE</b>Tap to shoot, hold for automatics, drag to look</div><div><b>JUMP</b>Jump</div>
+      <div><b>FIRE</b>Swipe left to aim, right for hip fire</div><div><b>WHEEL</b>Tap to reload, hold and slide for guns, grenade, turret</div>
     </div>
     <div class="legend">
       <span style="color:#e9e6df">Common</span><span style="color:#42e04f">Uncommon</span><span style="color:#3e8eff">Rare</span><span style="color:#b552ff">Epic</span><span style="color:#ff8a1c">Legendary</span>

@@ -2,13 +2,13 @@
 // Enemies: models, AI, damage, death and explosions.
 
 const ENEMY_DEFS = {
-  bandit: { name: 'Bandit', body: 'human', hp: 52, shield: 0, hpType: 'flesh', speed: 4.4, xp: 10, ai: 'ranged', dmg: 6, burst: 3, burstGap: 0.16, cd: [1.5, 2.6], projSpeed: 34, spread: 0.05, range: [9, 24], scale: 1, look: { shirt: 0xb3753a, pants: 0x4a3b2e, skin: 0xe0a77a, mask: 0xe8e2d0, weapon: 'gun' } },
-  marauder: { name: 'Marauder', body: 'human', hp: 58, shield: 45, hpType: 'flesh', speed: 4.2, xp: 16, ai: 'ranged', dmg: 7, burst: 4, burstGap: 0.12, cd: [1.6, 2.6], projSpeed: 38, spread: 0.045, range: [10, 26], scale: 1.05, look: { shirt: 0x3f5b7a, pants: 0x2e2e33, skin: 0xd09a72, mask: 0x30302c, weapon: 'gun', goggles: true } },
+  bandit: { name: 'Bandit', body: 'human', hp: 52, shield: 0, hpType: 'flesh', speed: 4.4, xp: 10, ai: 'ranged', dmg: 6, burst: 4, burstGap: 0.14, cd: [0.9, 1.7], projSpeed: 34, spread: 0.05, range: [9, 24], scale: 1, look: { shirt: 0xb3753a, pants: 0x4a3b2e, skin: 0xe0a77a, mask: 0xe8e2d0, weapon: 'gun' } },
+  marauder: { name: 'Marauder', body: 'human', hp: 58, shield: 45, hpType: 'flesh', speed: 4.2, xp: 16, ai: 'ranged', dmg: 7, burst: 5, burstGap: 0.11, cd: [1.0, 1.8], projSpeed: 38, spread: 0.045, range: [10, 26], scale: 1.05, look: { shirt: 0x3f5b7a, pants: 0x2e2e33, skin: 0xd09a72, mask: 0x30302c, weapon: 'gun', goggles: true } },
   psycho: { name: 'Psycho', body: 'human', hp: 62, shield: 0, hpType: 'flesh', speed: 7.6, xp: 12, ai: 'melee', dmg: 14, scale: 1, look: { shirt: null, pants: 0x6b2a20, skin: 0xe6b08a, mask: 0xf3efe2, weapon: 'axe', stripes: true } },
   suicide: { name: 'Suicide Psycho', body: 'human', hp: 34, shield: 0, hpType: 'flesh', speed: 8.4, xp: 10, ai: 'suicide', dmg: 36, scale: 0.95, look: { shirt: null, pants: 0x3a3a3a, skin: 0xe6b08a, mask: 0xd13a2a, weapon: 'bomb' } },
   skag: { name: 'Skag Pup', body: 'skag', hp: 40, shield: 0, hpType: 'flesh', speed: 9.5, xp: 8, ai: 'skag', dmg: 8, scale: 0.75, look: { hide: 0xc9a77a, belly: 0xe8cfa0 } },
   skagAdult: { name: 'Adult Skag', body: 'skag', hp: 75, shield: 0, hpType: 'armor', speed: 8.2, xp: 18, ai: 'skag', dmg: 14, scale: 1.15, look: { hide: 0x8e7a5a, belly: 0xc9b088 } },
-  nomad: { name: 'Badass Nomad', body: 'human', hp: 230, shield: 90, hpType: 'armor', speed: 3.3, xp: 70, ai: 'ranged', dmg: 5, burst: 1, pellets: 6, burstGap: 0.1, cd: [1.5, 2.2], projSpeed: 40, spread: 0.1, range: [5, 15], scale: 1.4, badass: true, look: { shirt: 0x5a4a3a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x222222, weapon: 'gun', armor: true } },
+  nomad: { name: 'Badass Nomad', body: 'human', hp: 230, shield: 90, hpType: 'armor', speed: 3.3, xp: 70, ai: 'ranged', dmg: 5, burst: 1, pellets: 6, burstGap: 0.1, cd: [1.1, 1.7], projSpeed: 40, spread: 0.1, range: [5, 15], scale: 1.4, badass: true, look: { shirt: 0x5a4a3a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x222222, weapon: 'gun', armor: true } },
   boss: { name: 'Krag the Scrapjaw', body: 'human', hp: 2600, shield: 900, hpType: 'armor', speed: 3.8, xp: 600, ai: 'boss', dmg: 22, projSpeed: 30, scale: 2.4, boss: true, look: { shirt: 0x6a3a2a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x8a8a8a, weapon: 'hammer', armor: true, jaw: true } },
 };
 
@@ -378,7 +378,7 @@ function chaseDir(e, tgt, fwd, side, dt) {
 // distance; after a combo they often back off and let another one in. Only a few gunners fire at once.
 const tactics = { shooters: 0, maxShooters: 2, engaged: 0, maxEngaged: 2 };
 function tacticsFrame() {
-  tactics.maxShooters = Math.min(5, 2 + Math.floor(game.wave / 3));
+  tactics.maxShooters = Math.min(6, 3 + Math.floor(game.wave / 3));
   tactics.maxEngaged = Math.min(4, 2 + Math.floor(game.wave / 5));
   let shooters = 0, engaged = 0;
   const waiting = [];
@@ -435,7 +435,7 @@ function pickSpot(e, tgt, retreat) {
   // walls, crates, cars and rocks (on the far side from the player, or beside them to peek out)
   const cands = [];
   for (let i = 0; i < 10; i++) {
-    const a = ang0 + (retreat ? rand(-0.9, 0.9) : rand(-1.2, 1.2) * (i < 3 ? 0.4 : 1));
+    const a = ang0 + (retreat ? rand(-0.9, 0.9) : rand(-0.8, 0.8) * (i < 4 ? 0.35 : 1));
     const r = retreat ? Math.max(cur, e.prefDist) + rand(2, 8) : e.prefDist + rand(-2.5, 2.5);
     cands.push([tgt.pos.x + Math.sin(a) * r, tgt.pos.z + Math.cos(a) * r]);
   }
@@ -520,18 +520,19 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
     steerTo(e, e.spot, dt, _b);
     // long moves away from the player: turn and run; short ones: backpedal or side-step while facing them
     // long moves: turn and run; short ones: step there while still facing the player
-    e.faceMove = sd > 3.5 && _b.dot(fwd) < 0.75;
+    e.faceMove = sd > 7 && _b.dot(fwd) < 0.3;
     _want.copy(_b).multiplyScalar(sp);
     canFire = canFire && e.moveShoot && !e.faceMove;
-    if (sd < 1.2 || e.tacT <= 0) { e.tac = 'hold'; e.tacT = rand(2.5, 5.5); }
+    if (sd < 1.2 || e.tacT <= 0) { e.tac = 'hold'; e.tacT = rand(4.5, 8); }
   } else {
     // hold the spot: short side steps, drift back if pushed off it
     if (sd > 2.5) { steerTo(e, e.spot, dt, _b); _want.copy(_b).multiplyScalar(sp * 0.6); }
     else _want.copy(side).multiplyScalar(e.strafeDir * Math.min(sp * 0.35, 1.0));
     if (e.tacT <= 0 || dist < rMin * 0.7 || dist > rMax + 4 || e.noLosT > 1.5) {
-      pickSpot(e, tgt, false); e.tac = 'move'; e.tacT = 8; e.moveShoot = Math.random() < 0.4;
+      pickSpot(e, tgt, false); e.tac = 'move'; e.tacT = 8; e.moveShoot = Math.random() < 0.75;
     }
   }
+  e.aiming = e.burstLeft > 0 || (e.los && !e.faceMove && e.tac !== 'retreat' && dist < rMax + 12);
   if (e.burstLeft > 0) {
     if (!e.los) { e.burstLeft = 0; return; }
     e.burstT -= dt;

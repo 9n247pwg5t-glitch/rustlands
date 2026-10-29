@@ -312,7 +312,7 @@ function updateWeapon(dt) {
   const dahlBurst = g.burstAds && player.adsK > 0.6;
   let trigger = false;
   if (player.burstLeft > 0) trigger = true;
-  else if (g.auto && !dahlBurst) trigger = input.fire;
+  else if (g.auto && !dahlBurst) trigger = input.fire || player.triggerQueue > 0;
   else trigger = player.triggerQueue > 0;
   if (!trigger) return;
   player.triggerQueue = 0;

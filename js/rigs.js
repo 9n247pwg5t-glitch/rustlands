@@ -35,6 +35,8 @@ const RIG_LOOKS = {
   boss: { bases: ['brute'], pod: true }, // the Brute carries his own battle axe
 };
 
+const RIG_UPPER = /^mixamorig(Spine1|Spine2|Neck|Head|(Left|Right)(Shoulder|Arm|ForeArm|Hand))$/;
+
 function rigOutlineMaterial(thick) {
   return new THREE.ShaderMaterial({
     uniforms: { thick: { value: thick }, color: { value: new THREE.Color(0x1c110a) } },
@@ -133,7 +135,18 @@ function prepareRigBase(gltf) {
     });
     clips[name] = new THREE.AnimationClip(name, c.d, tracks);
   }
-  return { scene, fit, clips, mats, headSize };
+  // The upper body's aiming pose (rifle shouldered), sampled from Shoot Rifle, so gunners can keep
+  // aiming while their legs walk, side-step or backpedal.
+  const aimPose = {}, rest = [];
+  scene.traverse((o) => { if (o.isBone) rest.push([o, o.position.clone(), o.quaternion.clone(), o.scale.clone()]); });
+  const mixer = new THREE.AnimationMixer(scene);
+  mixer.clipAction(clips['Shoot Rifle']).play();
+  mixer.setTime(0.1);
+  scene.traverse((o) => { if (o.isBone && RIG_UPPER.test(o.name)) aimPose[o.name] = o.quaternion.clone(); });
+  mixer.stopAllAction(); mixer.uncacheRoot(scene);
+  for (const [o, p, q, sc] of rest) { o.position.copy(p); o.quaternion.copy(q); o.scale.copy(sc); }
+  scene.updateMatrixWorld(true);
+  return { scene, fit, clips, mats, headSize, aimPose };
 }
 
 const _rigMatCache = new Map();
@@ -273,7 +286,9 @@ function makeRigEnemy(key, def) {
   if (look.armor) pinToBone(bones.spine, rigArmor());
   if (look.pod) pinToBone(bones.spine, rigPod());
   const mixer = new THREE.AnimationMixer(model);
-  const rig = { model, mixer, clips: base.clips, bones, actions: {}, loop: null, one: null, lastState: null, baseName };
+  const aimBones = [];
+  model.traverse((o) => { if (o.isBone && base.aimPose[o.name]) aimBones.push([o, base.aimPose[o.name]]); });
+  const rig = { model, mixer, clips: base.clips, bones, actions: {}, loop: null, one: null, lastState: null, baseName, aimBones, aimW: 0 };
   return { root, rig };
 }
 
@@ -335,6 +350,10 @@ function animateRig(e, dt) {
     else rigLocomotion(e, R, dt);
   }
   R.mixer.update(dt);
+  // gunners hold the rifle up while moving, blended in and out
+  const wantAim = e.aiming && !R.one && R.mode !== 'idle' && (e.def.ai === 'ranged' || e.def.ai === 'boss') && e.state === 'move';
+  R.aimW = clamp(R.aimW + (wantAim ? dt : -dt) * 6, 0, 1);
+  if (R.aimW > 0) for (const [b, q] of R.aimBones) b.quaternion.slerp(q, R.aimW);
   if (e.flinchCrit && fl > 0) R.bones.head.rotation.x -= fl * 2.2;
 }
 

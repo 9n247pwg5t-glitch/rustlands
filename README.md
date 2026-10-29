@@ -44,10 +44,12 @@ It also works on GitHub Pages: turn Pages on for the `main` branch.
 | Action | Keyboard / mouse | Touch |
 | --- | --- | --- |
 | Move / sprint / jump | WASD / Shift / Space | Left stick (push all the way to sprint) / JUMP |
-| Aim / shoot / zoom | Mouse / Left click / Right click | Drag right side / FIRE / AIM |
-| Reload / swap | R / 1–4 or wheel | Tap ammo count / tap a weapon slot |
+| Look / shoot | Mouse / Left click | Drag right side / FIRE: tap to shoot, hold for automatics (and drag to look) |
+| Aim down sights | Right click | Swipe FIRE left to aim, right for hip fire |
+| Reload | R | Tap the weapon wheel |
+| Switch weapon / grenade / turret | 1–4 or mouse wheel / G / Q | Hold the weapon wheel and slide toward a gun, the grenade or the turret (time slows while it's open) |
 | Interact (pick up, open, buy) | E | Pop-up TAKE / OPEN / BUY button |
-| Grenade / melee / turret | G / F / Q | GREN / — / SKILL |
+| Melee | F | — |
 | Skip intermission / pause | N / Esc | II button |
 
 ## Code layout
