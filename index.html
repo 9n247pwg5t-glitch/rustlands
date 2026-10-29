@@ -185,6 +185,13 @@
     #card { left: calc(12px + var(--sal)); top: 50%; transform: translateY(-50%) scale(0.78); transform-origin: left center; }
     #prompt { top: 56%; }
   }
+  /* Portrait phones: weapon panel moves above the health bars, compass sits under the wave info. */
+  @media (pointer: coarse) and (orientation: portrait) {
+    .tl { transform: scale(0.8); transform-origin: top left; }
+    .br { top: auto; right: auto; bottom: calc(210px + var(--sab)); left: calc(14px + var(--sal)); justify-items: start; text-align: left; transform-origin: bottom left; }
+    #hud #log { top: calc(132px + var(--sat)); }
+    #target, #boss { top: calc(126px + var(--sat)); }
+  }
   @media (max-width: 700px) {
     .controls { grid-template-columns: minmax(0, 1fr); }
     #log { top: calc(96px + var(--sat)); }

@@ -13,6 +13,15 @@ function sizeOverlay() {
 sizeOverlay();
 window.addEventListener('resize', sizeOverlay);
 
+// Safe-area insets in px (the overlay canvas is fixed to the full screen).
+const SAFE = { top: 0 };
+const saProbe = document.createElement('div');
+saProbe.style.cssText = 'position:fixed;left:0;top:0;width:1px;visibility:hidden;pointer-events:none;height:env(safe-area-inset-top,0px)';
+document.body.appendChild(saProbe);
+function readSafe() { SAFE.top = saProbe.offsetHeight || 0; }
+readSafe();
+window.addEventListener('resize', readSafe);
+
 const hud = (() => {
   const nums = [], hurtArcs = [], logs = [];
   let marker = 0, markerKind = 0, bannerT = 0, xpFloat = 0, xpFloatT = 0;
@@ -221,15 +230,22 @@ const hud = (() => {
       }
 
       // compass
-      const cw = Math.min(380, W - 140), cxl = (W - cw) / 2, cyc = 22 + (parseFloat(getComputedStyle(document.documentElement).paddingTop) || 0);
-      octx.fillStyle = 'rgba(28,17,10,0.55)';
-      octx.fillRect(cxl, cyc - 12, cw, 24);
+      const portrait = H > W;
+      const cw = portrait ? Math.min(240, W - 60) : Math.min(IS_TOUCH ? 300 : 380, W * 0.36), cxl = (W - cw) / 2;
+      const cyc = SAFE.top + (portrait ? 104 : 22);
+      // a thin inked rule with fading ends instead of a solid bar
+      const grad = octx.createLinearGradient(cxl, 0, cxl + cw, 0);
+      grad.addColorStop(0, 'rgba(255,243,220,0)'); grad.addColorStop(0.15, 'rgba(255,243,220,0.75)');
+      grad.addColorStop(0.85, 'rgba(255,243,220,0.75)'); grad.addColorStop(1, 'rgba(255,243,220,0)');
+      octx.fillStyle = 'rgba(28,17,10,0.5)'; octx.fillRect(cxl, cyc + 9, cw, 4);
+      octx.fillStyle = grad; octx.fillRect(cxl, cyc + 10, cw, 2);
+      octx.lineWidth = 3; octx.strokeStyle = '#1c110a';
       const k = cw / (Math.PI * 0.9);
       const mark = (a, label, color, size) => {
         let rel = a - player.yaw; rel = Math.atan2(Math.sin(rel), Math.cos(rel));
         const x = cx - rel * k;
         if (x < cxl + 6 || x > cxl + cw - 6) return;
-        if (label) { octx.font = `${size}px Bangers, Impact, sans-serif`; octx.textAlign = 'center'; octx.fillStyle = color; octx.fillText(label, x, cyc + 6); }
+        if (label) { octx.font = `${size}px Bangers, Impact, sans-serif`; octx.textAlign = 'center'; octx.strokeText(label, x, cyc + 6); octx.fillStyle = color; octx.fillText(label, x, cyc + 6); }
         else { octx.fillStyle = color; octx.beginPath(); octx.moveTo(x, cyc + 9); octx.lineTo(x - 5, cyc); octx.lineTo(x + 5, cyc); octx.fill(); }
       };
       mark(0, 'N', '#ffd23a', 18); mark(Math.PI, 'S', '#fff3dc', 16); mark(-Math.PI / 2, 'E', '#fff3dc', 16); mark(Math.PI / 2, 'W', '#fff3dc', 16);

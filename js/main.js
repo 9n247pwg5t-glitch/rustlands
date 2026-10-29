@@ -326,7 +326,7 @@ function updateCamera(dt, moving, sprint) {
   const wantAds = input.ads && g && player.reloadT <= 0 && !sprint;
   player.adsK = clamp(player.adsK + (wantAds ? dt : -dt) * 7, 0, 1);
   const zoom = g ? g.zoom : 1;
-  const fov = BASE_FOV / lerp(1, zoom, player.adsK) + (sprint ? 6 : 0);
+  const fov = baseFov() / lerp(1, zoom, player.adsK) + (sprint ? 6 : 0);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = lerp(camera.fov, fov, Math.min(1, dt * 14)); camera.updateProjectionMatrix(); }
   const bobY = moving ? Math.abs(Math.sin(player.bob)) * 0.05 * (1 - player.adsK) : 0;
   camera.position.set(player.pos.x, player.eyeY() + bobY, player.pos.z);
@@ -417,7 +417,7 @@ function startGame() {
   if (game.chest) { scene.remove(game.chest.group); game.chest = null; }
   resetPlayer();
   Object.assign(game, { wave: 0, phase: 'intermission', interT: 6, toSpawn: [], waveTotal: 0, waveKilled: 0, enemyLevel: 1 });
-  camera.fov = BASE_FOV; camera.updateProjectionMatrix();
+  camera.fov = baseFov(); camera.updateProjectionMatrix();
   game.state = 'play';
   show(null);
   lockPointer();

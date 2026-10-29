@@ -721,9 +721,10 @@ function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h);
   camera.aspect = w / h; camera.updateProjectionMatrix();
-  vmCamera.aspect = w / h; vmCamera.updateProjectionMatrix();
+  vmCamera.aspect = w / h; vmCamera.fov = w < h ? 82 : 60; vmCamera.updateProjectionMatrix();
 }
 window.addEventListener('resize', onResize);
+onResize();
 
 // ---------------------------------------------------------------------------
 // Navigation: a walkability grid over the arena plus a flow field toward the

@@ -10,7 +10,8 @@ const input = {
   jumpPressed: false, sprint: false,
 };
 
-const BASE_FOV = 75;
+// Portrait screens get a wider vertical FOV so the horizontal view isn't a slit.
+const baseFov = () => (camera.aspect < 1 ? 92 : 75);
 const player = {
   pos: new THREE.Vector3(0, 0, 12), vel: new THREE.Vector3(),
   get vy() { return this.vel.y; }, set vy(v) { this.vel.y = v; },
@@ -158,7 +159,7 @@ function updateViewmodel(dt, moving) {
   const bobAmt = moving && player.grounded ? 1 : 0;
   const bx = Math.sin(player.bob) * 0.012 * bobAmt * (1 - k * 0.8);
   const by = Math.abs(Math.cos(player.bob)) * 0.012 * bobAmt * (1 - k * 0.8);
-  let x = lerp(0.27, 0.0, k) + bx, y = lerp(-0.25, -0.1, k) - by, z = lerp(-0.58, -0.48, k);
+  let x = lerp(0.27 * clamp(camera.aspect / 1.6, 0.4, 1), 0.0, k) + bx, y = lerp(-0.25, -0.1, k) - by, z = lerp(-0.58, -0.48, k);
   let rx = 0, ry = 0, rz = 0;
   // sway from looking around
   ry += clamp(input.lookDX * 0.0015, -0.08, 0.08);
