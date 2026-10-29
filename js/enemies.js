@@ -513,15 +513,15 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
     _want.copy(side).multiplyScalar(e.strafeDir * sp * 0.4);
   } else if (e.tac === 'retreat') {
     canFire = false;
-    if (sd > 1) { steerTo(e, e.spot, dt, _b); _want.copy(_b).multiplyScalar(sp * 1.15); e.faceMove = sd > 2; }
+    if (sd > 1) { steerTo(e, e.spot, dt, _b); _want.copy(_b).multiplyScalar(sp * 1.15); e.faceMove = sd > 2.5; }
     const recharged = e.maxShield ? e.shield >= e.maxShield * 0.8 : e.tacT <= 0;
     if ((sd <= 1 && recharged) || e.tacT <= -5) { e.tac = 'move'; pickSpot(e, tgt, false); e.tacT = 8; }
   } else if (e.tac === 'move') {
     steerTo(e, e.spot, dt, _b);
     // long moves away from the player: turn and run; short ones: backpedal or side-step while facing them
-    const away = _b.dot(fwd) < -0.35;
-    e.faceMove = away && sd > 4;
-    _want.copy(_b).multiplyScalar(away && !e.faceMove ? Math.min(sp, 1.6) : sp);
+    // long moves: turn and run; short ones: step there while still facing the player
+    e.faceMove = sd > 3.5 && _b.dot(fwd) < 0.75;
+    _want.copy(_b).multiplyScalar(sp);
     canFire = canFire && e.moveShoot && !e.faceMove;
     if (sd < 1.2 || e.tacT <= 0) { e.tac = 'hold'; e.tacT = rand(2.5, 5.5); }
   } else {
@@ -646,6 +646,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   if (!navWalkable(ox, oz) || Math.hypot(ox, oz) > ARENA_R - 3) { e.orbitDir = -e.orbitDir; e.orbitAng += e.orbitDir * 0.3; }
   _b.set(ox, 0, oz);
   const td = steerTo(e, _b, dt, _a);
+  e.faceMove = td > 4;
   _want.copy(_a).multiplyScalar(sp * (td > 3 ? 0.8 : 0.45));
   if (e.rig && ai === 'melee' && e.tauntCd <= 0 && td < 3 && dist < 16 && Math.random() < dt * 0.4) {
     e.tauntCd = rand(7, 12);
@@ -713,6 +714,11 @@ function updateEnemy(e, dt) {
   if (e.state !== 'leap' && e.state !== 'charge' && e.state !== 'dash') {
     const k = e.grounded ? 1 - Math.exp(-8 * dt) : 1 - Math.exp(-1 * dt);
     e.vel.x = lerp(e.vel.x, _want.x, k); e.vel.z = lerp(e.vel.z, _want.z, k);
+    if (e.rig && e.grounded && (e.state === 'move' || e.state === 'swing')) {
+      rigClampVelocity(e);
+      // settle instead of creeping when there's nowhere to go
+      if (Math.hypot(_want.x, _want.z) < 0.3) { e.vel.x *= Math.exp(-10 * dt); e.vel.z *= Math.exp(-10 * dt); }
+    }
   } else if (e.state === 'charge' || e.state === 'dash') { e.vel.x = _want.x; e.vel.z = _want.z; }
   e.pos.x += e.vel.x * dt; e.pos.z += e.vel.z * dt;
   e.vy -= 22 * dt;
@@ -842,7 +848,7 @@ function updateBoss(e, dt, tgt, dist, fwd, side, sp, chase) {
     }
   } else if (e.state === 'charge') {
     e.stateT -= dt;
-    _want.copy(e.chargeDir).multiplyScalar(17);
+    _want.copy(e.chargeDir).multiplyScalar(12.5);
     if (Math.random() < 0.5) particle(e.pos.clone().setY(e.pos.y + 0.2), new THREE.Vector3(rand(-1, 1), 1, rand(-1, 1)), 0xc9a070, 0.4, 0.6, -0.1);
     if (!e.chargeHit && dist < 2.8 && !tgt.isTurret) { e.chargeHit = true; player.hurt(e.def.dmg * 1.3 * e.dmgScale, e.pos); player.vel.addScaledVector(e.chargeDir, 14); player.vy = 6; game.shake(0.8); }
     if (e.stateT <= 0) e.state = 'move';

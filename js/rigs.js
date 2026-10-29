@@ -330,7 +330,7 @@ function animateRig(e, dt) {
   }
   if (R.one && R.one.action.time >= R.one.end - 1e-3 && !R.one.keep) R.one = null;
   if (!R.one) {
-    if (e.state === 'charge') rigLoop(R, 'Running', 1.7);
+    if (e.state === 'charge') rigLoop(R, 'Rifle Run', clamp(Math.hypot(e.vel.x, e.vel.z) / (clipSpeed('Rifle Run', 4) * e.def.scale), 0.6, 1.4));
     else if (e.state === 'rockets') rigLoop(R, 'Shoot Rifle', 0);
     else rigLocomotion(e, R, dt);
   }
@@ -347,35 +347,66 @@ function clipSpeed(name, fallback) {
 }
 function clipSide(name) { const c = RIG.data.clips[name]; return c && c.v && c.v[0] > 0 ? -1 : 1; }
 
+// Gait per kind of enemy: the clip for each direction and the fastest it may be played.
+// ("Running" circles on the spot, so straight runs use Rifle Run.)
+const GAIT = {
+  gun: { fwd: ['Rifle Run', 1.35], back: ['Backwards Rifle Walk', 2.0], side: ['Rifle Side Step', 2.2] },
+  melee: { fwd: ['Rifle Run', 1.4], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7] },
+  suicide: { fwd: ['Injured Run', 1.75], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7] },
+};
+const gaitOf = (e) => (e.def.ai === 'ranged' || e.def.ai === 'boss' ? GAIT.gun : e.def.ai === 'suicide' ? GAIT.suicide : GAIT.melee);
+const gaitMax = (e, g) => clipSpeed(g[0], 1) * g[1] * e.def.scale;
+
+// Keep a rigged enemy no faster than its legs can carry it in the direction it's moving
+// relative to where it faces, so the feet never skate. Called on normal movement only.
+function rigClampVelocity(e) {
+  const G = gaitOf(e);
+  const fx = Math.sin(e.yaw), fz = Math.cos(e.yaw);
+  let vf = e.vel.x * fx + e.vel.z * fz, vr = -e.vel.x * fz + e.vel.z * fx;
+  const fMax = gaitMax(e, G.fwd), bMax = gaitMax(e, G.back), sMax = gaitMax(e, G.side);
+  if (Math.abs(vr) > Math.abs(vf)) {
+    vr = clamp(vr, -sMax, sMax);
+    vf = clamp(vf, -bMax * 0.3, fMax * 0.15);
+  } else if (vf >= 0) {
+    vf = Math.min(vf, fMax);
+    vr = clamp(vr, -sMax * 0.5, sMax * 0.5);
+  } else {
+    vf = Math.max(vf, -bMax);
+    vr = clamp(vr, -sMax * 0.3, sMax * 0.3);
+  }
+  e.vel.x = fx * vf - fz * vr;
+  e.vel.z = fz * vf + fx * vr;
+}
+
 // Pick forward, backward or sideways movement from the velocity relative to where the body faces,
 // with playback speed matched to the ground speed (side steps play in reverse for the other side).
 function rigLocomotion(e, R, dt) {
   const gun = e.def.ai === 'ranged' || e.def.ai === 'boss';
+  const G = gaitOf(e), sc = e.def.scale;
   const fx = Math.sin(e.yaw), fz = Math.cos(e.yaw);
   const vf = e.vel.x * fx + e.vel.z * fz;
   const vr = -e.vel.x * fz + e.vel.z * fx;
   const speed = Math.hypot(vf, vr);
-  let mode = speed < 0.6 ? 'idle' : Math.abs(vr) > Math.abs(vf) * 1.1 ? 'side' : vf > 0 ? 'fwd' : 'back';
+  let mode = speed < 0.35 * sc ? 'idle' : Math.abs(vr) > Math.abs(vf) ? 'side' : vf > 0 ? 'fwd' : 'back';
   // a short hold so brief wobbles don't flip clips back and forth
-  if (R.mode && mode !== R.mode) { R.modeT = (R.modeT || 0) + dt; if (R.modeT < 0.15) mode = R.mode; else R.modeT = 0; }
+  if (R.mode && mode !== R.mode) { R.modeT = (R.modeT || 0) + dt; if (R.modeT < 0.12) mode = R.mode; else R.modeT = 0; }
   else R.modeT = 0;
   R.mode = mode;
+  const play = (g, v) => {
+    const ts = clamp(Math.abs(v) / (clipSpeed(g[0], 1) * sc), 0.4, g[1]);
+    return ts;
+  };
   if (mode === 'idle') {
     if (gun) rigLoop(R, 'Shoot Rifle', 0); // aiming pose
     else rigLoop(R, 'Slap thigh Taunt', 1);
   } else if (mode === 'fwd') {
-    if (gun) {
-      if (vf < 2.4 && e.burstLeft > 0) rigLoop(R, 'Shoot Rifle', clamp(vf / clipSpeed('Shoot Rifle', 2), 0.5, 1.4)); // walk and shoot
-      else rigLoop(R, 'Rifle Run', clamp(vf / clipSpeed('Rifle Run', 4.1), 0.55, 1.5));
-    } else if (e.def.ai === 'suicide') rigLoop(R, 'Injured Run', clamp(vf / clipSpeed('Injured Run', 2.4), 0.6, 1.8));
-    else rigLoop(R, 'Running', clamp(vf / 6.5, 0.6, 1.7));
+    if (gun && e.burstLeft > 0 && vf < clipSpeed('Shoot Rifle', 1.9) * sc * 1.3) rigLoop(R, 'Shoot Rifle', play(['Shoot Rifle', 1.3], vf)); // walk and shoot
+    else rigLoop(R, G.fwd[0], play(G.fwd, vf));
   } else if (mode === 'back') {
-    const clip = gun ? 'Backwards Rifle Walk' : 'Run Backwards';
-    rigLoop(R, clip, clamp(-vf / clipSpeed(clip, 0.9), 0.6, 2.4));
+    rigLoop(R, G.back[0], play(G.back, vf));
   } else {
-    const clip = gun ? 'Rifle Side Step' : 'Goalkeeper Sidestep';
-    const ts = clamp(Math.abs(vr) / clipSpeed(clip, gun ? 0.4 : 2.2), 0.6, 2.4);
-    rigLoop(R, clip, Math.sign(vr) === clipSide(clip) ? ts : -ts);
+    const ts = play(G.side, vr);
+    rigLoop(R, G.side[0], Math.sign(vr) === clipSide(G.side[0]) ? ts : -ts);
   }
 }
 
