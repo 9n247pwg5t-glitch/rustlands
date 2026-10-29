@@ -21,7 +21,7 @@ const RIG_FILES = {
   psycho1: 'male-psychosis-enemy-1',
   ugly: 'male-psychosis-enemy-2-ugly',
   female: 'psycho-clown-showgirl', // the psycho clown showgirl
-  clown: 'brawler-clown',
+  heavy: 'male-psychosis-top-heavy',
   gangster: 'gangster-clown',
   brute: 'brute',
 };
@@ -32,7 +32,7 @@ const RIG_LOOKS = {
   marauder: { bases: ['gangster'], weapon: 'rifle' }, // the top-heavy gangster clown
   psycho: { bases: ['ugly', 'psycho1', 'female'], weapon: 'axe' },
   suicide: { bases: ['psycho1', 'ugly', 'female'], weapon: 'bomb' },
-  nomad: { bases: ['clown'], weapon: 'smg', dual: true }, // the clown brawler, an SMG in each fist
+  nomad: { bases: ['heavy'], weapon: 'smg', dual: true, style: 'clown' }, // the top-heavy brawler as a bloody clown, an SMG in each fist
   boss: { bases: ['brute'], pod: true }, // the Brute carries his own battle axe
 };
 
@@ -150,13 +150,14 @@ function prepareRigBase(gltf) {
   mixer.stopAllAction(); mixer.uncacheRoot(scene);
   for (const [o, p, q, sc] of rest) { o.position.copy(p); o.quaternion.copy(q); o.scale.copy(sc); }
   scene.updateMatrixWorld(true);
-  return { scene, fit, clips, mats, headSize, aimPose, gaitScale };
+  return { scene, fit, clips, mats, headSize, headLen, aimPose, gaitScale };
 }
 
 const _rigMatCache = new Map();
-function rigMaterial(baseName, info, tint) {
-  const key = baseName + '_' + info.id + '_' + tint;
+function rigMaterial(baseName, info, tint, style) {
+  const key = baseName + '_' + info.id + '_' + tint + '_' + style;
   let mat = _rigMatCache.get(key);
+  if (!mat && style === 'clown') { mat = clownMaterial(info); _rigMatCache.set(key, mat); }
   if (!mat) {
     mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: gradTex, skinning: true, vertexColors: info.vc });
     // lift dark textures a little so faces and clothes read under the cel shading
@@ -176,6 +177,120 @@ function rigMaterial(baseName, info, tint) {
     _rigMatCache.set(key, mat);
   }
   return mat;
+}
+
+// ---------------------------------------------------------------------------
+// Bloody clown restyle for a Mixamo body. Per-vertex data from the bind pose drives a shader:
+// aBind = position in metres, aZone = 0 torso, 1 legs, 2 arms, 3 head, aFace = position on the head
+// (x to its left, y up, z forward, in head lengths). Patterns live on the body, not the texture, so
+// they don't break at texture seams.
+const _attrScale = (a) => { if (!a.normalized) return 1; const r = a.array; return r instanceof Int16Array ? 1 / 32767 : r instanceof Uint16Array ? 1 / 65535 : r instanceof Int8Array ? 1 / 127 : r instanceof Uint8Array ? 1 / 255 : 1; };
+function prepareClownBody(base) {
+  if (base.clownReady) return;
+  const sc = base.scene;
+  sc.updateMatrixWorld(true);
+  const head = sc.getObjectByName('mixamorigHead');
+  const hc = head.getWorldPosition(new THREE.Vector3()).multiplyScalar(base.fit);
+  const L = base.headLen || 0.25;
+  hc.y += L * 0.45; // middle of the face
+  const v = new THREE.Vector3();
+  sc.traverse((m) => {
+    if (!m.isSkinnedMesh || m.userData.outline || m.geometry.attributes.aZone) return;
+    const g = m.geometry, P = g.attributes.position, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight;
+    const ps = _attrScale(P), ws = _attrScale(SW);
+    const names = m.skeleton.bones.map((b) => b.name);
+    const bind = new Float32Array(P.count * 3), zone = new Float32Array(P.count), face = new Float32Array(P.count * 3);
+    for (let i = 0; i < P.count; i++) {
+      v.set(P.getX(i) * ps, P.getY(i) * ps, P.getZ(i) * ps).applyMatrix4(m.matrixWorld).multiplyScalar(base.fit);
+      bind[i * 3] = v.x; bind[i * 3 + 1] = v.y; bind[i * 3 + 2] = v.z;
+      let best = 0, bw = -1;
+      for (let j = 0; j < 4; j++) {
+        const w = (j === 0 ? SW.getX(i) : j === 1 ? SW.getY(i) : j === 2 ? SW.getZ(i) : SW.getW(i)) * ws;
+        if (w > bw) { bw = w; best = j === 0 ? SI.getX(i) : j === 1 ? SI.getY(i) : j === 2 ? SI.getZ(i) : SI.getW(i); }
+      }
+      const n = names[best] || '';
+      const z = /Head|Neck/.test(n) ? 3 : /Arm|Shoulder|Hand/.test(n) ? 2 : /Leg|Foot|Toe|Hips/.test(n) ? 1 : 0;
+      zone[i] = z;
+      face[i * 3] = (v.x - hc.x) / L; face[i * 3 + 1] = (v.y - hc.y) / L; face[i * 3 + 2] = (v.z - hc.z) / L;
+    }
+    g.setAttribute('aBind', new THREE.BufferAttribute(bind, 3));
+    g.setAttribute('aZone', new THREE.BufferAttribute(zone, 1));
+    g.setAttribute('aFace', new THREE.BufferAttribute(face, 3));
+  });
+  base.clownReady = true;
+}
+const CLOWN_NOISE = `
+  float cHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+  float cNoise(vec3 x) {
+    vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(cHash(i), cHash(i + vec3(1,0,0)), f.x), mix(cHash(i + vec3(0,1,0)), cHash(i + vec3(1,1,0)), f.x), f.y),
+               mix(mix(cHash(i + vec3(0,0,1)), cHash(i + vec3(1,0,1)), f.x), mix(cHash(i + vec3(0,1,1)), cHash(i + vec3(1,1,1)), f.x), f.y), f.z);
+  }`;
+function clownMaterial(info) {
+  const mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: gradTex, skinning: true, vertexColors: info.vc });
+  if (info.alpha) { mat.alphaTest = 0.5; mat.side = THREE.DoubleSide; }
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'attribute vec3 aBind;\nattribute float aZone;\nattribute vec3 aFace;\nvarying vec3 vBind;\nvarying float vZone;\nvarying vec3 vFace;\n' +
+      sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBind = aBind; vZone = aZone; vFace = aFace;');
+    sh.fragmentShader = 'varying vec3 vBind;\nvarying float vZone;\nvarying vec3 vFace;\n' + CLOWN_NOISE + '\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      vec3 c = diffuseColor.rgb;
+      float lum = dot(c, vec3(0.299, 0.587, 0.114));
+      bool skin = c.r > c.b * 1.2 && c.r > 0.3 && c.g > c.b * 0.85;
+      vec3 cream = vec3(0.93, 0.89, 0.78), red = vec3(0.78, 0.07, 0.08);
+      if (vZone > 2.5) {
+        // greasepaint face: white over skin, a wide red grin, blue diamonds over the eyes
+        if (lum > 0.05) c = vec3(0.96, 0.95, 0.92) * (0.88 + lum * 0.25);
+        vec3 f = vFace;
+        if (f.z > -0.05) {
+          float grinY = -0.5 + 0.35 * f.x * f.x;
+          if (abs(f.x) < 0.42 && abs(f.y - grinY) < 0.07) c = red;
+          vec2 e = vec2(abs(f.x) - 0.2, f.y - 0.12);
+          if (abs(e.x) * 1.6 + abs(e.y) < 0.13) c = vec3(0.12, 0.25, 0.75);
+        }
+      } else if (!skin) {
+        if (vZone > 0.5 && vZone < 1.5) {
+          // baggy red and cream striped pants
+          float st = step(0.5, fract(vBind.x * 15.0 + vBind.z * 4.0));
+          c = mix(cream, red, st) * (0.7 + lum * 0.9);
+        } else if (vZone < 0.5) {
+          // grimy cream shirt with faded red dots
+          float dots = step(0.72, cNoise(vBind * 9.0));
+          c = mix(cream * (0.75 + lum * 0.6), red * 0.9, dots * 0.8);
+        }
+      }
+      // blood: splatter plus drips running down, heaviest on the front of the torso and hands
+      float n = cNoise(vBind * 5.5) * 0.6 + cNoise(vec3(vBind.x * 9.0, vBind.y * 2.2, vBind.z * 9.0)) * 0.4;
+      float heavy = (vZone < 0.5 || vZone > 1.5) ? 0.0 : 0.05;
+      float blood = smoothstep(0.53 + heavy, 0.6 + heavy, n);
+      c = mix(c, vec3(0.42, 0.02, 0.03) * (0.75 + lum * 0.4), blood * 0.92);
+      diffuseColor.rgb = c;
+      totalEmissiveRadiance += c * 0.22;`);
+  };
+  mat.customProgramCacheKey = () => 'rigClown';
+  return mat;
+}
+function rigClownGear() {
+  const g = new THREE.Group();
+  // red nose
+  const nose = new THREE.Mesh(new THREE.IcosahedronGeometry(0.045, 1), toon(0xd81a1a)); nose.position.set(0, 0.1, 0.13); addOutline(nose, 1.15); g.add(nose);
+  // spiky red hair tufts on both sides
+  for (const sx of [-1, 1]) for (let i = 0; i < 6; i++) {
+    const c = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 5), toon(0xc0141a));
+    const a = (i / 5 - 0.5) * 1.6;
+    c.position.set(sx * 0.13, 0.17 + Math.sin(a) * 0.07, -0.02 + Math.cos(a) * 0.04 - 0.04);
+    c.rotation.set(Math.sin(a) * 0.6, 0, -sx * (1.0 + Math.cos(a) * 0.3));
+    addOutline(c, 1.1); g.add(c);
+  }
+  return g;
+}
+function rigRuffle() {
+  const g = new THREE.Group();
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const b = box(0.09, 0.07, 0.05, i % 2 ? 0xf0ece0 : 0xc8141a, Math.sin(a) * 0.15, 0.04, Math.cos(a) * 0.13, g, 0.01);
+    b.rotation.y = a; b.rotation.x = 0.5;
+  }
+  return g;
 }
 
 // ---------------------------------------------------------------------------
@@ -372,6 +487,7 @@ function makeRigEnemy(key, def) {
   const baseName = pick(look.bases);
   const tint = look.cloth ? pick(look.cloth) : null;
   const base = RIG.base[baseName];
+  if (look.style === 'clown') prepareClownBody(base);
   const model = THREE.SkeletonUtils.clone(base.scene);
   model.scale.setScalar(base.fit);
   model.traverse((o) => {
@@ -379,7 +495,7 @@ function makeRigEnemy(key, def) {
     if (o.userData.outline) return;
     if (look.mask && look.mask !== 'goggles' && /Eye|Brow|Lash|Mouth|Facial/i.test(o.name)) { o.visible = false; return; } // masked
     const info = base.mats[o.name];
-    if (info) o.material = rigMaterial(baseName, info, tint);
+    if (info) o.material = rigMaterial(baseName, info, tint, look.style);
   });
   const root = new THREE.Group();
   root.add(model);
@@ -388,6 +504,11 @@ function makeRigEnemy(key, def) {
   const bones = { head: bone('Head'), spine: bone('Spine2'), hips: bone('Hips'), rhand: bone('RightHand'), lhand: bone('LeftHand') };
   if (look.mask) pinToBone(bones.head, rigMask(look.mask), base.headSize);
   if (look.mohawk) pinToBone(bones.head, rigMohawk(), base.headSize);
+  if (look.style === 'clown') {
+    pinToBone(bones.head, rigClownGear(), base.headSize);
+    const neck = model.getObjectByName('mixamorigNeck');
+    if (neck) pinToBone(neck, rigRuffle(), base.headSize);
+  }
   if (look.dual) pinDualGuns(model, base, bones, look.weapon);
   else if (look.weapon) pinToBone(bones.rhand, rigWeapon(look.weapon), 1, handAlign(bones.rhand));
   if (look.armor) pinToBone(bones.spine, rigArmor());
