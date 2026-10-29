@@ -8,7 +8,7 @@ const ENEMY_DEFS = {
   suicide: { name: 'Suicide Psycho', body: 'human', hp: 34, shield: 0, hpType: 'flesh', speed: 8.4, xp: 10, ai: 'suicide', dmg: 36, scale: 0.95, look: { shirt: null, pants: 0x3a3a3a, skin: 0xe6b08a, mask: 0xd13a2a, weapon: 'bomb' } },
   skag: { name: 'Skag Pup', body: 'skag', hp: 40, shield: 0, hpType: 'flesh', speed: 9.5, xp: 8, ai: 'skag', dmg: 8, scale: 0.75, look: { hide: 0xc9a77a, belly: 0xe8cfa0 } },
   skagAdult: { name: 'Adult Skag', body: 'skag', hp: 75, shield: 0, hpType: 'armor', speed: 8.2, xp: 18, ai: 'skag', dmg: 14, scale: 1.15, look: { hide: 0x8e7a5a, belly: 0xc9b088 } },
-  nomad: { name: 'Badass Nomad', body: 'human', hp: 230, shield: 90, hpType: 'armor', speed: 3.3, xp: 70, ai: 'ranged', dmg: 5, burst: 1, pellets: 6, burstGap: 0.1, cd: [1.1, 1.7], projSpeed: 40, spread: 0.1, range: [5, 15], scale: 1.4, badass: true, look: { shirt: 0x5a4a3a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x222222, weapon: 'gun', armor: true } },
+  nomad: { name: 'Badass Nomad', body: 'human', hp: 230, shield: 90, hpType: 'armor', speed: 3.3, xp: 70, ai: 'ranged', dmg: 4.5, burst: 10, burstGap: 0.07, cd: [1.2, 1.9], projSpeed: 42, spread: 0.075, range: [6, 18], scale: 1.4, badass: true, look: { shirt: 0x5a4a3a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x222222, weapon: 'gun', armor: true } },
   boss: { name: 'Krag the Scrapjaw', body: 'human', hp: 2600, shield: 900, hpType: 'armor', speed: 3.8, xp: 600, ai: 'boss', dmg: 22, projSpeed: 30, scale: 2.4, boss: true, look: { shirt: 0x6a3a2a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x8a8a8a, weapon: 'hammer', armor: true, jaw: true } },
 };
 
@@ -538,7 +538,13 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
     e.burstT -= dt;
     if (e.burstT <= 0) {
       e.burstLeft--; e.burstT = e.def.burstGap;
-      const muzzle = _b.set(e.pos.x + fwd.x * 0.6 * e.def.scale + side.x * 0.3, e.pos.y + 1.3 * e.def.scale, e.pos.z + fwd.z * 0.6 * e.def.scale + side.z * 0.3);
+      let muzzle;
+      if (e.rig && e.rig.dual) {
+        // two guns: alternate hands, each shot leaving its own barrel
+        e.handFlip = !e.handFlip;
+        (e.handFlip ? e.rig.bones.lhand : e.rig.bones.rhand).getWorldPosition(_b);
+        muzzle = _b.addScaledVector(fwd, 0.35 * e.def.scale);
+      } else muzzle = _b.set(e.pos.x + fwd.x * 0.6 * e.def.scale + side.x * 0.3, e.pos.y + 1.3 * e.def.scale, e.pos.z + fwd.z * 0.6 * e.def.scale + side.z * 0.3);
       const aim = tgt.eye.clone();
       const n = e.def.pellets || 1;
       const moving = Math.hypot(e.vel.x, e.vel.z) > 1.5;

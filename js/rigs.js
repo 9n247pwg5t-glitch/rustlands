@@ -31,7 +31,7 @@ const RIG_LOOKS = {
   marauder: { bases: ['female', 'psycho1'], mask: 'goggles', weapon: 'rifle' },
   psycho: { bases: ['ugly', 'psycho1', 'female'], weapon: 'axe' },
   suicide: { bases: ['psycho1', 'ugly', 'female'], weapon: 'bomb' },
-  nomad: { bases: ['clown'], weapon: 'rifle' }, // the clown brawler
+  nomad: { bases: ['clown'], weapon: 'smg', dual: true }, // the clown brawler, an SMG in each fist
   boss: { bases: ['brute'], pod: true }, // the Brute carries his own battle axe
 };
 
@@ -208,9 +208,19 @@ function rigMask(kind) {
   }
   return g;
 }
-function rigWeapon(kind) {
+// `left` builds the mirrored version for a left hand (reaching out along +X in the T-pose).
+function rigWeapon(kind, left = false) {
   const g = new THREE.Group();
-  if (kind === 'rifle') {
+  if (kind === 'smg') {
+    const w = new THREE.Group(); g.add(w);
+    w.rotation.y = left ? -Math.PI / 2 : Math.PI / 2; // barrel along the fingers
+    w.position.set(left ? 0.07 : -0.07, -0.03, 0);
+    box(0.06, 0.1, 0.34, 0x2e2e30, 0, 0.04, -0.06, w, 0.012);
+    box(0.05, 0.12, 0.06, 0x5a3a24, 0, -0.05, 0.03, w, 0.01);
+    box(0.04, 0.18, 0.05, 0x1f1f1f, 0, -0.08, -0.08, w, 0.01);
+    box(0.03, 0.03, 0.12, 0x1a1a1a, 0, 0.05, -0.28, w, 0.008);
+    box(0.065, 0.02, 0.2, 0, 0, 0.1, -0.06, w, 0, glow(0xff8a1c));
+  } else if (kind === 'rifle') {
     const w = new THREE.Group(); g.add(w);
     w.rotation.y = Math.PI / 2; // barrel (-Z) along the fingers (-X)
     w.position.set(-0.07, -0.03, 0.0);
@@ -269,13 +279,40 @@ function pinToBone(bone, prop, size = 1, align = null) {
 // bound in another pose (an A-pose with the arms hanging down), turn it to follow the hand's real
 // direction, wrist to fingers, so it sits in the fist the same way on every body.
 const _hw = new THREE.Vector3(), _fw = new THREE.Vector3();
-function handAlign(hand) {
+function handAlign(hand, left = false) {
   const finger = hand.children.find((c) => c.isBone && /Middle1/.test(c.name)) || hand.children.find((c) => c.isBone);
   if (!finger) return null;
   hand.getWorldPosition(_hw); finger.getWorldPosition(_fw);
   const dir = _fw.sub(_hw);
   if (dir.lengthSq() < 1e-10) return null;
-  return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(-1, 0, 0), dir.normalize());
+  return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(left ? 1 : -1, 0, 0), dir.normalize());
+}
+
+// Two guns: each one is set so it points straight ahead (and upright) when the body is in its
+// aiming pose, with the grip in the fist, whatever way that hand happens to be turned.
+function pinDualGuns(model, base, bones, kind) {
+  const saved = [];
+  model.traverse((o) => { if (o.isBone && base.aimPose[o.name]) { saved.push([o, o.quaternion.clone()]); o.quaternion.copy(base.aimPose[o.name]); } });
+  model.updateMatrixWorld(true);
+  const face = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI); // barrel (-Z) to the front (+Z)
+  for (const hand of [bones.rhand, bones.lhand]) {
+    const gun = rigWeapon(kind);
+    const inner = gun.children[0];
+    inner.rotation.set(0, 0, 0); inner.position.set(0, -0.02, 0.05);
+    const hq = hand.getWorldQuaternion(new THREE.Quaternion());
+    const hs = hand.getWorldScale(new THREE.Vector3()).x;
+    gun.quaternion.copy(hq).invert().multiply(face);
+    gun.scale.setScalar(1 / hs);
+    // grip in the fist: a little way from the wrist toward the fingers
+    const finger = hand.children.find((c) => c.isBone && /Middle1/.test(c.name)) || hand.children.find((c) => c.isBone);
+    if (finger) {
+      const off = finger.getWorldPosition(new THREE.Vector3()).sub(hand.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.7);
+      gun.position.copy(off.applyQuaternion(hq.clone().invert()).divideScalar(hs));
+    }
+    hand.add(gun);
+  }
+  for (const [o, q] of saved) o.quaternion.copy(q);
+  model.updateMatrixWorld(true);
 }
 
 function makeRigEnemy(key, def) {
@@ -296,16 +333,17 @@ function makeRigEnemy(key, def) {
   root.add(model);
   root.updateMatrixWorld(true);
   const bone = (n) => model.getObjectByName('mixamorig' + n);
-  const bones = { head: bone('Head'), spine: bone('Spine2'), hips: bone('Hips'), rhand: bone('RightHand') };
+  const bones = { head: bone('Head'), spine: bone('Spine2'), hips: bone('Hips'), rhand: bone('RightHand'), lhand: bone('LeftHand') };
   if (look.mask) pinToBone(bones.head, rigMask(look.mask), base.headSize);
   if (look.mohawk) pinToBone(bones.head, rigMohawk(), base.headSize);
-  if (look.weapon) pinToBone(bones.rhand, rigWeapon(look.weapon), 1, handAlign(bones.rhand));
+  if (look.dual) pinDualGuns(model, base, bones, look.weapon);
+  else if (look.weapon) pinToBone(bones.rhand, rigWeapon(look.weapon), 1, handAlign(bones.rhand));
   if (look.armor) pinToBone(bones.spine, rigArmor());
   if (look.pod) pinToBone(bones.spine, rigPod());
   const mixer = new THREE.AnimationMixer(model);
   const aimBones = [];
   model.traverse((o) => { if (o.isBone && base.aimPose[o.name]) aimBones.push([o, base.aimPose[o.name]]); });
-  const rig = { model, mixer, clips: base.clips, bones, actions: {}, loop: null, one: null, lastState: null, baseName, aimBones, aimW: 0, gait: base.gaitScale };
+  const rig = { model, mixer, clips: base.clips, bones, actions: {}, loop: null, one: null, lastState: null, baseName, aimBones, aimW: 0, gait: base.gaitScale, dual: !!look.dual };
   return { root, rig };
 }
 
