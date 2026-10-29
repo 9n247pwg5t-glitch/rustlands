@@ -132,6 +132,7 @@ const hud = (() => {
       }
 
       const boss = enemies.find((e) => e.alive && e.def.boss);
+      el.target.classList.toggle('below-boss', !!boss);
       if (boss) {
         el.boss.hidden = false;
         el.bossName.textContent = boss.def.name + '  ·  Lv ' + boss.level;

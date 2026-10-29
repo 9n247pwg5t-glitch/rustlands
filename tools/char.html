@@ -1,0 +1,98 @@
+<!doctype html><meta charset="utf-8"><body><script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script><script type="module">
+import * as THREE from './node_modules/three/build/three.module.js';
+import { FBXLoader } from './node_modules/three/examples/jsm/loaders/FBXLoader.js';
+import { GLTFExporter } from './node_modules/three/examples/jsm/exporters/GLTFExporter.js';
+// Loads a Mixamo character FBX, shrinks its textures, normalises bone names and exports a GLB.
+window.convert = async (url) => {
+  const manager = new THREE.LoadingManager();
+  let pending = true; manager.onLoad = () => { pending = false; };
+  const loader = new FBXLoader(manager);
+  const obj = await new Promise((ok, fail) => loader.load(url, ok, undefined, fail));
+  for (let i = 0; i < 200 && pending; i++) await new Promise((r) => setTimeout(r, 100));
+  obj.animations = [];
+  const info = { meshes: [], bones: 0, maps: [] };
+  obj.traverse((o) => {
+    if (o.isBone) { o.name = o.name.replace(/^mixamorig\d*:?/, 'mixamorig'); info.bones++; }
+  });
+  // Some exports carry one copy of the skeleton per mesh part. Rebind every skinned mesh to the
+  // first skeleton (by bone name) and drop the copies, so one animation drives the whole body.
+  const hipsAll = [];
+  obj.traverse((o) => { if (o.isBone && /Hips$/.test(o.name)) hipsAll.push(o); });
+  if (hipsAll.length > 1) {
+    const primary = hipsAll.find((h) => !(h.parent && h.parent.isBone)) || hipsAll[0];
+    const copies = new Set(hipsAll.filter((h) => h !== primary));
+    const byName = {};
+    (function walk(b) {
+      if (b.isBone && !byName[b.name]) byName[b.name] = b;
+      for (const c of b.children) if (!copies.has(c)) walk(c);
+    })(primary);
+    obj.traverse((o) => {
+      if (!o.isSkinnedMesh) return;
+      const sk = o.skeleton;
+      const bones = sk.bones.map((b) => byName[b.name] || b);
+      o.bind(new THREE.Skeleton(bones, sk.boneInverses.map((m) => m.clone())), o.bindMatrix);
+    });
+    for (const c of copies) c.parent.remove(c);
+    info.skeletonsMerged = hipsAll.length;
+  }
+  // Split multi-material meshes into one mesh per material holding only its own triangles
+  // (otherwise the exporter writes the whole vertex buffer once per material group).
+  const multi = [];
+  obj.traverse((o) => { if (o.isMesh && Array.isArray(o.material) && o.geometry.groups.length) multi.push(o); });
+  for (const o of multi) {
+    const g = o.geometry, idx = g.index;
+    const byMat = new Map();
+    for (const gr of g.groups) { if (!byMat.has(gr.materialIndex)) byMat.set(gr.materialIndex, []); byMat.get(gr.materialIndex).push(gr); }
+    for (const [mi, groups] of byMat) {
+      const verts = [];
+      for (const gr of groups) for (let i = gr.start; i < gr.start + gr.count; i++) verts.push(idx ? idx.getX(i) : i);
+      const ng = new THREE.BufferGeometry();
+      for (const [key, attr] of Object.entries(g.attributes)) {
+        const isz = attr.itemSize, arr = new attr.array.constructor(verts.length * isz);
+        for (let k = 0; k < verts.length; k++) for (let c = 0; c < isz; c++) arr[k * isz + c] = attr.array[verts[k] * isz + c];
+        ng.setAttribute(key, new THREE.BufferAttribute(arr, isz, attr.normalized));
+      }
+      const m = o.isSkinnedMesh ? new THREE.SkinnedMesh(ng, o.material[mi]) : new THREE.Mesh(ng, o.material[mi]);
+      m.name = o.name + '_' + mi;
+      m.position.copy(o.position); m.quaternion.copy(o.quaternion); m.scale.copy(o.scale);
+      o.parent.add(m);
+      if (o.isSkinnedMesh) m.bind(o.skeleton, o.bindMatrix);
+    }
+    o.parent.remove(o);
+  }
+  const seen = new Map();
+  const shrink = (tex, size) => {
+    if (!tex || !tex.image) return null;
+    if (seen.has(tex)) return seen.get(tex);
+    const img = tex.image, w = img.width || img.naturalWidth, h = img.height || img.naturalHeight;
+    const s = Math.min(1, size / Math.max(w, h));
+    const c = document.createElement('canvas'); c.width = Math.max(4, Math.round(w * s)); c.height = Math.max(4, Math.round(h * s));
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0, c.width, c.height);
+    // opaque unless the texture really has transparent pixels
+    const px = g.getImageData(0, 0, c.width, c.height).data; let alpha = false;
+    for (let i = 3; i < px.length; i += 4 * 7) if (px[i] < 250) { alpha = true; break; }
+    const t = new THREE.CanvasTexture(c); t.flipY = tex.flipY; t.wrapS = tex.wrapS; t.wrapT = tex.wrapT;
+    t.format = alpha ? THREE.RGBAFormat : THREE.RGBFormat; t.name = tex.name;
+    info.maps.push(`${tex.name || '?'} ${w}x${h} -> ${c.width}x${c.height}${alpha ? ' alpha' : ''}`);
+    seen.set(tex, t); return t;
+  };
+  obj.traverse((o) => {
+    if (!o.isMesh) return;
+    if (/Eyelash/i.test(o.name)) { o.visible = false; return; }
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    const out = mats.map((m) => {
+      const src = m.map && m.map.image ? Math.max(m.map.image.width || 0, m.map.image.height || 0) : 0;
+      const map = shrink(m.map, src >= 4096 ? 1024 : src >= 2048 ? 768 : 512);
+      const nm = new THREE.MeshStandardMaterial({ name: m.name, color: map ? 0xffffff : m.color, map, roughness: 0.9, metalness: 0, transparent: !!(map && map.format === THREE.RGBAFormat), alphaTest: map && map.format === THREE.RGBAFormat ? 0.5 : 0, side: m.side });
+      return nm;
+    });
+    o.material = Array.isArray(o.material) ? out : out[0];
+    info.meshes.push(`${o.name}${o.isSkinnedMesh ? ' (skinned)' : ''} ${o.geometry.attributes.position.count}v`);
+  });
+  const glb = await new Promise((ok) => new GLTFExporter().parse(obj, ok, { binary: true, onlyVisible: true, maxTextureSize: 1024 }));
+  const bytes = new Uint8Array(glb);
+  let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return { info, glb: btoa(bin) };
+};
+window.ready = true;
+</script>

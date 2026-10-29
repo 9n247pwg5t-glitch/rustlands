@@ -1,8 +1,8 @@
 'use strict';
-// Mixamo characters for the human enemies. Bodies come from models/{burglar,suit,girl}.json (glTF),
-// motion from models/enemy-anims.json (the uploaded Mixamo clips, converted). Every body shares one
-// skeleton, so every clip plays on every body. They're cel-shaded with an ink outline, and comic
-// masks and weapons are pinned to their bones. If anything fails to load, the block figures are used.
+// Mixamo characters for the human enemies. Bodies are the uploaded Mixamo characters (models/*.json,
+// glTF converted from FBX), motion is the uploaded Mixamo clips (models/enemy-anims.json). Every body
+// shares one skeleton, so every clip plays on every body. They're cel-shaded with an ink outline, and
+// weapons and gear are pinned to their bones. If nothing loads, the block figures are used.
 
 const RIG = { ready: false, failed: false, base: {}, data: null };
 const RIG_HEIGHT = 1.85; // metres at enemy scale 1
@@ -16,14 +16,23 @@ const RIG_ATTACKS = [
   { clip: 'Roundhouse Kick', start: 0.55, hits: [1.0], end: 1.45, dmg: [1.4] },
 ];
 
-// Per enemy type: which bodies, the colours their (mostly black) clothes are dyed, and the gear pinned to the bones.
+// The uploaded characters: game name -> model file.
+const RIG_FILES = {
+  psycho1: 'male-psychosis-enemy-1',
+  ugly: 'male-psychosis-enemy-2-ugly',
+  female: 'femal-psychosis-1',
+  topheavy: 'male-psychosis-top-heavy',
+  brute: 'brute',
+};
+// Per enemy type: which bodies, and the gear pinned to the bones. The characters are shown as
+// authored; `cloth` (optional) would dye the dark parts of their clothes.
 const RIG_LOOKS = {
-  bandit: { bases: ['burglar', 'burglar', 'girl'], cloth: [0xa0683a, 0x7d6a3a, 0x8a4a2e], mask: 'bandit', weapon: 'rifle' },
-  marauder: { bases: ['suit', 'girl'], cloth: [0x3f5b8a, 0x35607a], mask: 'goggles', weapon: 'rifle' },
-  psycho: { bases: ['burglar', 'suit'], cloth: [0xa02a20, 0x8a3a2a], mask: 'psycho', weapon: 'axe', mohawk: true },
-  suicide: { bases: ['burglar', 'girl'], cloth: [0x5e5e5a, 0x6a4a3a], mask: 'suicide', weapon: 'bomb' },
-  nomad: { bases: ['suit'], cloth: [0x5e4a30], mask: 'nomad', weapon: 'rifle', armor: true },
-  boss: { bases: ['suit'], cloth: [0x7a3a22], mask: 'jaw', weapon: 'hammer', armor: true, pod: true },
+  bandit: { bases: ['psycho1', 'ugly', 'female'], weapon: 'rifle' },
+  marauder: { bases: ['female', 'psycho1', 'topheavy'], mask: 'goggles', weapon: 'rifle' },
+  psycho: { bases: ['ugly', 'psycho1', 'female'], weapon: 'axe' },
+  suicide: { bases: ['psycho1', 'ugly', 'female'], weapon: 'bomb' },
+  nomad: { bases: ['topheavy'], weapon: 'rifle' },
+  boss: { bases: ['brute'], pod: true }, // the Brute carries his own battle axe
 };
 
 function rigOutlineMaterial(thick) {
@@ -54,12 +63,23 @@ function loadRigs() {
   const loader = new THREE.GLTFLoader();
   const get = (f) => new Promise((ok, fail) => loader.load('models/' + f + '.json', ok, undefined, fail));
   const anims = fetch('models/enemy-anims.json').then((r) => { if (!r.ok) throw new Error('anims ' + r.status); return r.json(); });
-  RIG.loading = Promise.all([anims, get('burglar'), get('suit'), get('girl')]).then(([data, burglar, suit, girl]) => {
+  const names = Object.keys(RIG_FILES);
+  RIG.loading = anims.then((data) => {
     RIG.data = data;
-    RIG.base.burglar = prepareRigBase(burglar);
-    RIG.base.suit = prepareRigBase(suit);
-    RIG.base.girl = prepareRigBase(girl);
-    RIG.ready = true;
+    return Promise.allSettled(names.map((n) => get(RIG_FILES[n])));
+  }).then((results) => {
+    results.forEach((r, i) => {
+      if (r.status !== 'fulfilled') { console.warn('Enemy model failed to load:', RIG_FILES[names[i]], r.reason); return; }
+      try { RIG.base[names[i]] = prepareRigBase(r.value); } catch (e) { console.warn('Enemy model unusable:', RIG_FILES[names[i]], e); }
+    });
+    // a type whose bodies all failed falls back to any loaded body
+    const loaded = Object.keys(RIG.base);
+    for (const look of Object.values(RIG_LOOKS)) {
+      look.bases = look.bases.filter((b) => RIG.base[b]);
+      if (!look.bases.length) look.bases = loaded.slice();
+    }
+    RIG.ready = loaded.length > 0;
+    RIG.failed = !RIG.ready;
   }).catch((e) => { console.warn('Enemy models unavailable, using block figures.', e); RIG.failed = true; });
   return RIG.loading;
 }
@@ -69,12 +89,18 @@ function prepareRigBase(gltf) {
   scene.updateMatrixWorld(true);
   const v = new THREE.Vector3();
   const hips = scene.getObjectByName('mixamorigHips');
+  const head = scene.getObjectByName('mixamorigHead');
+  if (!hips || !head) throw new Error('not a Mixamo skeleton');
+  // Height from the skeleton (the skin's mesh units can differ from its bones'). Not every rig has a
+  // head-top bone; the head bone sits at about 87% of a Mixamo character's height.
   const top = scene.getObjectByName('mixamorigHeadTop_End');
-  const height = top.getWorldPosition(v).y * 1.03;
+  const headY = head.getWorldPosition(new THREE.Vector3()).y;
+  const topY = top ? top.getWorldPosition(v).y : headY / 0.87;
+  const height = topY * 1.03;
   const fit = RIG_HEIGHT / height;
-  // Head size in metres after fitting (the girl is stylised with a big head), so masks fit every body.
-  const headLen = (top.getWorldPosition(v).y - scene.getObjectByName('mixamorigHead').getWorldPosition(new THREE.Vector3()).y) * fit;
-  const headSize = Math.max(1, (headLen / 0.2) * 0.8);
+  // Head size in metres after fitting (stylised characters have big heads), so masks fit every body.
+  const headLen = (topY - headY) * fit;
+  const headSize = clamp((headLen / 0.2) * 0.8, 1, 2.2);
   const meshes = [];
   scene.traverse((o) => { if (o.isSkinnedMesh) meshes.push(o); });
   // Texture info by mesh name (clones copy userData through JSON, which would flatten a texture).
@@ -116,7 +142,10 @@ function rigMaterial(baseName, info, tint) {
   let mat = _rigMatCache.get(key);
   if (!mat) {
     mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: gradTex, skinning: true });
+    // lift dark textures a little so faces and clothes read under the cel shading
+    if (info.map) { mat.emissiveMap = info.map; mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 0.28; }
     if (info.alpha) { mat.alphaTest = 0.5; mat.side = THREE.DoubleSide; }
+    if (tint == null) { _rigMatCache.set(key, mat); return mat; }
     // Dye the dark parts of the texture (clothes) and keep the lighter ones (skin, prints) as they are.
     const uTint = { value: new THREE.Color(tint) };
     mat.onBeforeCompile = (sh) => {
@@ -222,14 +251,14 @@ function pinToBone(bone, prop, size = 1) {
 function makeRigEnemy(key, def) {
   const look = RIG_LOOKS[key];
   const baseName = pick(look.bases);
-  const tint = pick(look.cloth);
+  const tint = look.cloth ? pick(look.cloth) : null;
   const base = RIG.base[baseName];
   const model = THREE.SkeletonUtils.clone(base.scene);
   model.scale.setScalar(base.fit);
   model.traverse((o) => {
     if (!o.isSkinnedMesh) return;
     if (o.userData.outline) return;
-    if (/Eye|Brow|Lash|Mouth|Facial/i.test(o.name)) { o.visible = false; return; } // masked
+    if (look.mask && look.mask !== 'goggles' && /Eye|Brow|Lash|Mouth|Facial/i.test(o.name)) { o.visible = false; return; } // masked
     const info = base.mats[o.name];
     if (info) o.material = rigMaterial(baseName, info, tint);
   });
@@ -238,9 +267,9 @@ function makeRigEnemy(key, def) {
   root.updateMatrixWorld(true);
   const bone = (n) => model.getObjectByName('mixamorig' + n);
   const bones = { head: bone('Head'), spine: bone('Spine2'), hips: bone('Hips'), rhand: bone('RightHand') };
-  pinToBone(bones.head, rigMask(look.mask), base.headSize);
+  if (look.mask) pinToBone(bones.head, rigMask(look.mask), base.headSize);
   if (look.mohawk) pinToBone(bones.head, rigMohawk(), base.headSize);
-  pinToBone(bones.rhand, rigWeapon(look.weapon));
+  if (look.weapon) pinToBone(bones.rhand, rigWeapon(look.weapon));
   if (look.armor) pinToBone(bones.spine, rigArmor());
   if (look.pod) pinToBone(bones.spine, rigPod());
   const mixer = new THREE.AnimationMixer(model);

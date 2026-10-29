@@ -35,7 +35,7 @@ It also works on GitHub Pages: turn Pages on for the `main` branch.
 - **Action skill.** You can deploy a turret. You also have grenades, a melee attack and explosive barrels.
 - **Progression.** You earn XP and level up. Loot chests appear after each wave, and vending machines sell ammo and healing.
 - **Controls.** The game supports touch as well as mouse and keyboard. Light aim assist (look slowdown near enemies, a gentle pull while firing, a snap when you start aiming) is stronger on touch and always aims at the body, so headshots are still on you.
-- **Animated enemies.** Bandits, marauders, psychos, nomads and the boss are rigged characters with comic masks and weapons pinned to their bones. They run, aim, shoot, punch and kick (damage lands on the clip's impact frame), dodge-roll when aimed at, flip or slide in to close distance, get knocked down by explosions and climb back up, taunt you when you're down, and play death animations. Their hitboxes follow the animation.
+- **Animated enemies.** Bandits, marauders, psychos, nomads and the boss are rigged Mixamo characters (a male and female psycho, a top-heavy brawler, an "ugly" mutant and the Brute with his battle axe as the boss), cel-shaded with weapons pinned to their bones. They run, aim, shoot, punch and kick (damage lands on the clip's impact frame), dodge-roll when aimed at, flip or slide in to close distance, get knocked down by explosions and climb back up, taunt you when you're down, and play death animations. Their hitboxes follow the animation.
 - **Enemy pathfinding.** Enemies follow a navigation grid around buildings, walls, cars and rocks, and sidestep if they get stuck.
 
 ## Controls
@@ -59,6 +59,7 @@ js/loot.js     gun/shield generation, gun models, item cards, world drops
 js/rigs.js     rigged Mixamo enemies: loading, cel shading, gear on bones, animation playback
 js/enemies.js  enemy models, AI, damage, explosions, boss
 models/        character models (glTF as .json + WebP textures) and enemy-anims.json (converted Mixamo clips)
+tools/         scripts that convert Mixamo FBX characters and animations into models/
 vendor/        three.js GLTFLoader and SkeletonUtils (r128)
 js/player.js   movement, weapons, viewmodel, projectiles, turret
 js/hud.js      HUD and overlay canvas (damage numbers, compass, hit markers)
