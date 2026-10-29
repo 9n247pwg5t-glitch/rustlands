@@ -1,0 +1,166 @@
+<!doctype html><meta charset="utf-8"><body><script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script><script type="module">
+// Auto-rigs a static humanoid mesh (A- or T-pose, facing +Z, metres) onto the Mixamo skeleton taken
+// from a template character, so Mixamo animation clips play on it.
+//  1. joint targets (estimates, then snapped to the middle of the limb/torso around them)
+//  2. template bones re-placed on the targets, each aimed at its child; bound in the mesh's own pose
+//  3. skin weights from distance to each bone segment relative to that bone's thickness,
+//     with left/right bones kept to their own side
+import * as THREE from 'three';
+import { GLTFLoader } from './node_modules/three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFExporter } from './node_modules/three/examples/jsm/exporters/GLTFExporter.js';
+
+const load = (u) => new Promise((ok, fail) => new GLTFLoader().load(u, ok, undefined, fail));
+
+window.rig = async (meshUrl, templateUrl, T) => {
+  const src = (await load(meshUrl)).scene;
+  src.updateMatrixWorld(true);
+  // merge every part into one geometry (position, normal, colour)
+  const parts = [];
+  src.traverse((o) => { if (o.isMesh) parts.push(o); });
+  let n = 0;
+  for (const m of parts) n += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count);
+  const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  let k = 0;
+  const v = new THREE.Vector3(), nm = new THREE.Matrix3();
+  for (const m of parts) {
+    const g = m.geometry, idx = g.index, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color;
+    nm.getNormalMatrix(m.matrixWorld);
+    const cnt = idx ? idx.count : P.count;
+    for (let i = 0; i < cnt; i++, k++) {
+      const j = idx ? idx.getX(i) : i;
+      v.fromBufferAttribute(P, j).applyMatrix4(m.matrixWorld); pos.set([v.x, v.y, v.z], k * 3);
+      v.fromBufferAttribute(N, j).applyMatrix3(nm).normalize(); nrm.set([v.x, v.y, v.z], k * 3);
+      if (C) { col[k * 3] = C.getX(j); col[k * 3 + 1] = C.getY(j); col[k * 3 + 2] = C.getZ(j); } else col.fill(1, k * 3, k * 3 + 3);
+    }
+  }
+  let geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const BGU = await import('./node_modules/three/examples/jsm/utils/BufferGeometryUtils.js');
+  const mergeVertices = (BGU.BufferGeometryUtils || BGU).mergeVertices;
+  geo = mergeVertices(geo, 1e-5);
+  const PA = geo.attributes.position, NV = PA.count;
+
+  // 1. snap targets: centre each limb joint in x/z on the vertices around it (same side only)
+  const tgt = {};
+  for (const [name, p] of Object.entries(T)) tgt[name] = new THREE.Vector3(...p);
+  const snap = (name, r, axes) => {
+    const t = tgt[name], side = /^Left/.test(name) ? 1 : /^Right/.test(name) ? -1 : 0;
+    let sx = 0, sz = 0, sy = 0, c = 0;
+    for (let i = 0; i < NV; i++) {
+      const x = PA.getX(i), y = PA.getY(i), z = PA.getZ(i);
+      if (side && x * side < 0.05) continue;
+      if (Math.abs(y - t.y) > r * 0.5) continue;
+      if (Math.hypot(x - t.x, z - t.z) > r) continue;
+      sx += x; sy += y; sz += z; c++;
+    }
+    if (c > 20) { if (axes.includes('x')) t.x = sx / c; if (axes.includes('z')) t.z = sz / c; }
+    return c;
+  };
+  for (const s of ['Left', 'Right']) {
+    snap(s + 'ForeArm', 0.16, 'xz'); snap(s + 'Hand', 0.14, 'xz');
+    snap(s + 'Leg', 0.2, 'xz'); snap(s + 'Foot', 0.18, 'xz'); snap(s + 'UpLeg', 0.2, 'xz');
+  }
+
+  // 2. bones from the template, re-placed and re-aimed
+  const tpl = (await load(templateUrl)).scene;
+  tpl.updateMatrixWorld(true);
+  const tHips = tpl.getObjectByName('mixamorigHips');
+  const tTop = tpl.getObjectByName('mixamorigHeadTop_End');
+  const tH = tTop.getWorldPosition(new THREE.Vector3()).y, cH = tgt.HeadTop_End.y;
+  const scale = cH / tH;
+  const bones = {}, list = [];
+  const clone = (tb, parent) => {
+    const b = new THREE.Bone(); b.name = tb.name;
+    b.position.copy(tb.position).multiplyScalar(tb === tHips ? 1 : scale * (tb.parent && tb.parent.isBone ? 1 : 1));
+    b.quaternion.copy(tb.quaternion);
+    if (parent) parent.add(b);
+    bones[b.name.replace('mixamorig', '')] = b; list.push(b);
+    for (const c of tb.children) if (c.isBone) clone(c, b);
+    return b;
+  };
+  // the template's hips sit under scaled/rotated parents; bake the hips' world transform into a fresh root
+  const root = new THREE.Group();
+  const hips = clone(tHips, null);
+  const hq = new THREE.Quaternion(); tHips.getWorldQuaternion(hq); hips.quaternion.copy(hq);
+  // template offsets are in the template's bone units; rescale every child offset to metres of this body
+  const tScale = new THREE.Vector3(); tHips.getWorldScale(tScale);
+  for (const b of list) if (b !== hips) b.position.multiplyScalar(tScale.x);
+  root.add(hips);
+  root.updateMatrixWorld(true);
+
+  const child = { Hips: 'Spine', Spine: 'Spine1', Spine1: 'Spine2', Spine2: 'Neck', Neck: 'Head', Head: 'HeadTop_End' };
+  for (const s of ['Left', 'Right']) Object.assign(child, {
+    [s + 'Shoulder']: s + 'Arm', [s + 'Arm']: s + 'ForeArm', [s + 'ForeArm']: s + 'Hand', [s + 'Hand']: s + 'HandEnd',
+    [s + 'UpLeg']: s + 'Leg', [s + 'Leg']: s + 'Foot', [s + 'Foot']: s + 'ToeBase', [s + 'ToeBase']: s + 'Toe_End',
+  });
+  const order = ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'HeadTop_End'];
+  for (const s of ['Left', 'Right']) order.push(s + 'Shoulder', s + 'Arm', s + 'ForeArm', s + 'Hand', s + 'UpLeg', s + 'Leg', s + 'Foot', s + 'ToeBase', s + 'Toe_End');
+  const wq = new THREE.Quaternion(), pq = new THREE.Quaternion(), dirT = new THREE.Vector3(), want = new THREE.Vector3(), delta = new THREE.Quaternion();
+  for (const name of order) {
+    const b = bones[name]; if (!b || !tgt[name]) continue;
+    root.updateMatrixWorld(true);
+    // place the joint on its target
+    const local = b.parent.isBone || b.parent === root ? b.parent.worldToLocal(tgt[name].clone()) : tgt[name].clone();
+    b.position.copy(local);
+    root.updateMatrixWorld(true);
+    // aim it at its child target, turning it as little as possible
+    const cn = child[name], cb = bones[cn] || b.children.find((c) => c.isBone && /Middle1|Index1/.test(c.name)) || b.children.find((c) => c.isBone);
+    const ct = tgt[cn];
+    if (!ct || !cb) continue;
+    b.getWorldQuaternion(wq);
+    dirT.copy(cb.position).normalize().applyQuaternion(wq);
+    want.subVectors(ct, tgt[name]).normalize();
+    delta.setFromUnitVectors(dirT, want);
+    wq.premultiply(delta);
+    b.parent.getWorldQuaternion(pq);
+    b.quaternion.copy(pq.invert().multiply(wq));
+  }
+  root.updateMatrixWorld(true);
+
+  // 3. weights. Segments run from each weighted bone to its child target.
+  const W = order.filter((nme) => bones[nme] && !/End$/.test(nme));
+  const segs = W.map((nme) => {
+    const a = bones[nme].getWorldPosition(new THREE.Vector3());
+    const cn = child[nme];
+    const b = tgt[cn] ? tgt[cn].clone() : (bones[cn] ? bones[cn].getWorldPosition(new THREE.Vector3()) : a.clone().add(new THREE.Vector3(0, 0.05, 0)));
+    return { name: nme, a, b, side: /^Left/.test(nme) ? 1 : /^Right/.test(nme) ? -1 : 0, idx: list.indexOf(bones[nme]), r: 0.2 };
+  });
+  const p = new THREE.Vector3(), ab = new THREE.Vector3(), ap = new THREE.Vector3();
+  const segDist = (s) => { ab.subVectors(s.b, s.a); ap.subVectors(p, s.a); const t = Math.max(0, Math.min(1, ap.dot(ab) / Math.max(ab.lengthSq(), 1e-9))); return p.distanceTo(ab.multiplyScalar(t).add(s.a)); };
+  const allowed = (s, x) => !s.side || x * s.side > -0.04;
+  // thickness of each bone: median distance of the vertices closest to it
+  const near = segs.map(() => []);
+  for (let i = 0; i < NV; i++) {
+    p.fromBufferAttribute(PA, i);
+    let best = -1, bd = Infinity;
+    segs.forEach((s, j) => { if (!allowed(s, p.x)) return; const d = segDist(s); if (d < bd) { bd = d; best = j; } });
+    if (best >= 0) near[best].push(bd);
+  }
+  segs.forEach((s, j) => { const a = near[j].sort((x, y) => x - y); s.r = Math.max(0.05, a.length ? a[Math.floor(a.length * 0.6)] : 0.1); });
+  const skinIndex = new Uint16Array(NV * 4), skinWeight = new Float32Array(NV * 4);
+  for (let i = 0; i < NV; i++) {
+    p.fromBufferAttribute(PA, i);
+    const c = [];
+    for (const s of segs) { if (!allowed(s, p.x)) continue; const d = segDist(s) / s.r; c.push([s.idx, 1 / Math.pow(Math.max(d, 0.05), 6)]); }
+    c.sort((a, b) => b[1] - a[1]);
+    const top = c.slice(0, 3), sum = top.reduce((t, x) => t + x[1], 0);
+    top.forEach(([bi, w], j) => { skinIndex[i * 4 + j] = bi; skinWeight[i * 4 + j] = w / sum; });
+  }
+  geo.setAttribute('skinIndex', new THREE.BufferAttribute(skinIndex, 4));
+  geo.setAttribute('skinWeight', new THREE.BufferAttribute(skinWeight, 4));
+
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, name: 'BrawlerClown' });
+  const mesh = new THREE.SkinnedMesh(geo, mat); mesh.name = 'BrawlerClown';
+  root.add(mesh);
+  root.updateMatrixWorld(true);
+  mesh.bind(new THREE.Skeleton(list));
+  window._rigged = { root, mesh, bones, segs };
+  const glb = await new Promise((ok) => new GLTFExporter().parse(root, ok, { binary: true }));
+  const bytes = new Uint8Array(glb); let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return { glb: btoa(bin), verts: NV, scale: +scale.toFixed(4), radii: segs.map((s) => s.name + ':' + s.r.toFixed(2)).join(' '), targets: Object.fromEntries(Object.entries(tgt).map(([k2, t]) => [k2, t.toArray().map((x) => +x.toFixed(3))])) };
+};
+window.ready = true;
+</script>

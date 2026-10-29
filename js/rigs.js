@@ -21,17 +21,17 @@ const RIG_FILES = {
   psycho1: 'male-psychosis-enemy-1',
   ugly: 'male-psychosis-enemy-2-ugly',
   female: 'femal-psychosis-1',
-  topheavy: 'male-psychosis-top-heavy',
+  clown: 'brawler-clown',
   brute: 'brute',
 };
 // Per enemy type: which bodies, and the gear pinned to the bones. The characters are shown as
 // authored; `cloth` (optional) would dye the dark parts of their clothes.
 const RIG_LOOKS = {
   bandit: { bases: ['psycho1', 'ugly', 'female'], weapon: 'rifle' },
-  marauder: { bases: ['female', 'psycho1', 'topheavy'], mask: 'goggles', weapon: 'rifle' },
+  marauder: { bases: ['female', 'psycho1'], mask: 'goggles', weapon: 'rifle' },
   psycho: { bases: ['ugly', 'psycho1', 'female'], weapon: 'axe' },
   suicide: { bases: ['psycho1', 'ugly', 'female'], weapon: 'bomb' },
-  nomad: { bases: ['topheavy'], weapon: 'rifle' },
+  nomad: { bases: ['clown'], weapon: 'rifle' }, // the clown brawler
   boss: { bases: ['brute'], pod: true }, // the Brute carries his own battle axe
 };
 
@@ -100,6 +100,9 @@ function prepareRigBase(gltf) {
   const topY = top ? top.getWorldPosition(v).y : headY / 0.87;
   const height = topY * 1.03;
   const fit = RIG_HEIGHT / height;
+  // leg length relative to the skeleton the clips were recorded on (hips about 1 m up): a
+  // short-legged body takes shorter strides, so it can't move as fast without its feet sliding
+  const gaitScale = clamp(hips.getWorldPosition(new THREE.Vector3()).y * fit / 1.0, 0.4, 1.3);
   // Head size in metres after fitting (stylised characters have big heads), so masks fit every body.
   const headLen = (topY - headY) * fit;
   const headSize = clamp((headLen / 0.2) * 0.8, 1, 2.2);
@@ -109,7 +112,7 @@ function prepareRigBase(gltf) {
   const mats = {};
   for (const m of meshes) {
     const src = m.material;
-    mats[m.name] = { map: src.map || null, alpha: src.alphaTest > 0 || src.transparent, id: m.name };
+    mats[m.name] = { map: src.map || null, alpha: src.alphaTest > 0 || src.transparent, id: m.name, vc: !!m.geometry.attributes.color };
     m.frustumCulled = false;
     m.castShadow = true;
     if (/Eye|Brow|Lash|Mouth|Facial/i.test(m.name)) continue;
@@ -146,7 +149,7 @@ function prepareRigBase(gltf) {
   mixer.stopAllAction(); mixer.uncacheRoot(scene);
   for (const [o, p, q, sc] of rest) { o.position.copy(p); o.quaternion.copy(q); o.scale.copy(sc); }
   scene.updateMatrixWorld(true);
-  return { scene, fit, clips, mats, headSize, aimPose };
+  return { scene, fit, clips, mats, headSize, aimPose, gaitScale };
 }
 
 const _rigMatCache = new Map();
@@ -154,7 +157,7 @@ function rigMaterial(baseName, info, tint) {
   const key = baseName + '_' + info.id + '_' + tint;
   let mat = _rigMatCache.get(key);
   if (!mat) {
-    mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: gradTex, skinning: true });
+    mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: gradTex, skinning: true, vertexColors: info.vc });
     // lift dark textures a little so faces and clothes read under the cel shading
     if (info.map) { mat.emissiveMap = info.map; mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 0.28; }
     if (info.alpha) { mat.alphaTest = 0.5; mat.side = THREE.DoubleSide; }
@@ -288,7 +291,7 @@ function makeRigEnemy(key, def) {
   const mixer = new THREE.AnimationMixer(model);
   const aimBones = [];
   model.traverse((o) => { if (o.isBone && base.aimPose[o.name]) aimBones.push([o, base.aimPose[o.name]]); });
-  const rig = { model, mixer, clips: base.clips, bones, actions: {}, loop: null, one: null, lastState: null, baseName, aimBones, aimW: 0 };
+  const rig = { model, mixer, clips: base.clips, bones, actions: {}, loop: null, one: null, lastState: null, baseName, aimBones, aimW: 0, gait: base.gaitScale };
   return { root, rig };
 }
 
@@ -345,7 +348,7 @@ function animateRig(e, dt) {
   }
   if (R.one && R.one.action.time >= R.one.end - 1e-3 && !R.one.keep) R.one = null;
   if (!R.one) {
-    if (e.state === 'charge') rigLoop(R, 'Rifle Run', clamp(Math.hypot(e.vel.x, e.vel.z) / (clipSpeed('Rifle Run', 4) * e.def.scale), 0.6, 1.4));
+    if (e.state === 'charge') rigLoop(R, 'Rifle Run', clamp(Math.hypot(e.vel.x, e.vel.z) / (clipSpeed('Rifle Run', 4) * e.def.scale * R.gait), 0.6, 1.4));
     else if (e.state === 'rockets') rigLoop(R, 'Shoot Rifle', 0);
     else rigLocomotion(e, R, dt);
   }
@@ -374,7 +377,7 @@ const GAIT = {
   suicide: { fwd: ['Injured Run', 1.75], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7] },
 };
 const gaitOf = (e) => (e.def.ai === 'ranged' || e.def.ai === 'boss' ? GAIT.gun : e.def.ai === 'suicide' ? GAIT.suicide : GAIT.melee);
-const gaitMax = (e, g) => clipSpeed(g[0], 1) * g[1] * e.def.scale;
+const gaitMax = (e, g) => clipSpeed(g[0], 1) * g[1] * e.def.scale * e.rig.gait;
 
 // Keep a rigged enemy no faster than its legs can carry it in the direction it's moving
 // relative to where it faces, so the feet never skate. Called on normal movement only.
@@ -412,7 +415,7 @@ function rigLocomotion(e, R, dt) {
   else R.modeT = 0;
   R.mode = mode;
   const play = (g, v) => {
-    const ts = clamp(Math.abs(v) / (clipSpeed(g[0], 1) * sc), 0.4, g[1]);
+    const ts = clamp(Math.abs(v) / (clipSpeed(g[0], 1) * sc * R.gait), 0.4, g[1]);
     return ts;
   };
   if (mode === 'idle') {

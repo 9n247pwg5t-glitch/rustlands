@@ -15,3 +15,12 @@ and Playwright (for the browser step).
 3. `node optimize.mjs <glb dir> ../models 16000` simplifies each character to about 16k vertices,
    re-encodes textures as WebP and writes glTF JSON (buffer embedded) plus texture files.
 4. Add the file to `RIG_FILES` in `js/rigs.js` and use it in `RIG_LOOKS`.
+
+## Rigging a static model
+
+`rig.html` + `rig-run.js` auto-rig an unrigged humanoid mesh (facing +Z, in metres, A- or T-pose) onto
+the Mixamo skeleton of a template character, so the Mixamo clips play on it. The joint targets in
+`rig-run.js` were placed for the clown brawler from front and side renders; each limb joint is then
+snapped to the middle of the limb. Bones are aimed at their child joints and bound in the mesh's own
+pose; skin weights come from each vertex's distance to each bone relative to that bone's thickness,
+with left/right bones kept to their side. Run `optimize.mjs` on the result as usual.
