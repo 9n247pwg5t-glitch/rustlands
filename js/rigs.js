@@ -289,11 +289,62 @@ function handAlign(hand, left = false) {
   return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(left ? 1 : -1, 0, 0), dir.normalize());
 }
 
+// A two-gun aiming pose for a body: each arm reaches forward on its own (two-bone IK from the
+// shoulder, elbow angled down and out) and each wrist turns so its fingers point straight ahead.
+// Only the arm bones are posed; the spine keeps following the walk/run clips underneath.
+function dualAimPose(base) {
+  if (base.dualPose) return base.dualPose;
+  const sc = base.scene;
+  const saved = [];
+  sc.traverse((o) => { if (o.isBone) saved.push([o, o.quaternion.clone()]); });
+  sc.updateMatrixWorld(true);
+  const W = (o) => o.getWorldPosition(new THREE.Vector3());
+  const aimAt = (bone, from, to) => {
+    // turn `bone` (in world space, as little as possible) so the direction from->current becomes from->to
+    const cur = W(from === bone ? bone.children.find((c) => c.isBone) : from).sub(W(bone)).normalize();
+    const want = to.clone().sub(W(bone)).normalize();
+    const d = new THREE.Quaternion().setFromUnitVectors(cur, want);
+    const wq = bone.getWorldQuaternion(new THREE.Quaternion()).premultiply(d);
+    const pq = bone.parent.getWorldQuaternion(new THREE.Quaternion());
+    bone.quaternion.copy(pq.invert().multiply(wq));
+    sc.updateMatrixWorld(true);
+  };
+  const pose = {};
+  for (const [side, sgn] of [['Left', 1], ['Right', -1]]) {
+    const arm = sc.getObjectByName('mixamorig' + side + 'Arm');
+    const fore = sc.getObjectByName('mixamorig' + side + 'ForeArm');
+    const hand = sc.getObjectByName('mixamorig' + side + 'Hand');
+    if (!arm || !fore || !hand) continue;
+    const S = W(arm), E0 = W(fore), H0 = W(hand);
+    const a = S.distanceTo(E0), b = E0.distanceTo(H0), reach = a + b;
+    // hand target: well in front of the shoulder, a little low and a little inward
+    const T = S.clone().add(new THREE.Vector3(-sgn * 0.12 * reach, -0.22 * reach, 0.78 * reach));
+    const d = Math.min(S.distanceTo(T), reach * 0.98);
+    const u = T.clone().sub(S).normalize();
+    const cosA = clamp((a * a + d * d - b * b) / (2 * a * d), -1, 1);
+    const pole = new THREE.Vector3(sgn * 0.6, -1, -0.2);
+    pole.addScaledVector(u, -pole.dot(u)).normalize();
+    const E = S.clone().addScaledVector(u, a * cosA).addScaledVector(pole, a * Math.sqrt(1 - cosA * cosA));
+    aimAt(arm, fore, E);
+    aimAt(fore, hand, S.clone().addScaledVector(u, d));
+    // fingers straight ahead
+    aimAt(hand, hand, W(hand).add(new THREE.Vector3(0, 0, 1)));
+    for (const bn of [arm, fore, hand]) pose[bn.name] = bn.quaternion.clone();
+  }
+  for (const [o, q] of saved) o.quaternion.copy(q);
+  // square the chest to the hips (the rifle clips turn it sideways)
+  for (const n of ['Spine1', 'Spine2', 'LeftShoulder', 'RightShoulder']) { const bn = sc.getObjectByName('mixamorig' + n); if (bn) pose[bn.name] = bn.quaternion.clone(); }
+  sc.updateMatrixWorld(true);
+  base.dualPose = pose;
+  return pose;
+}
+
 // Two guns: each one is set so it points straight ahead (and upright) when the body is in its
 // aiming pose, with the grip in the fist, whatever way that hand happens to be turned.
 function pinDualGuns(model, base, bones, kind) {
   const saved = [];
-  model.traverse((o) => { if (o.isBone && base.aimPose[o.name]) { saved.push([o, o.quaternion.clone()]); o.quaternion.copy(base.aimPose[o.name]); } });
+  const pose = dualAimPose(base);
+  model.traverse((o) => { if (o.isBone && pose[o.name]) { saved.push([o, o.quaternion.clone()]); o.quaternion.copy(pose[o.name]); } });
   model.updateMatrixWorld(true);
   const face = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI); // barrel (-Z) to the front (+Z)
   for (const hand of [bones.rhand, bones.lhand]) {
@@ -343,7 +394,8 @@ function makeRigEnemy(key, def) {
   if (look.pod) pinToBone(bones.spine, rigPod());
   const mixer = new THREE.AnimationMixer(model);
   const aimBones = [];
-  model.traverse((o) => { if (o.isBone && base.aimPose[o.name]) aimBones.push([o, base.aimPose[o.name]]); });
+  const aimPose = look.dual ? dualAimPose(base) : base.aimPose;
+  model.traverse((o) => { if (o.isBone && aimPose[o.name]) aimBones.push([o, aimPose[o.name]]); });
   const rig = { model, mixer, clips: base.clips, bones, actions: {}, loop: null, one: null, lastState: null, baseName, aimBones, aimW: 0, gait: base.gaitScale, dual: !!look.dual };
   return { root, rig };
 }
@@ -407,7 +459,8 @@ function animateRig(e, dt) {
   }
   R.mixer.update(dt);
   // gunners hold the rifle up while moving, blended in and out
-  const wantAim = e.aiming && !R.one && R.mode !== 'idle' && (e.def.ai === 'ranged' || e.def.ai === 'boss') && e.state === 'move';
+  // (two-gun bodies use their own pose even when standing, since the rifle clip's stance doesn't fit them)
+  const wantAim = e.aiming && !R.one && (R.mode !== 'idle' || R.dual) && (e.def.ai === 'ranged' || e.def.ai === 'boss') && e.state === 'move';
   R.aimW = clamp(R.aimW + (wantAim ? dt : -dt) * 6, 0, 1);
   if (R.aimW > 0) for (const [b, q] of R.aimBones) b.quaternion.slerp(q, R.aimW);
   if (e.flinchCrit && fl > 0) R.bones.head.rotation.x -= fl * 2.2;
@@ -472,7 +525,8 @@ function rigLocomotion(e, R, dt) {
     return ts;
   };
   if (mode === 'idle') {
-    if (gun) rigLoop(R, 'Shoot Rifle', 0); // aiming pose
+    if (gun && R.dual) rigLoop(R, 'Backwards Rifle Walk', 0); // a standing frame that faces straight ahead
+    else if (gun) rigLoop(R, 'Shoot Rifle', 0); // aiming pose
     else rigLoop(R, 'Slap thigh Taunt', 1);
   } else if (mode === 'fwd') {
     if (gun && e.burstLeft > 0 && vf < clipSpeed('Shoot Rifle', 1.9) * sc * 1.3) rigLoop(R, 'Shoot Rifle', play(['Shoot Rifle', 1.3], vf)); // walk and shoot
