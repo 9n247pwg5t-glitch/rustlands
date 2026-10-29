@@ -256,12 +256,26 @@ function rigMohawk() {
 
 const _rq = new THREE.Quaternion(), _rv = new THREE.Vector3();
 // Pin a world-aligned prop to a bone of a model in its rest pose.
-function pinToBone(bone, prop, size = 1) {
+function pinToBone(bone, prop, size = 1, align = null) {
   bone.getWorldQuaternion(_rq);
   bone.getWorldScale(_rv);
   prop.quaternion.copy(_rq).invert();
+  if (align) prop.quaternion.multiply(align);
   prop.scale.setScalar(size / _rv.x);
   bone.add(prop);
+}
+
+// Hand-held gear is modelled for a right hand reaching out along -X (the Mixamo T-pose). For bodies
+// bound in another pose (an A-pose with the arms hanging down), turn it to follow the hand's real
+// direction, wrist to fingers, so it sits in the fist the same way on every body.
+const _hw = new THREE.Vector3(), _fw = new THREE.Vector3();
+function handAlign(hand) {
+  const finger = hand.children.find((c) => c.isBone && /Middle1/.test(c.name)) || hand.children.find((c) => c.isBone);
+  if (!finger) return null;
+  hand.getWorldPosition(_hw); finger.getWorldPosition(_fw);
+  const dir = _fw.sub(_hw);
+  if (dir.lengthSq() < 1e-10) return null;
+  return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(-1, 0, 0), dir.normalize());
 }
 
 function makeRigEnemy(key, def) {
@@ -285,7 +299,7 @@ function makeRigEnemy(key, def) {
   const bones = { head: bone('Head'), spine: bone('Spine2'), hips: bone('Hips'), rhand: bone('RightHand') };
   if (look.mask) pinToBone(bones.head, rigMask(look.mask), base.headSize);
   if (look.mohawk) pinToBone(bones.head, rigMohawk(), base.headSize);
-  if (look.weapon) pinToBone(bones.rhand, rigWeapon(look.weapon));
+  if (look.weapon) pinToBone(bones.rhand, rigWeapon(look.weapon), 1, handAlign(bones.rhand));
   if (look.armor) pinToBone(bones.spine, rigArmor());
   if (look.pod) pinToBone(bones.spine, rigPod());
   const mixer = new THREE.AnimationMixer(model);
