@@ -114,6 +114,7 @@ function spawnEnemy(key, level, pos) {
     strafeDir: Math.random() < 0.5 ? -1 : 1, strafeT: 0, state: 'move', stateT: 0,
     dots: [], dotTick: 0, sinceHit: 99, lastSeenPlayer: 0, flash: 0, yellT: rand(2, 6),
     bossPhase: 0, bossAttackT: 4, summoned: false,
+    chase: new THREE.Vector3(), direct: true, directCheck: 0, stuckT: 0, unstickT: 0, unstickDir: new THREE.Vector3(), flinchT: 0,
   };
   e.hp = e.maxHp; e.shield = e.maxShield;
   model.root.position.copy(e.pos);
@@ -137,8 +138,8 @@ function enemySpheres(e) {
     _sph.push([p.x + fx * 1.0 * s, p.y + 0.85 * s, p.z + fz * 1.0 * s, 0.34 * s, true]);
   } else {
     const hy = e.model.head.position.y;
-    _sph.push([p.x, p.y + (hy + 0.03) * s, p.z, 0.2 * s, true]);
-    _sph.push([p.x, p.y + 1.25 * s, p.z, 0.38 * s, false]);
+    _sph.push([p.x, p.y + (hy + 0.03) * s, p.z, 0.23 * s, true]);
+    _sph.push([p.x, p.y + 1.25 * s, p.z, 0.42 * s, false]);
     _sph.push([p.x, p.y + 0.55 * s, p.z, 0.33 * s, false]);
   }
   return _sph;
@@ -184,6 +185,7 @@ function damageEnemy(e, amount, elem, opts = {}) {
     e.hp -= d; dealt += d;
   }
   e.sinceHit = 0; e.flash = 0.08;
+  if (!opts.dot) { e.flinchT = Math.max(e.flinchT, opts.crit ? 0.32 : 0.12); e.flinchCrit = !!opts.crit; }
   e.aggro = true;
   if (broke) { SFX.shieldBreak(); burst(enemyCenter(e, new THREE.Vector3()), 0x7fd6ff, 14, 6, 0.1, 0.4, 0.3, true); }
   if (!opts.silent) {
@@ -339,6 +341,26 @@ function enemyTarget(e) {
   return { pos: pp, eye: player.center(), isTurret: false };
 }
 
+// Head straight for the target when the way is clear at knee height,
+// otherwise follow the navigation flow field around obstacles.
+const _k1 = new THREE.Vector3(), _k2 = new THREE.Vector3();
+function chaseDir(e, tgt, fwd, side, dt) {
+  e.directCheck -= dt;
+  if (e.directCheck <= 0) {
+    e.directCheck = 0.35;
+    let direct = tgt.isTurret || Math.abs(tgt.pos.y - e.pos.y) < 1.2;
+    for (let s = -1; s <= 1 && direct; s += 2) {
+      const o = e.radius * 0.9 * s;
+      _k1.set(e.pos.x + side.x * o, e.pos.y + 0.6, e.pos.z + side.z * o);
+      _k2.set(tgt.pos.x + side.x * o, tgt.pos.y + 0.6, tgt.pos.z + side.z * o);
+      if (!lineOfSight(_k1, _k2)) direct = false;
+    }
+    e.direct = direct;
+  }
+  if (e.direct) return fwd;
+  return navDir(e.pos, e.chase) ? e.chase : fwd;
+}
+
 function updateEnemy(e, dt) {
   e.t += dt; e.sinceHit += dt; e.flash -= dt;
   // damage over time
@@ -365,6 +387,7 @@ function updateEnemy(e, dt) {
   let face = true;
   const sp = e.def.speed * (e.dots.some((d) => d.elem === 'shock') ? 0.75 : 1);
   const playerDowned = player.downed && !tgt.isTurret;
+  const chase = chaseDir(e, tgt, fwd, side, dt);
 
   const ai = e.def.ai;
   if (ai === 'ranged') {
@@ -374,7 +397,7 @@ function updateEnemy(e, dt) {
     e.losCheck = (e.losCheck || 0) - dt;
     if (e.losCheck <= 0) { e.los = lineOfSight(eye, tgt.eye); e.losCheck = 0.3; }
     const [rMin, rMax] = e.def.range;
-    if (!e.los || dist > rMax) _want.copy(fwd).multiplyScalar(sp);
+    if (!e.los || dist > rMax) _want.copy(chase).multiplyScalar(sp);
     else if (dist < rMin) _want.copy(fwd).multiplyScalar(-sp * 0.8).addScaledVector(side, e.strafeDir * sp * 0.4);
     else _want.copy(side).multiplyScalar(e.strafeDir * sp * 0.6);
     if (e.los && dist < rMax + 10) {
@@ -395,8 +418,8 @@ function updateEnemy(e, dt) {
   } else if (ai === 'melee' || ai === 'suicide') {
     e.yellT -= dt;
     if (e.yellT <= 0) { e.yellT = rand(3, 7); SFX.yell(clamp(1.2 - dist / 40, 0, 1)); }
-    const zig = Math.sin(e.t * 2.3) * (dist > 6 ? 0.45 : 0);
-    _want.copy(fwd).addScaledVector(side, zig).normalize().multiplyScalar(sp);
+    const zig = e.direct ? Math.sin(e.t * 2.3) * (dist > 6 ? 0.45 : 0) : 0;
+    _want.copy(chase).addScaledVector(side, zig).normalize().multiplyScalar(sp);
     if (ai === 'suicide' && dist < 1.9) {
       const c = enemyCenter(e, new THREE.Vector3());
       e.alive = false;
@@ -423,8 +446,8 @@ function updateEnemy(e, dt) {
       e.stateT -= dt;
       _want.copy(e.vel);
     } else {
-      _want.copy(fwd).multiplyScalar(sp);
-      if (dist > 4 && dist < 9 && e.leapCd <= 0 && e.grounded) {
+      _want.copy(chase).multiplyScalar(sp);
+      if (dist > 4 && dist < 9 && e.leapCd <= 0 && e.grounded && e.direct) {
         e.state = 'leap'; e.stateT = 0.8; e.leapCd = rand(3, 5); e.hitDuringLeap = false;
         e.vel.copy(fwd).multiplyScalar(15); e.vy = 6.5; e.grounded = false;
         SFX.growl(clamp(1.2 - dist / 40, 0, 1));
@@ -434,8 +457,17 @@ function updateEnemy(e, dt) {
       }
     }
   } else if (ai === 'boss') {
-    updateBoss(e, dt, tgt, dist, fwd, side, sp);
+    updateBoss(e, dt, tgt, dist, fwd, side, sp, chase);
   }
+
+  // hit stagger
+  if (e.flinchT > 0) { e.flinchT -= dt; _want.multiplyScalar(e.def.boss ? 0.85 : 0.35); }
+  // getting unstuck: sidestep for a moment, then re-path
+  if (e.unstickT > 0) {
+    e.unstickT -= dt;
+    _want.multiplyScalar(0.3).addScaledVector(e.unstickDir, sp * 0.9);
+  }
+  const px = e.pos.x, pz = e.pos.z;
 
   // movement
   if (e.state !== 'leap' && e.state !== 'charge') {
@@ -450,6 +482,19 @@ function updateEnemy(e, dt) {
     if (!e.grounded && e.def.boss && e.state === 'slamAir') bossLand(e);
     e.pos.y = g; e.vy = 0; e.grounded = true;
   } else if (e.pos.y > g + 0.05) e.grounded = false;
+
+  const wantSp = Math.hypot(_want.x, _want.z);
+  const moved = Math.hypot(e.pos.x - px, e.pos.z - pz) / Math.max(dt, 1e-4);
+  if (e.grounded && e.state === 'move' && wantSp > 1.5 && moved < wantSp * 0.3) e.stuckT += dt;
+  else e.stuckT = Math.max(0, e.stuckT - dt * 2);
+  if (e.stuckT > 0.5) {
+    e.stuckT = 0;
+    e.unstickT = rand(0.5, 0.9);
+    const s = Math.random() < 0.5 ? -1 : 1;
+    e.unstickDir.set(-_want.z * s, 0, _want.x * s).normalize();
+    e.strafeDir = -e.strafeDir;
+    e.direct = false; e.directCheck = 1.5;
+  }
 
   // face target
   if (face) {
@@ -493,7 +538,6 @@ function animateEnemy(e, dt) {
     const open = e.state === 'leap' ? 0.7 : (e.biteT > 0 ? 0.8 : 0.15 + Math.sin(e.t * 3) * 0.1);
     e.biteT = (e.biteT || 0) - dt;
     M.jaw.rotation.x = open;
-    r.rotation.x = e.state === 'leap' ? -0.3 : 0;
   } else {
     M.legL.rotation.x = sw * 0.9; M.legR.rotation.x = -sw * 0.9;
     let armL = -sw * 0.7, armR = sw * 0.7;
@@ -510,13 +554,16 @@ function animateEnemy(e, dt) {
     M.torso.position.y = 1.27 + Math.abs(sw) * 0.04;
     M.head.rotation.z = e.def.ai === 'melee' ? Math.sin(e.t * 9) * 0.15 : 0;
   }
-  // hit flash
+  // hit flash and stagger
   r.scale.setScalar(e.def.scale * (e.flash > 0 ? 1.04 : 1));
+  const fl = Math.max(0, e.flinchT);
+  r.rotation.x = (e.state === 'leap' ? -0.3 : 0) - fl * (e.def.boss ? 0.3 : 0.9);
+  if (M.head && e.def.body !== 'skag') M.head.rotation.x = e.flinchCrit ? -fl * 2.2 : 0;
 }
 
 // ---------------------------------------------------------------------------
 // Boss
-function updateBoss(e, dt, tgt, dist, fwd, side, sp) {
+function updateBoss(e, dt, tgt, dist, fwd, side, sp, chase) {
   e.bossAttackT -= dt;
   if (!e.summoned && e.shield <= 0 && e.hp < e.maxHp * 0.5) {
     e.summoned = true;
@@ -524,7 +571,7 @@ function updateBoss(e, dt, tgt, dist, fwd, side, sp) {
     for (let i = 0; i < 4; i++) game.queueSpawn(i % 2 ? 'psycho' : 'suicide', true);
   }
   if (e.state === 'move') {
-    _want.copy(fwd).multiplyScalar(dist > 8 ? sp : 0);
+    _want.copy(chase).multiplyScalar(dist > 8 || !e.direct ? sp : 0);
     if (e.bossAttackT <= 0) {
       const opts = dist < 14 ? ['slam', 'slam', 'rockets', 'charge'] : ['rockets', 'rockets', 'charge', 'slam'];
       const a = pick(opts);

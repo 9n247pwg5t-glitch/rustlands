@@ -724,3 +724,133 @@ function onResize() {
   vmCamera.aspect = w / h; vmCamera.updateProjectionMatrix();
 }
 window.addEventListener('resize', onResize);
+
+// ---------------------------------------------------------------------------
+// Navigation: a walkability grid over the arena plus a flow field toward the
+// player, so enemies route around shacks, walls, cars and rocks.
+const NAV_CELL = 1.0;
+const NAV_N = Math.ceil((ARENA_R * 2) / NAV_CELL) + 2;
+const NAV_OFF = NAV_N * NAV_CELL / 2;
+const navBlocked = new Uint8Array(NAV_N * NAV_N);
+const navDist = new Float32Array(NAV_N * NAV_N).fill(Infinity);
+const navCellOf = (x, z) => {
+  const ix = Math.floor((x + NAV_OFF) / NAV_CELL), iz = Math.floor((z + NAV_OFF) / NAV_CELL);
+  return ix < 0 || iz < 0 || ix >= NAV_N || iz >= NAV_N ? -1 : iz * NAV_N + ix;
+};
+const navCenterX = (i) => (i % NAV_N + 0.5) * NAV_CELL - NAV_OFF;
+const navCenterZ = (i) => (Math.floor(i / NAV_N) + 0.5) * NAV_CELL - NAV_OFF;
+
+(function buildNav() {
+  const pad = 0.5;
+  for (let i = 0; i < navBlocked.length; i++) {
+    const x = navCenterX(i), z = navCenterZ(i);
+    if (Math.hypot(x, z) > ARENA_R - 0.5) { navBlocked[i] = 1; continue; }
+    const g = groundAt(x, z);
+    for (const c of boxCols) {
+      if (c.ref) continue; // barrels come and go
+      if (c.maxY < g + 0.5 || c.minY > g + 1.6) continue;
+      if (x > c.minX - pad && x < c.maxX + pad && z > c.minZ - pad && z < c.maxZ + pad) { navBlocked[i] = 1; break; }
+    }
+    if (navBlocked[i]) continue;
+    for (const s of sphCols) {
+      if (s.top < g + 0.5) continue;
+      if (Math.hypot(x - s.x, z - s.z) < s.r + pad) { navBlocked[i] = 1; break; }
+    }
+  }
+})();
+
+// Dijkstra from the target cell with a binary heap. ~29k cells, a few ms.
+const _heapIdx = new Int32Array(NAV_N * NAV_N * 4);
+const _heapKey = new Float32Array(NAV_N * NAV_N * 4);
+let navTargetCell = -2, navAge = 99;
+function navUpdate(target, dt) {
+  navAge += dt;
+  let tc = navCellOf(target.x, target.z);
+  if (tc === navTargetCell && navAge < 1.5) return;
+  if (tc < 0) return;
+  if (navBlocked[tc]) {
+    // standing on a roof or crate: route enemies to the nearest open cell
+    let best = -1, bd = Infinity;
+    const tx = tc % NAV_N, tz = Math.floor(tc / NAV_N);
+    for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) {
+      const j = (tz + dz) * NAV_N + tx + dx;
+      if (j >= 0 && j < navBlocked.length && !navBlocked[j] && dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; best = j; }
+    }
+    if (best < 0) return;
+    tc = best;
+  }
+  navTargetCell = navCellOf(target.x, target.z); navAge = 0;
+  navDist.fill(Infinity);
+  let n = 0;
+  const push = (i, k) => {
+    let p = n++;
+    while (p > 0) { const q = (p - 1) >> 1; if (_heapKey[q] <= k) break; _heapKey[p] = _heapKey[q]; _heapIdx[p] = _heapIdx[q]; p = q; }
+    _heapKey[p] = k; _heapIdx[p] = i;
+  };
+  const pop = () => {
+    const top = _heapIdx[0];
+    const lk = _heapKey[--n], li = _heapIdx[n];
+    let p = 0;
+    for (;;) {
+      let c = p * 2 + 1;
+      if (c >= n) break;
+      if (c + 1 < n && _heapKey[c + 1] < _heapKey[c]) c++;
+      if (_heapKey[c] >= lk) break;
+      _heapKey[p] = _heapKey[c]; _heapIdx[p] = _heapIdx[c]; p = c;
+    }
+    _heapKey[p] = lk; _heapIdx[p] = li;
+    return top;
+  };
+  navDist[tc] = 0; push(tc, 0);
+  while (n > 0) {
+    const k0 = _heapKey[0];
+    const i = pop();
+    if (k0 > navDist[i]) continue;
+    const x = i % NAV_N, z = (i - x) / NAV_N;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dz) continue;
+      const nx = x + dx, nz = z + dz;
+      if (nx < 0 || nz < 0 || nx >= NAV_N || nz >= NAV_N) continue;
+      const j = nz * NAV_N + nx;
+      if (navBlocked[j]) continue;
+      if (dx && dz && (navBlocked[z * NAV_N + nx] || navBlocked[nz * NAV_N + x])) continue; // no corner cutting
+      const nd = k0 + (dx && dz ? 1.4142 : 1);
+      if (nd < navDist[j] && n < _heapIdx.length) { navDist[j] = nd; push(j, nd); }
+    }
+  }
+}
+
+// Direction (unit XZ vector written into out) along the flow field, or false.
+function navDir(pos, out) {
+  const i = navCellOf(pos.x, pos.z);
+  if (i < 0) return false;
+  const x = i % NAV_N, z = (i - x) / NAV_N;
+  let best = -1, bd = navBlocked[i] ? Infinity : navDist[i];
+  for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+    if (!dx && !dz) continue;
+    const nx = x + dx, nz = z + dz;
+    if (nx < 0 || nz < 0 || nx >= NAV_N || nz >= NAV_N) continue;
+    const j = nz * NAV_N + nx;
+    if (navBlocked[j]) continue;
+    if (dx && dz && (navBlocked[z * NAV_N + nx] || navBlocked[nz * NAV_N + x])) continue;
+    if (navDist[j] < bd) { bd = navDist[j]; best = j; }
+  }
+  if (best < 0 || bd === Infinity) return false;
+  // look one more step ahead for smoother turns
+  const bx = best % NAV_N, bz = (best - bx) / NAV_N;
+  let next = best, nd = navDist[best];
+  for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+    const nx = bx + dx, nz = bz + dz;
+    if (nx < 0 || nz < 0 || nx >= NAV_N || nz >= NAV_N) continue;
+    const j = nz * NAV_N + nx;
+    if (navBlocked[j] || navDist[j] >= nd) continue;
+    if (dx && dz && (navBlocked[bz * NAV_N + nx] || navBlocked[nz * NAV_N + bx])) continue;
+    nd = navDist[j]; next = j;
+  }
+  const tx = (navCenterX(best) * 2 + navCenterX(next)) / 3, tz = (navCenterZ(best) * 2 + navCenterZ(next)) / 3;
+  out.set(tx - pos.x, 0, tz - pos.z);
+  const l = out.length();
+  if (l < 1e-4) return false;
+  out.divideScalar(l);
+  return true;
+}

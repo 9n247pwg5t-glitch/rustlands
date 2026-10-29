@@ -16,7 +16,7 @@ window.addEventListener('resize', sizeOverlay);
 const hud = (() => {
   const nums = [], hurtArcs = [], logs = [];
   let marker = 0, markerKind = 0, bannerT = 0, xpFloat = 0, xpFloatT = 0;
-  let target = null, targetT = 0;
+  let target = null, targetT = 0, crossKick = 0;
   const el = {
     wave: $('waveLabel'), waveSub: $('waveSub'), cash: $('cash'),
     shieldFill: $('shieldFill'), shieldTxt: $('shieldTxt'), hpFill: $('hpFill'), hpTxt: $('hpTxt'),
@@ -44,7 +44,7 @@ const hud = (() => {
       nums.push({ pos: pos.clone().add(new THREE.Vector3(rand(-0.3, 0.3), 0, rand(-0.3, 0.3))), vx: rand(-30, 30), t: 0, life: crit ? 1.1 : 0.85, text: Math.round(amount).toLocaleString(), color, crit, effect });
       if (nums.length > 60) nums.shift();
     },
-    hitMarker(crit, kill) { marker = 0.22; markerKind = kill ? 2 : crit ? 1 : 0; },
+    hitMarker(crit, kill) { marker = kill ? 0.32 : 0.22; markerKind = kill ? 2 : crit ? 1 : 0; crossKick = kill ? 9 : crit ? 6 : 3; },
     targetHit(e) { target = e; targetT = 2.5; },
     hurtFrom(src) { hurtArcs.push({ a: Math.atan2(-(src.x - player.pos.x), -(src.z - player.pos.z)), t: 1 }); if (hurtArcs.length > 8) hurtArcs.shift(); },
     flash(kind, k = 1) { if (kind === 'hurt') hurtA = Math.max(hurtA, k * 0.8); else shieldA = 0.9; },
@@ -89,7 +89,7 @@ const hud = (() => {
       let sh = '';
       for (let i = 0; i < 4; i++) {
         const w = p.weapons[i];
-        sh += `<div class="slot${i === p.cur ? ' on' : ''}" style="${w ? 'border-color:' + RARITY[w.rarity].css : ''}"><span>${i + 1}</span>${w ? TYPES[w.type].label.split(' ')[0] : '—'}</div>`;
+        sh += `<div class="slot${i === p.cur ? ' on' : ''}" data-i="${i}" style="${w ? 'border-color:' + RARITY[w.rarity].css : ''}"><span>${i + 1}</span>${w ? TYPES[w.type].label.split(' ')[0] : '—'}</div>`;
       }
       if (el.slots.dataset.v !== sh) { el.slots.innerHTML = sh; el.slots.dataset.v = sh; }
       el.gren.textContent = p.grenades;
@@ -115,6 +115,12 @@ const hud = (() => {
         el.tHp.className = target.hpType === 'armor' ? 'armor' : '';
       } else el.target.hidden = true;
       el.cross.classList.toggle('on-enemy', !!hit);
+      if (g) {
+        const px = Math.tan(spreadFor(g) * Math.PI / 180) / Math.tan(camera.fov * Math.PI / 360) * window.innerHeight / 2;
+        crossKick = Math.max(0, crossKick - dt * 40);
+        el.cross.style.setProperty('--gap', (clamp(px, 3, 70) + crossKick) + 'px');
+        el.cross.style.opacity = player.adsK > 0.85 && g.type === 'sniper' ? 0 : 1;
+      }
 
       const boss = enemies.find((e) => e.alive && e.def.boss);
       if (boss) {

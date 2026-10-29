@@ -39,7 +39,7 @@ const MFR = {
   vladof: { name: 'Vladof', types: ['pistol', 'ar', 'sniper', 'launcher'], dmg: 0.88, rate: 1.45, mag: 1.5, reload: 1.05, spread: 1.15, colors: [0x9b2a22, 0xd8c39a], perk: 'High fire rate and big magazines.' },
   tediore: { name: 'Tediore', types: ['pistol', 'smg', 'shotgun', 'launcher'], dmg: 0.92, rate: 1, mag: 0.9, reload: 0.6, spread: 1, colors: [0xb8c8d0, 0x3a8acf], tediore: true, perk: 'Reload by throwing the gun. It explodes.' },
   hyperion: { name: 'Hyperion', types: ['pistol', 'smg', 'shotgun', 'sniper'], dmg: 0.95, rate: 1.05, mag: 1.25, reload: 1, spread: 1, colors: [0xf2f2ec, 0xf2c230], hyperion: true, perk: 'Accuracy improves the longer you fire.' },
-  dahl: { name: 'Dahl', types: ['pistol', 'smg', 'ar', 'sniper'], dmg: 1.0, rate: 1.05, mag: 1.05, reload: 0.95, spread: 0.9, colors: [0x5d6b3a, 0x2b2b2b], dahl: true, perk: 'Fires a 3-round burst while aiming.' },
+  dahl: { name: 'Dahl', types: ['pistol', 'smg', 'ar', 'sniper'], dmg: 1.0, rate: 1.05, mag: 1.05, reload: 0.95, spread: 0.9, colors: [0x5d6b3a, 0x2b2b2b], dahl: true, perk: 'Automatic Dahl guns fire 3-round bursts while aiming.' },
 };
 
 const NOUNS = {

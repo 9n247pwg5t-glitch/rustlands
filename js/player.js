@@ -22,7 +22,7 @@ const player = {
   grenades: 3, maxGrenades: 5,
   alive: true, downed: false, downT: 0, grounded: true, invuln: 0,
   reloadT: 0, reloadDur: 1, swapT: 0, fireCd: 0, burstLeft: 0, triggerQueue: 0,
-  hyperSpin: 0, adsK: 0, vmKick: 0, meleeCd: 0, meleeT: 0,
+  hyperSpin: 0, adsK: 0, vmKick: 0, meleeCd: 0, meleeT: 0, recoil: 0,
   skillCd: 0, bob: 0, hurtSoundT: 0, lifesteal: false,
   stats: { kills: 0, crits: 0, shots: 0, damage: 0 },
 
@@ -274,11 +274,12 @@ function fireOnce(g) {
     if (h.crit) player.stats.crits++;
     if (h.procs && e.alive) applyDot(e, g.element, g.elemDps);
     hud.hitMarker(h.crit, !e.alive);
+    if (!e.alive && h.crit) game.hitstop = Math.max(game.hitstop, 0.06);
     if (wasShield) SFX.shieldHit(); else SFX.hit(h.crit);
   }
   // recoil and feedback
   const kick = g.kick * 0.011 * lerp(1, 0.55, player.adsK);
-  player.pitch += kick; player.yaw += rand(-0.3, 0.3) * kick;
+  player.recoil += kick * 0.75; player.pitch += kick * 0.25; player.yaw += rand(-0.3, 0.3) * kick;
   player.vmKick = Math.min(1.5, player.vmKick + g.kick * 0.25);
   vmFlash.intensity = 2.2; vmFlash.color.setHex(E.hex);
   vmFlash.position.set(vm.root.position.x, vm.root.position.y + 0.05, vm.root.position.z + (vm.gun ? vm.gun.userData.muzzleZ : -0.5));

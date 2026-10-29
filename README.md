@@ -34,17 +34,18 @@ It also works on GitHub Pages: turn Pages on for the `main` branch.
 - **Fight For Your Life.** When your health hits zero you go down. Kill an enemy before the timer runs out to get a Second Wind.
 - **Action skill.** You can deploy a turret. You also have grenades, a melee attack and explosive barrels.
 - **Progression.** You earn XP and level up. Loot chests appear after each wave, and vending machines sell ammo and healing.
-- **Controls.** The game supports touch (virtual stick, buttons, light aim assist) as well as mouse and keyboard.
+- **Controls.** The game supports touch as well as mouse and keyboard. Light aim assist (look slowdown near enemies, a gentle pull while firing, a snap when you start aiming) is stronger on touch and always aims at the body, so headshots are still on you.
+- **Enemy pathfinding.** Enemies follow a navigation grid around buildings, walls, cars and rocks, and sidestep if they get stuck.
 
 ## Controls
 
 | Action | Keyboard / mouse | Touch |
 | --- | --- | --- |
-| Move / sprint / jump | WASD / Shift / Space | Left stick / RUN / JUMP |
+| Move / sprint / jump | WASD / Shift / Space | Left stick (push all the way to sprint) / JUMP |
 | Aim / shoot / zoom | Mouse / Left click / Right click | Drag right side / FIRE / AIM |
-| Reload / swap | R / 1–4 or wheel | R / SWAP |
-| Interact (pick up, open, buy) | E | USE |
-| Grenade / melee / turret | G / F / Q | GREN / MELEE / TURRET |
+| Reload / swap | R / 1–4 or wheel | Tap ammo count / tap a weapon slot |
+| Interact (pick up, open, buy) | E | Pop-up TAKE / OPEN / BUY button |
+| Grenade / melee / turret | G / F / Q | GREN / — / SKILL |
 | Skip intermission / pause | N / Esc | II button |
 
 ## Code layout

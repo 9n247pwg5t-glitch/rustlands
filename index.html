@@ -110,12 +110,14 @@
   #ffyl .tbar { height: 12px; }
   #ffylFill { background: #ff4a3a; }
 
-  #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); }
-  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: var(--paper); box-shadow: 0 0 0 1px var(--ink); }
-  #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; clip-path: polygon(0 0, 100% 0, 100% 30%, 0 30%, 0 70%, 100% 70%, 100% 100%, 0 100%); }
-  #crosshair::after { top: 10px; left: 0; height: 2px; width: 22px; clip-path: polygon(0 0, 30% 0, 30% 100%, 0 100%, 0 0, 70% 0, 100% 0, 100% 100%, 70% 100%); }
-  #crosshair.on-enemy::before, #crosshair.on-enemy::after { background: #ff4a3a; }
-
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; --gap: 8px; }
+  #crosshair i { position: absolute; background: var(--paper); box-shadow: 0 0 0 1px var(--ink); transition: background 0.08s; }
+  #crosshair i:nth-child(1) { width: 2px; height: 8px; left: -1px; bottom: var(--gap); }
+  #crosshair i:nth-child(2) { width: 2px; height: 8px; left: -1px; top: var(--gap); }
+  #crosshair i:nth-child(3) { width: 8px; height: 2px; top: -1px; right: var(--gap); }
+  #crosshair i:nth-child(4) { width: 8px; height: 2px; top: -1px; left: var(--gap); }
+  #crosshair b { position: absolute; width: 2px; height: 2px; left: -1px; top: -1px; background: var(--paper); box-shadow: 0 0 0 1px var(--ink); }
+  #crosshair.on-enemy i, #crosshair.on-enemy b { background: #ff4a3a; }
   #prompt { position: absolute; left: 50%; top: 60%; transform: translateX(-50%); font: 700 18px/1 var(--body); letter-spacing: 0.04em; padding: 8px 12px; background: var(--panel); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); white-space: nowrap; }
   #prompt kbd { font: 16px/1 var(--display); background: var(--hazard); color: var(--ink); padding: 2px 6px; margin-right: 6px; border: 2px solid var(--ink); }
   #prompt .ok { color: #9fff6a; } #prompt .bad { color: #ff6a5a; }
@@ -159,28 +161,28 @@
   #deadStats b { color: var(--hazard); }
 
   /* ---------- Touch ---------- */
-  #touch { position: fixed; inset: 0; z-index: 5; touch-action: none; }
+  #touch { position: fixed; inset: 0; z-index: 3; touch-action: none; }
   #stickBase { position: absolute; left: 0; top: 0; width: 120px; height: 120px; border-radius: 50%; border: 3px solid rgba(255, 243, 220, 0.5); background: rgba(28, 17, 10, 0.3); pointer-events: none; }
   #stickKnob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 210, 58, 0.75); border: 2px solid var(--ink); }
   .tb { position: absolute; display: grid; place-items: center; border-radius: 50%; border: 3px solid var(--ink); background: rgba(28, 17, 10, 0.55); color: var(--paper); font: 15px/1 var(--display); letter-spacing: 0.06em; box-shadow: 2px 2px 0 var(--ink); }
   .tb.down, .tb.on { background: rgba(255, 210, 58, 0.85); color: var(--ink); }
-  .tb[data-act="fire"] { width: 88px; height: 88px; right: calc(24px + var(--sar)); bottom: calc(64px + var(--sab)); font-size: 22px; background: rgba(196, 80, 43, 0.75); }
-  .tb[data-act="ads"] { width: 54px; height: 54px; right: calc(141px + var(--sar)); bottom: calc(81px + var(--sab)); }
-  .tb[data-act="jump"] { width: 54px; height: 54px; right: calc(112px + var(--sar)); bottom: calc(152px + var(--sab)); }
-  .tb[data-act="reload"] { width: 48px; height: 48px; right: calc(44px + var(--sar)); bottom: calc(184px + var(--sab)); }
-  .tb[data-act="swap"] { width: 46px; height: 46px; right: calc(215px + var(--sar)); bottom: calc(85px + var(--sab)); font-size: 13px; }
-  .tb[data-act="melee"] { width: 46px; height: 46px; right: calc(192px + var(--sar)); bottom: calc(170px + var(--sab)); font-size: 13px; }
-  .tb[data-act="gren"] { width: 46px; height: 46px; right: calc(130px + var(--sar)); bottom: calc(232px + var(--sab)); font-size: 13px; }
-  .tb[data-act="skill"] { width: 46px; height: 46px; right: calc(45px + var(--sar)); bottom: calc(255px + var(--sab)); font-size: 11px; }
-  .tb[data-act="use"] { width: 56px; height: 56px; right: calc(270px + var(--sar)); bottom: calc(170px + var(--sab)); border-color: var(--hazard); }
-  .tb[data-act="sprint"] { width: 46px; height: 46px; left: calc(24px + var(--sal)); bottom: calc(120px + var(--sab)); font-size: 13px; }
+  /* Right thumb rests on JUMP; FIRE sits one short reach up-left of it. */
+  .tb[data-act="jump"] { width: 72px; height: 72px; right: calc(20px + var(--sar)); bottom: calc(24px + var(--sab)); font-size: 17px; }
+  .tb[data-act="fire"] { width: 96px; height: 96px; right: calc(110px + var(--sar)); bottom: calc(66px + var(--sab)); font-size: 24px; background: rgba(196, 80, 43, 0.75); }
+  .tb[data-act="ads"] { width: 60px; height: 60px; right: calc(26px + var(--sar)); bottom: calc(118px + var(--sab)); }
+  .tb[data-act="gren"] { width: 46px; height: 46px; right: calc(34px + var(--sar)); bottom: calc(194px + var(--sab)); font-size: 12px; }
+  .tb[data-act="skill"] { width: 46px; height: 46px; right: calc(96px + var(--sar)); bottom: calc(184px + var(--sab)); font-size: 11px; }
+  .tb[data-act="use"] { width: 64px; height: 64px; right: calc(222px + var(--sar)); bottom: calc(150px + var(--sab)); border-color: var(--hazard); background: rgba(255, 210, 58, 0.85); color: var(--ink); font-size: 17px; }
+  #stickBase.sprint { border-color: var(--hazard); }
+  #stickBase.sprint #stickKnob { background: rgba(255, 138, 28, 0.9); }
 
   @media (pointer: coarse) {
-    .br { bottom: auto; top: calc(8px + var(--sat)); right: calc(66px + var(--sar)); transform: scale(0.6); transform-origin: top right; }
+    .br { bottom: auto; top: calc(8px + var(--sat)); right: calc(66px + var(--sar)); transform: scale(0.6); transform-origin: top right; pointer-events: auto; }
+    .slot { padding: 10px 12px; font-size: 16px; }
     .br .kit { display: none; }
     .bl { transform: scale(0.85); transform-origin: bottom left; bottom: calc(10px + var(--sab)); }
     .bc { display: none; }
-    #card { left: 50%; transform: translate(-50%, -105%); top: 50%; }
+    #card { left: calc(12px + var(--sal)); top: 50%; transform: translateY(-50%) scale(0.78); transform-origin: left center; }
     #prompt { top: 56%; }
   }
   @media (max-width: 700px) {
@@ -223,7 +225,7 @@
     <div class="tbar"><div id="ffylFill"></div></div>
   </div>
 
-  <div id="crosshair"></div>
+  <div id="crosshair"><i></i><i></i><i></i><i></i><b></b></div>
   <div id="prompt" hidden></div>
   <div id="card" hidden></div>
   <div id="banner" hidden><div id="bTitle"></div><div id="bSub"></div></div>
@@ -249,15 +251,11 @@
 <div id="touch" hidden>
   <div id="stickBase" hidden><div id="stickKnob"></div></div>
   <div class="tb" data-act="fire">FIRE</div>
-  <div class="tb" data-act="ads">AIM</div>
   <div class="tb" data-act="jump">JUMP</div>
-  <div class="tb" data-act="reload">R</div>
-  <div class="tb" data-act="swap">SWAP</div>
-  <div class="tb" data-act="use">USE</div>
+  <div class="tb" data-act="ads">AIM</div>
   <div class="tb" data-act="gren">GREN</div>
-  <div class="tb" data-act="skill">TURRET</div>
-  <div class="tb" data-act="melee">MELEE</div>
-  <div class="tb" data-act="sprint">RUN</div>
+  <div class="tb" data-act="skill">SKILL</div>
+  <div class="tb" data-act="use" id="useBtn" hidden>USE</div>
 </div>
 
 <div id="menu" class="screen">
@@ -275,9 +273,9 @@
       <div><b>N</b>Skip to next wave</div><div><b>ESC</b>Pause</div>
     </div>
     <div class="controls" id="ctlTouch" hidden>
-      <div><b>LEFT</b>Drag to move</div><div><b>RIGHT</b>Drag to aim</div>
+      <div><b>LEFT</b>Drag to move, push all the way to sprint</div><div><b>RIGHT</b>Drag to aim</div>
       <div><b>FIRE</b>Hold to shoot, drag to aim</div><div><b>AIM</b>Toggle zoom</div>
-      <div><b>USE</b>Pick up · open · buy</div><div><b>TURRET</b>Action skill</div>
+      <div><b>AMMO</b>Tap the ammo count to reload</div><div><b>GUNS</b>Tap a weapon slot to switch</div>
     </div>
     <div class="legend">
       <span style="color:#e9e6df">Common</span><span style="color:#42e04f">Uncommon</span><span style="color:#3e8eff">Rare</span><span style="color:#b552ff">Epic</span><span style="color:#ff8a1c">Legendary</span>

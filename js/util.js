@@ -110,9 +110,13 @@ const SFX = (() => {
       noise(0.9 * size, 1000, 0.7, 0.9 * vol, 'lowpass', 0, 70);
       tone(65, 0.6 * size, 0.6 * vol, 'sine', 0, 28);
     },
-    hit(crit) { if (crit) { tone(1900, 0.05, 0.16, 'square'); tone(2600, 0.06, 0.12, 'square', 0.03); } else tone(1200, 0.035, 0.1, 'square'); },
+    hit(crit) {
+      noise(0.05, 2400, 1.2, 0.14, 'bandpass');
+      if (crit) { tone(2300, 0.16, 0.16, 'triangle'); tone(3450, 0.12, 0.07, 'sine', 0.01); tone(160, 0.08, 0.2, 'sine', 0, 70); }
+      else tone(1250, 0.04, 0.09, 'square');
+    },
     shieldHit() { tone(800, 0.05, 0.07, 'sawtooth', 0, 1400); },
-    kill() { tone(640, 0.07, 0.14, 'square'); tone(960, 0.1, 0.12, 'square', 0.06); },
+    kill() { noise(0.14, 900, 0.8, 0.25); tone(520, 0.09, 0.16, 'square', 0, 260); tone(980, 0.12, 0.12, 'square', 0.07); },
     pickup() { tone(700, 0.06, 0.13, 'triangle'); tone(1050, 0.09, 0.13, 'triangle', 0.06); },
     cash() { tone(1500, 0.05, 0.1, 'square'); tone(2100, 0.08, 0.08, 'square', 0.05); },
     rareDrop(r) {

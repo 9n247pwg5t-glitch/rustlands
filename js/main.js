@@ -7,7 +7,7 @@ function saveBest(b) { try { localStorage.setItem(BEST_KEY, JSON.stringify(b)); 
 
 const game = {
   state: 'menu', wave: 0, phase: 'intermission', interT: 0,
-  toSpawn: [], spawnT: 0, enemyLevel: 1, chest: null, shakeAmt: 0, best: loadBest(),
+  toSpawn: [], spawnT: 0, enemyLevel: 1, chest: null, shakeAmt: 0, hitstop: 0, best: loadBest(),
   waveStartKills: 0, waveTotal: 0, waveKilled: 0,
 
   waveLabel() { return this.wave === 0 ? 'GET READY' : (this.wave % 5 === 0 ? 'BOSS WAVE ' : 'WAVE ') + this.wave; },
@@ -26,7 +26,7 @@ const game = {
       dropLoot(e);
     }
     if (player.downed && opts.fromPlayer) player.secondWind();
-    if (e.def.boss) { hud.banner('KRAG IS SCRAP', 'Boss defeated'); SFX.levelUp(); }
+    if (e.def.boss) { hud.banner('KRAG IS SCRAP', 'Boss defeated'); SFX.levelUp(); this.hitstop = 0.35; }
   },
 };
 
@@ -204,6 +204,7 @@ function pickupItem(d) {
 }
 
 let focus = null; // what E would act on
+const USE_KEY = IS_TOUCH ? '' : '<kbd>E</kbd> ';
 function updateInteraction(dt) {
   focus = null;
   const eye = camera.position;
@@ -235,13 +236,13 @@ function updateInteraction(dt) {
     const full = it.kind === 'gun' && player.weapons.indexOf(null) < 0;
     focus = { kind: 'drop', d: best };
     hud.showCard(it, cmp);
-    hud.showPrompt(`<kbd>${IS_TOUCH ? 'USE' : 'E'}</kbd> ${it.kind === 'shield' ? 'Equip shield' : full ? 'Swap for ' + cmp.name : 'Pick up'}`);
+    hud.showPrompt(`${USE_KEY}${it.kind === 'shield' ? 'Equip shield' : full ? 'Swap for ' + cmp.name : 'Pick up'}`);
     return;
   }
   hud.showCard(null);
   if (game.chest && !game.chest.opened && game.chest.pos.distanceTo(player.pos) < 3) {
     focus = { kind: 'chest' };
-    hud.showPrompt(`<kbd>${IS_TOUCH ? 'USE' : 'E'}</kbd> Open ${game.chest.boss ? 'boss ' : ''}chest`);
+    hud.showPrompt(`${USE_KEY}Open ${game.chest.boss ? 'boss ' : ''}chest`);
     return;
   }
   for (const v of interactables) {
@@ -249,11 +250,17 @@ function updateInteraction(dt) {
       const cost = v.kind === 'ammo' ? ammoRefillCost() : healCost();
       focus = { kind: v.kind, cost };
       const what = v.kind === 'ammo' ? 'Refill ammo' : 'Heal to full';
-      hud.showPrompt(cost > 0 ? `<kbd>${IS_TOUCH ? 'USE' : 'E'}</kbd> ${what} · <span class="${player.cash >= cost ? 'ok' : 'bad'}">$${cost}</span>` : (v.kind === 'ammo' ? 'Ammo is full' : 'Health is full'));
+      hud.showPrompt(cost > 0 ? `${USE_KEY}${what} · <span class="${player.cash >= cost ? 'ok' : 'bad'}">$${cost}</span>` : (v.kind === 'ammo' ? 'Ammo is full' : 'Health is full'));
       return;
     }
   }
   hud.showPrompt(null);
+}
+const useBtn = $('useBtn');
+function updateUseButton() {
+  const label = !focus ? '' : focus.kind === 'drop' ? 'TAKE' : focus.kind === 'chest' ? 'OPEN' : focus.cost > 0 ? 'BUY' : '';
+  useBtn.hidden = !label;
+  if (label && useBtn.textContent !== label) useBtn.textContent = label;
 }
 function interact() {
   if (!focus || player.downed) return;
@@ -278,7 +285,9 @@ function updatePlayer(dt) {
   mx += input.touchMove.x; mz += input.touchMove.y;
   const mag = Math.hypot(mx, mz);
   if (mag > 1) { mx /= mag; mz /= mag; }
-  const sprint = (k.ShiftLeft || k.ShiftRight || input.sprint) && mz > 0.3 && !input.ads && !player.downed;
+  const stickSprint = Math.hypot(input.touchMove.x, input.touchMove.y) > 0.92 && input.touchMove.y > 0.5;
+  const sprint = (k.ShiftLeft || k.ShiftRight || stickSprint) && mz > 0.3 && !input.ads && !player.downed;
+  stickBase.classList.toggle('sprint', stickSprint);
   let speed = player.downed ? 1.6 : sprint ? 10.5 : 7;
   if (player.adsK > 0.5) speed *= 0.6;
   const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
@@ -324,32 +333,70 @@ function updateCamera(dt, moving, sprint) {
   game.shakeAmt = Math.max(0, game.shakeAmt - dt * 2.5);
   const s = game.shakeAmt * game.shakeAmt * 0.15;
   camera.position.x += rand(-s, s); camera.position.y += rand(-s, s); camera.position.z += rand(-s, s);
-  camera.rotation.set(player.pitch, player.yaw, player.downed ? 0.15 : 0);
+  player.recoil -= player.recoil * Math.min(1, dt * 9);
+  camera.rotation.set(clamp(player.pitch + player.recoil, -1.55, 1.55), player.yaw, player.downed ? 0.15 : 0);
   sky.position.copy(camera.position);
   sun.position.copy(player.pos).addScaledVector(SUN_DIR, 80);
   sun.target.position.copy(player.pos);
 }
 
-// Gentle aim assist for touch screens
-function aimAssist(dt) {
-  if (!IS_TOUCH || !(input.fire || input.ads)) return;
+// Aim assist. Three light layers, all aimed at the body so headshots are still
+// on you: friction (look slows while the crosshair is near an enemy), a gentle
+// pull while shooting or zoomed, and a quick snap when you start zooming next
+// to a target. Touch gets more help than a mouse.
+const assist = { snapT: 0, prevAds: false, target: null, current: null };
+const _ac = new THREE.Vector3(), _at = new THREE.Vector3();
+function findAssistTarget(cone, maxDist) {
   camBasis();
-  let best = null, bestA = 0.09;
-  const c = new THREE.Vector3();
+  let best = null, bestScore = Infinity;
   for (const e of enemies) {
     if (!e.alive) continue;
-    enemyCenter(e, c);
-    const to = c.clone().sub(camera.position);
-    const dist = to.length();
-    if (dist > 60) continue;
-    const ang = Math.acos(clamp(to.normalize().dot(_fwd), -1, 1));
-    if (ang < bestA) { bestA = ang; best = to.clone(); }
+    enemyCenter(e, _ac);
+    _at.subVectors(_ac, camera.position);
+    const d = _at.length();
+    if (d > maxDist || d < 0.5) continue;
+    _at.divideScalar(d);
+    const ang = Math.acos(clamp(_at.dot(_fwd), -1, 1));
+    const lim = cone + Math.atan(e.radius / d);
+    if (ang > lim) continue;
+    const score = ang / lim + d * 0.003;
+    if (score < bestScore && lineOfSight(camera.position, _ac)) { best = e; bestScore = score; }
   }
-  if (!best) return;
-  const wantYaw = Math.atan2(-best.x, -best.z), wantPitch = Math.asin(clamp(best.y, -1, 1));
+  return best;
+}
+function steerToward(e, k) {
+  enemyCenter(e, _ac);
+  _at.subVectors(_ac, camera.position).normalize();
+  const wantYaw = Math.atan2(-_at.x, -_at.z), wantPitch = Math.asin(clamp(_at.y, -1, 1)) - player.recoil;
   let dy = wantYaw - player.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-  player.yaw += dy * Math.min(1, dt * 3.5);
-  player.pitch += (wantPitch - player.pitch) * Math.min(1, dt * 3.5);
+  player.yaw += dy * k;
+  player.pitch += (wantPitch - player.pitch) * k;
+}
+function applyLook(dt) {
+  const g = player.gun();
+  const zoom = g ? lerp(1, g.zoom, player.adsK) : 1;
+  const range = !g ? 50 : g.type === 'sniper' ? 140 : g.type === 'shotgun' ? 28 : g.type === 'launcher' ? 70 : 60;
+  const touch = IS_TOUCH;
+  const tgt = player.alive ? findAssistTarget((touch ? 0.09 : 0.045) / Math.sqrt(zoom), range) : null;
+  assist.current = tgt;
+  let friction = 1;
+  if (tgt) friction = touch ? 0.5 : (player.adsK > 0.5 ? 0.7 : 0.85);
+  const sens = SENS / zoom * friction;
+  player.yaw -= input.lookDX * sens;
+  player.pitch = clamp(player.pitch - input.lookDY * sens, -1.5, 1.5);
+
+  const adsNow = input.ads;
+  if (adsNow && !assist.prevAds && player.adsK < 0.3) {
+    const snapTgt = findAssistTarget(touch ? 0.17 : 0.1, range);
+    if (snapTgt) { assist.snapT = 0.18; assist.target = snapTgt; }
+  }
+  assist.prevAds = adsNow;
+  if (assist.snapT > 0 && assist.target && assist.target.alive) {
+    assist.snapT -= dt;
+    steerToward(assist.target, Math.min(1, dt * (touch ? 16 : 9)));
+  } else if (tgt && (input.fire || player.adsK > 0.5)) {
+    steerToward(tgt, Math.min(1, dt * (touch ? 4 : 1.2)));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -486,13 +533,9 @@ function touchAct(act, down, btn) {
   switch (act) {
     case 'ads': input.ads = !input.ads; btn.classList.toggle('on', input.ads); break;
     case 'jump': input.jumpPressed = true; break;
-    case 'reload': startReload(); break;
-    case 'swap': cycleWeapon(1); break;
     case 'use': interact(); break;
     case 'gren': throwGrenade(); break;
     case 'skill': deployTurret(); break;
-    case 'melee': doMelee(); break;
-    case 'sprint': input.sprint = !input.sprint; btn.classList.toggle('on', input.sprint); break;
   }
 }
 touchEl.addEventListener('pointerdown', (e) => {
@@ -538,21 +581,23 @@ function endPointer(e) {
 touchEl.addEventListener('pointerup', endPointer);
 touchEl.addEventListener('pointercancel', endPointer);
 document.addEventListener('gesturestart', (e) => e.preventDefault());
+if (IS_TOUCH) {
+  const tap = (el, fn) => el.addEventListener('pointerdown', (e) => { if (game.state !== 'play') return; e.preventDefault(); e.stopPropagation(); fn(e); });
+  tap($('ammoMag').parentNode, () => startReload());
+  tap($('gunName'), () => cycleWeapon(1));
+  tap($('slots'), (e) => { const s = e.target.closest('.slot'); if (s) switchWeapon(+s.dataset.i); });
+}
 
 // ---------------------------------------------------------------------------
 // Main loop
 const SENS = 0.0022;
 function update(dt) {
-  const g = player.gun();
-  const zoom = g ? lerp(1, g.zoom, player.adsK) : 1;
-  const sens = SENS / zoom;
   if (input.keys.ArrowLeft) input.lookDX -= 900 * dt;
   if (input.keys.ArrowRight) input.lookDX += 900 * dt;
   if (input.keys.ArrowUp) input.lookDY -= 600 * dt;
   if (input.keys.ArrowDown) input.lookDY += 600 * dt;
-  player.yaw -= input.lookDX * sens;
-  player.pitch = clamp(player.pitch - input.lookDY * sens, -1.5, 1.5);
-  aimAssist(dt);
+  applyLook(dt);
+  navUpdate(player.pos, dt);
 
   const { moving, sprint } = updatePlayer(dt);
   if (game.state !== 'play') return;
@@ -569,6 +614,7 @@ function update(dt) {
   updateFx(dt);
   updateWaves(dt);
   updateInteraction(dt);
+  if (IS_TOUCH) updateUseButton();
   if (game.chest) {
     const c = game.chest;
     c.t += dt;
@@ -592,8 +638,9 @@ function updateMenu(dt) {
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000);
+  let dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  if (game.hitstop > 0) { game.hitstop -= dt; dt *= 0.12; }
   if (game.state === 'play') update(dt);
   else if (game.state === 'menu') updateMenu(dt);
   renderer.clear();
