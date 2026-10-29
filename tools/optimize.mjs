@@ -32,8 +32,12 @@ for (const f of fs.readdirSync(inDir).filter((f) => f.endsWith('.glb'))) {
     if (r < 1) simplifyPrimitive(p, { simplifier: MeshoptSimplifier, ratio: r, error: 0.01, lockBorder: false });
     after += p.getAttribute('POSITION').getCount();
   }
+  // the game's cel shading ignores normal maps
+  for (const m of root.listMaterials()) m.setNormalTexture(null);
+  await doc.transform(prune());
   for (const tex of root.listTextures()) {
-    const img = sharp(Buffer.from(tex.getImage()));
+    const meta0 = await sharp(Buffer.from(tex.getImage())).metadata();
+    const img = sharp(Buffer.from(tex.getImage())).resize(Math.min(meta0.width, 1024), Math.min(meta0.height, 1024), { fit: 'fill' });
     const meta = await img.metadata();
     const out = await (meta.hasAlpha ? img.webp({ quality: 82, alphaQuality: 90 }) : img.removeAlpha().webp({ quality: 80 })).toBuffer();
     tex.setImage(new Uint8Array(out)).setMimeType('image/webp')

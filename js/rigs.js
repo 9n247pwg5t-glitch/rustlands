@@ -22,13 +22,14 @@ const RIG_FILES = {
   ugly: 'male-psychosis-enemy-2-ugly',
   female: 'femal-psychosis-1',
   clown: 'brawler-clown',
+  gangster: 'gangster-clown',
   brute: 'brute',
 };
 // Per enemy type: which bodies, and the gear pinned to the bones. The characters are shown as
 // authored; `cloth` (optional) would dye the dark parts of their clothes.
 const RIG_LOOKS = {
   bandit: { bases: ['psycho1', 'ugly', 'female'], weapon: 'rifle' },
-  marauder: { bases: ['female', 'psycho1'], mask: 'goggles', weapon: 'rifle' },
+  marauder: { bases: ['gangster'], weapon: 'rifle' }, // the top-heavy gangster clown
   psycho: { bases: ['ugly', 'psycho1', 'female'], weapon: 'axe' },
   suicide: { bases: ['psycho1', 'ugly', 'female'], weapon: 'bomb' },
   nomad: { bases: ['clown'], weapon: 'smg', dual: true }, // the clown brawler, an SMG in each fist
