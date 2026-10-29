@@ -3,6 +3,9 @@
 <meta charset="utf-8">
 <title>Rustlands</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -177,7 +180,7 @@
   #stickBase.sprint #stickKnob { background: rgba(255, 138, 28, 0.9); }
 
   @media (pointer: coarse) {
-    .br { bottom: auto; top: calc(8px + var(--sat)); right: calc(66px + var(--sar)); transform: scale(0.6); transform-origin: top right; pointer-events: auto; }
+    .br { right: calc(232px + var(--sar)); bottom: calc(12px + var(--sab)); transform: scale(0.6); transform-origin: bottom right; pointer-events: auto; }
     .slot { padding: 10px 12px; font-size: 16px; }
     .br .kit { display: none; }
     .bl { transform: scale(0.85); transform-origin: bottom left; bottom: calc(10px + var(--sab)); }
@@ -188,7 +191,7 @@
   /* Portrait phones: weapon panel moves above the health bars, compass sits under the wave info. */
   @media (pointer: coarse) and (orientation: portrait) {
     .tl { transform: scale(0.8); transform-origin: top left; }
-    .br { top: auto; right: auto; bottom: calc(210px + var(--sab)); left: calc(14px + var(--sal)); justify-items: start; text-align: left; transform-origin: bottom left; }
+    .br { right: auto; bottom: calc(210px + var(--sab)); left: calc(14px + var(--sal)); justify-items: start; text-align: left; transform-origin: bottom left; }
     #hud #log { top: calc(132px + var(--sat)); }
     #target, #boss { top: calc(126px + var(--sat)); }
   }
