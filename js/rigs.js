@@ -330,19 +330,53 @@ function animateRig(e, dt) {
   }
   if (R.one && R.one.action.time >= R.one.end - 1e-3 && !R.one.keep) R.one = null;
   if (!R.one) {
-    const speed = Math.hypot(e.vel.x, e.vel.z);
-    const ai = e.def.ai;
     if (e.state === 'charge') rigLoop(R, 'Running', 1.7);
-    else if (e.state === 'rockets') rigLoop(R, 'Shoot Rifle', 1);
-    else if (ai === 'ranged' || ai === 'boss') {
-      if (speed > 0.8) rigLoop(R, 'Rifle Run', clamp(speed / 4.2, 0.6, 1.5));
-      else rigLoop(R, 'Shoot Rifle', e.burstLeft > 0 ? 1.2 : 0);
-    } else if (ai === 'suicide') rigLoop(R, 'Injured Run', clamp(speed / 5, 0.6, 1.6));
-    else if (speed > 0.8) rigLoop(R, 'Running', clamp(speed / 6.5, 0.6, 1.7));
-    else rigLoop(R, 'Slap thigh Taunt', 1);
+    else if (e.state === 'rockets') rigLoop(R, 'Shoot Rifle', 0);
+    else rigLocomotion(e, R, dt);
   }
   R.mixer.update(dt);
   if (e.flinchCrit && fl > 0) R.bones.head.rotation.x -= fl * 2.2;
+}
+
+// How fast a clip travels (m/s) and which way it steps sideways (+1 = to the character's right),
+// measured from its root motion when the clips were converted.
+function clipSpeed(name, fallback) {
+  const c = RIG.data.clips[name];
+  const v = c && c.v ? Math.hypot(c.v[0], c.v[1]) / 100 : 0;
+  return v > 0.1 ? v : fallback;
+}
+function clipSide(name) { const c = RIG.data.clips[name]; return c && c.v && c.v[0] > 0 ? -1 : 1; }
+
+// Pick forward, backward or sideways movement from the velocity relative to where the body faces,
+// with playback speed matched to the ground speed (side steps play in reverse for the other side).
+function rigLocomotion(e, R, dt) {
+  const gun = e.def.ai === 'ranged' || e.def.ai === 'boss';
+  const fx = Math.sin(e.yaw), fz = Math.cos(e.yaw);
+  const vf = e.vel.x * fx + e.vel.z * fz;
+  const vr = -e.vel.x * fz + e.vel.z * fx;
+  const speed = Math.hypot(vf, vr);
+  let mode = speed < 0.6 ? 'idle' : Math.abs(vr) > Math.abs(vf) * 1.1 ? 'side' : vf > 0 ? 'fwd' : 'back';
+  // a short hold so brief wobbles don't flip clips back and forth
+  if (R.mode && mode !== R.mode) { R.modeT = (R.modeT || 0) + dt; if (R.modeT < 0.15) mode = R.mode; else R.modeT = 0; }
+  else R.modeT = 0;
+  R.mode = mode;
+  if (mode === 'idle') {
+    if (gun) rigLoop(R, 'Shoot Rifle', 0); // aiming pose
+    else rigLoop(R, 'Slap thigh Taunt', 1);
+  } else if (mode === 'fwd') {
+    if (gun) {
+      if (vf < 2.4 && e.burstLeft > 0) rigLoop(R, 'Shoot Rifle', clamp(vf / clipSpeed('Shoot Rifle', 2), 0.5, 1.4)); // walk and shoot
+      else rigLoop(R, 'Rifle Run', clamp(vf / clipSpeed('Rifle Run', 4.1), 0.55, 1.5));
+    } else if (e.def.ai === 'suicide') rigLoop(R, 'Injured Run', clamp(vf / clipSpeed('Injured Run', 2.4), 0.6, 1.8));
+    else rigLoop(R, 'Running', clamp(vf / 6.5, 0.6, 1.7));
+  } else if (mode === 'back') {
+    const clip = gun ? 'Backwards Rifle Walk' : 'Run Backwards';
+    rigLoop(R, clip, clamp(-vf / clipSpeed(clip, 0.9), 0.6, 2.4));
+  } else {
+    const clip = gun ? 'Rifle Side Step' : 'Goalkeeper Sidestep';
+    const ts = clamp(Math.abs(vr) / clipSpeed(clip, gun ? 0.4 : 2.2), 0.6, 2.4);
+    rigLoop(R, clip, Math.sign(vr) === clipSide(clip) ? ts : -ts);
+  }
 }
 
 // Dead enemies keep playing their death clip, then sink into the sand.

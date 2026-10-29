@@ -17,12 +17,16 @@ for (const f of fs.readdirSync(inDir).filter((f) => f.endsWith('.fbx')).sort()) 
   if (out.restHipsY == null && hips) { const p = new THREE.Vector3(); hips.getWorldPosition(p); out.restHipsY = r4(p.y); out.rootScale = r4(obj.scale.x); }
   const clip = obj.animations[0];
   const tracks = [];
+  let motion = [0, 0];
   for (const t of clip.tracks) {
     const [node, prop] = t.name.split('.');
     const bone = node.replace(/^mixamorig\d*:?/, '');
     if (prop === 'quaternion') {
       tracks.push({ n: 'mixamorig' + bone + '.quaternion', t: Array.from(t.times, r4), v: Array.from(t.values, r4) });
     } else if (prop === 'position' && bone === 'Hips') {
+      // root motion: average travel per second (cm, character space: +Z forward, +X to its left)
+      const n = t.times.length, dur = t.times[n - 1] - t.times[0];
+      if (dur > 0) motion = [r4((t.values[(n - 1) * 3] - t.values[0]) / dur), r4((t.values[(n - 1) * 3 + 2] - t.values[2]) / dur)];
       // keep only the hips' height; the game moves the characters itself
       const y = []; for (let i = 1; i < t.values.length; i += 3) y.push(r4(t.values[i]));
       tracks.push({ n: 'hipsY', t: Array.from(t.times, r4), v: y });
@@ -39,8 +43,8 @@ for (const f of fs.readdirSync(inDir).filter((f) => f.endsWith('.fbx')).sort()) 
     }
   }
   const name = f.replace(/\.fbx$/, '');
-  out.clips[name] = { d: r4(clip.duration), tracks };
-  console.log(name.padEnd(24), clip.duration.toFixed(2) + 's', tracks.length, 'tracks');
+  out.clips[name] = { d: r4(clip.duration), tracks, v: motion };
+  console.log(name.padEnd(24), clip.duration.toFixed(2) + 's', 'travel cm/s x,z', motion.join(', '));
 }
 fs.writeFileSync(outFile, JSON.stringify(out));
 console.log('restHipsY', out.restHipsY, 'rootScale', out.rootScale, 'bytes', fs.statSync(outFile).size);

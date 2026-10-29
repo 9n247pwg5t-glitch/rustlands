@@ -513,18 +513,21 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
     _want.copy(side).multiplyScalar(e.strafeDir * sp * 0.4);
   } else if (e.tac === 'retreat') {
     canFire = false;
-    if (sd > 1) { steerTo(e, e.spot, dt, _b); _want.copy(_b).multiplyScalar(sp * 1.15); }
+    if (sd > 1) { steerTo(e, e.spot, dt, _b); _want.copy(_b).multiplyScalar(sp * 1.15); e.faceMove = sd > 2; }
     const recharged = e.maxShield ? e.shield >= e.maxShield * 0.8 : e.tacT <= 0;
     if ((sd <= 1 && recharged) || e.tacT <= -5) { e.tac = 'move'; pickSpot(e, tgt, false); e.tacT = 8; }
   } else if (e.tac === 'move') {
     steerTo(e, e.spot, dt, _b);
-    _want.copy(_b).multiplyScalar(sp);
-    canFire = canFire && e.moveShoot;
+    // long moves away from the player: turn and run; short ones: backpedal or side-step while facing them
+    const away = _b.dot(fwd) < -0.35;
+    e.faceMove = away && sd > 4;
+    _want.copy(_b).multiplyScalar(away && !e.faceMove ? Math.min(sp, 1.6) : sp);
+    canFire = canFire && e.moveShoot && !e.faceMove;
     if (sd < 1.2 || e.tacT <= 0) { e.tac = 'hold'; e.tacT = rand(2.5, 5.5); }
   } else {
     // hold the spot: short side steps, drift back if pushed off it
     if (sd > 2.5) { steerTo(e, e.spot, dt, _b); _want.copy(_b).multiplyScalar(sp * 0.6); }
-    else _want.copy(side).multiplyScalar(e.strafeDir * sp * 0.35);
+    else _want.copy(side).multiplyScalar(e.strafeDir * Math.min(sp * 0.35, 1.0));
     if (e.tacT <= 0 || dist < rMin * 0.7 || dist > rMax + 4 || e.noLosT > 1.5) {
       pickSpot(e, tgt, false); e.tac = 'move'; e.tacT = 8; e.moveShoot = Math.random() < 0.4;
     }
@@ -550,7 +553,7 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
 }
 
 function afterMeleeAttack(e) {
-  if (Math.random() < 0.55) e.backoffT = rand(0.7, 1.3);
+  if (Math.random() < 0.55) e.backoffT = rand(1.1, 1.7);
 }
 
 // Returns true when the enemy blew itself up.
@@ -602,7 +605,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   // backing off after an attack, which frees the turn for someone else
   if (e.backoffT > 0) {
     e.backoffT -= dt;
-    _want.copy(fwd).multiplyScalar(-sp * 0.7).addScaledVector(side, e.orbitDir * sp * 0.45);
+    _want.copy(fwd).multiplyScalar(-2.2).addScaledVector(side, e.orbitDir * 0.9);
     if (e.backoffT <= 0) { e.engaged = false; e.waitT = rand(1.2, 2.6); }
     return false;
   }
@@ -670,6 +673,7 @@ function updateEnemy(e, dt) {
   if (e.maxShield > 0 && e.sinceHit > 4 && e.shield < e.maxShield) e.shield = Math.min(e.maxShield, e.shield + e.maxShield * 0.25 * dt);
 
   const tgt = enemyTarget(e);
+  e.faceMove = false;
   _to.subVectors(tgt.pos, e.pos); _to.y = 0;
   const dist = _to.length();
   const fwd = dist > 0.001 ? _to.clone().divideScalar(dist) : new THREE.Vector3(0, 0, 1);
@@ -732,9 +736,10 @@ function updateEnemy(e, dt) {
     e.direct = false; e.directCheck = 1.5;
   }
 
-  // face target
+  // face the target, or the way it's running when it turned to run
   if (face) {
-    const want = Math.atan2(_to.x, _to.z);
+    const vs = Math.hypot(e.vel.x, e.vel.z);
+    const want = e.faceMove && vs > 1 ? Math.atan2(e.vel.x, e.vel.z) : Math.atan2(_to.x, _to.z);
     let d = want - e.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
     e.yaw += d * Math.min(1, dt * 8);
   }
