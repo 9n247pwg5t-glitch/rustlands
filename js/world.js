@@ -855,3 +855,86 @@ function navDir(pos, out) {
   out.divideScalar(l);
   return true;
 }
+
+// Is the straight line between two points walkable on the grid? (skips the first stretch, since a
+// body hugging a wall sits inside the wall's padded cells)
+function navLineClear(a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
+  for (let t = 0.7; t < d; t += 0.5) {
+    const i = navCellOf(a.x + dx * t / d, a.z + dz * t / d);
+    if (i < 0 || navBlocked[i]) return false;
+  }
+  return true;
+}
+function navWalkable(x, z) { const i = navCellOf(x, z); return i >= 0 && !navBlocked[i]; }
+
+// A* over the grid from one point to another. Returns waypoints (cell centres) or null.
+const _aG = new Float32Array(NAV_N * NAV_N), _aFrom = new Int32Array(NAV_N * NAV_N), _aSeen = new Uint32Array(NAV_N * NAV_N);
+let _aGen = 0;
+function navFindPath(from, to, maxExpand = 5000) {
+  let s = navCellOf(from.x, from.z), g = navCellOf(to.x, to.z);
+  if (s < 0 || g < 0) return null;
+  const nearestFree = (c) => {
+    if (!navBlocked[c]) return c;
+    const cx = c % NAV_N, cz = (c - cx) / NAV_N;
+    for (let r = 1; r <= 3; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+      const j = (cz + dz) * NAV_N + cx + dx;
+      if (j >= 0 && j < navBlocked.length && !navBlocked[j]) return j;
+    }
+    return -1;
+  };
+  s = nearestFree(s); g = nearestFree(g);
+  if (s < 0 || g < 0) return null;
+  _aGen++;
+  const gx = g % NAV_N, gz = (g - gx) / NAV_N;
+  const h = (i) => { const x = i % NAV_N, z = (i - x) / NAV_N; const ax = Math.abs(x - gx), az = Math.abs(z - gz); return Math.max(ax, az) + 0.4142 * Math.min(ax, az); };
+  let n = 0;
+  const push = (i, k) => {
+    let p = n++;
+    while (p > 0) { const q = (p - 1) >> 1; if (_heapKey[q] <= k) break; _heapKey[p] = _heapKey[q]; _heapIdx[p] = _heapIdx[q]; p = q; }
+    _heapKey[p] = k; _heapIdx[p] = i;
+  };
+  const pop = () => {
+    const top = _heapIdx[0], lk = _heapKey[--n], li = _heapIdx[n];
+    let p = 0;
+    for (;;) { let c = p * 2 + 1; if (c >= n) break; if (c + 1 < n && _heapKey[c + 1] < _heapKey[c]) c++; if (_heapKey[c] >= lk) break; _heapKey[p] = _heapKey[c]; _heapIdx[p] = _heapIdx[c]; p = c; }
+    _heapKey[p] = lk; _heapIdx[p] = li;
+    return top;
+  };
+  _aSeen[s] = _aGen; _aG[s] = 0; _aFrom[s] = -1;
+  push(s, h(s));
+  let found = false, expanded = 0;
+  while (n > 0 && expanded < maxExpand) {
+    const i = pop();
+    if (i === g) { found = true; break; }
+    expanded++;
+    const x = i % NAV_N, z = (i - x) / NAV_N, gi = _aG[i];
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dz) continue;
+      const nx = x + dx, nz = z + dz;
+      if (nx < 0 || nz < 0 || nx >= NAV_N || nz >= NAV_N) continue;
+      const j = nz * NAV_N + nx;
+      if (navBlocked[j]) continue;
+      if (dx && dz && (navBlocked[z * NAV_N + nx] || navBlocked[nz * NAV_N + x])) continue;
+      const ng = gi + (dx && dz ? 1.4142 : 1);
+      if (_aSeen[j] === _aGen && ng >= _aG[j]) continue;
+      _aSeen[j] = _aGen; _aG[j] = ng; _aFrom[j] = i;
+      if (n < _heapIdx.length) push(j, ng + h(j));
+    }
+  }
+  if (!found) return null;
+  const cells = [];
+  for (let c = g; c !== -1 && c !== s; c = _aFrom[c]) cells.push(c);
+  cells.reverse();
+  // keep only the turns
+  const pts = [];
+  for (let k = 0; k < cells.length; k++) {
+    const c = cells[k];
+    if (k > 0 && k < cells.length - 1) {
+      const a = cells[k - 1], b = cells[k + 1];
+      if (c - a === b - c) continue;
+    }
+    pts.push(new THREE.Vector3(navCenterX(c), 0, navCenterZ(c)));
+  }
+  return pts;
+}

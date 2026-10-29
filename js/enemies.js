@@ -118,6 +118,9 @@ function spawnEnemy(key, level, pos) {
     dots: [], dotTick: 0, sinceHit: 99, lastSeenPlayer: 0, flash: 0, yellT: rand(2, 6),
     bossPhase: 0, bossAttackT: 4, summoned: false,
     chase: new THREE.Vector3(), direct: true, directCheck: 0, stuckT: 0, unstickT: 0, unstickDir: new THREE.Vector3(), flinchT: 0,
+    engaged: false, waitT: 0, backoffT: 0, orbitAng: null, orbitR: rand(7, 11), orbitDir: Math.random() < 0.5 ? -1 : 1,
+    tac: null, tacT: 0, spot: null, prefDist: 0, moveShoot: false, retreatCd: rand(3, 6), noLosT: 0,
+    path: null, pathT: 0, pathI: 0, pathGoal: new THREE.Vector3(),
   };
   e.hp = e.maxHp; e.shield = e.maxShield;
   model.root.position.copy(e.pos);
@@ -368,6 +371,287 @@ function chaseDir(e, tgt, fwd, side, dt) {
   return navDir(e.pos, e.chase) ? e.chase : fwd;
 }
 
+// ---------------------------------------------------------------------------
+// Tactics. Gunners pick their own firing spot around the player (their preferred range, spread
+// apart, off to the player's sides, near cover), hold it while strafing, move on after a while and
+// fall back to cover to recharge. Melee enemies take turns: a few engage while the rest circle at a
+// distance; after a combo they often back off and let another one in. Only a few gunners fire at once.
+const tactics = { shooters: 0, maxShooters: 2, engaged: 0, maxEngaged: 2 };
+function tacticsFrame() {
+  tactics.maxShooters = Math.min(5, 2 + Math.floor(game.wave / 3));
+  tactics.maxEngaged = Math.min(4, 2 + Math.floor(game.wave / 5));
+  let shooters = 0, engaged = 0;
+  const waiting = [];
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    if (e.burstLeft > 0) shooters++;
+    const ai = e.def.ai;
+    if (ai === 'melee' || ai === 'skag') {
+      if (e.engaged) engaged++;
+      else if (!(e.waitT > 0) && e.state !== 'taunt') waiting.push(e);
+    }
+  }
+  waiting.sort((a, b) => a.pos.distanceToSquared(player.pos) - b.pos.distanceToSquared(player.pos));
+  for (const e of waiting) { if (engaged >= tactics.maxEngaged) break; e.engaged = true; engaged++; }
+  tactics.shooters = shooters; tactics.engaged = engaged;
+}
+
+// Steer toward a point: straight when the grid line is clear, otherwise along an A* path.
+function steerTo(e, target, dt, out) {
+  const dx = target.x - e.pos.x, dz = target.z - e.pos.z, d = Math.hypot(dx, dz);
+  if (d < 0.3) { out.set(0, 0, 0); return d; }
+  if (navLineClear(e.pos, target)) { e.path = null; out.set(dx / d, 0, dz / d); return d; }
+  e.pathT -= dt;
+  if (!e.path || e.pathT <= 0 || e.pathGoal.distanceToSquared(target) > 4) {
+    e.path = navFindPath(e.pos, target); e.pathT = 1.5; e.pathGoal.copy(target); e.pathI = 0;
+  }
+  if (e.path && e.path.length) {
+    for (let k = 0; k < 3 && e.pathI < e.path.length - 1 && navLineClear(e.pos, e.path[e.pathI + 1]); k++) e.pathI++;
+    const w = e.path[e.pathI];
+    const wx = w.x - e.pos.x, wz = w.z - e.pos.z, wd = Math.hypot(wx, wz);
+    if (wd < 0.6 && e.pathI < e.path.length - 1) e.pathI++;
+    if (wd > 1e-3) { out.set(wx / wd, 0, wz / wd); return d; }
+  }
+  out.set(dx / d, 0, dz / d);
+  return d;
+}
+
+// 1 when something solid sits between a spot and the target, 0.4 when cover is merely adjacent.
+function coverScore(x, z, tp) {
+  const dx = tp.x - x, dz = tp.z - z, d = Math.hypot(dx, dz) || 1;
+  for (const t of [1.0, 1.8]) if (!navWalkable(x + dx / d * t, z + dz / d * t)) return 1;
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; if (!navWalkable(x + Math.sin(a) * 1.3, z + Math.cos(a) * 1.3)) return 0.4; }
+  return 0;
+}
+
+const _sp1 = new THREE.Vector3();
+function pickSpot(e, tgt, retreat) {
+  const [rMin, rMax] = e.def.range;
+  if (!e.prefDist) e.prefDist = rand(rMin + 1, (rMin + rMax) / 2 + 3);
+  const ang0 = Math.atan2(e.pos.x - tgt.pos.x, e.pos.z - tgt.pos.z);
+  const look = Math.atan2(-Math.sin(player.yaw), -Math.cos(player.yaw));
+  const cur = Math.hypot(e.pos.x - tgt.pos.x, e.pos.z - tgt.pos.z);
+  // candidates: points on a ring at the preferred range, plus spots tucked behind nearby
+  // walls, crates, cars and rocks (on the far side from the player, or beside them to peek out)
+  const cands = [];
+  for (let i = 0; i < 10; i++) {
+    const a = ang0 + (retreat ? rand(-0.9, 0.9) : rand(-1.2, 1.2) * (i < 3 ? 0.4 : 1));
+    const r = retreat ? Math.max(cur, e.prefDist) + rand(2, 8) : e.prefDist + rand(-2.5, 2.5);
+    cands.push([tgt.pos.x + Math.sin(a) * r, tgt.pos.z + Math.cos(a) * r]);
+  }
+  const near = [];
+  for (const c of boxCols) {
+    if (c.ref || c.maxY - c.minY < 1) continue;
+    const cx = (c.minX + c.maxX) / 2, cz = (c.minZ + c.maxZ) / 2;
+    const d = Math.hypot(cx - e.pos.x, cz - e.pos.z);
+    if (d < 18) near.push([cx, cz, Math.max(c.maxX - c.minX, c.maxZ - c.minZ) / 2, d]);
+  }
+  for (const c of sphCols) { const d = Math.hypot(c.x - e.pos.x, c.z - e.pos.z); if (d < 18 && c.r > 1) near.push([c.x, c.z, c.r, d]); }
+  near.sort((u, v) => u[3] - v[3]);
+  for (const [cx, cz, half] of near.slice(0, 6)) {
+    const ax = cx - tgt.pos.x, az = cz - tgt.pos.z, al = Math.hypot(ax, az) || 1;
+    const off = half + 1.3;
+    cands.push([cx + ax / al * off, cz + az / al * off]);                         // behind it
+    if (!retreat) for (const sgn of [-1, 1]) cands.push([cx + ax / al * off * 0.5 - az / al * off * sgn, cz + az / al * off * 0.5 + ax / al * off * sgn]); // beside it
+  }
+  let best = null, bestS = -Infinity;
+  for (const [x, z] of cands) {
+    const a = Math.atan2(x - tgt.pos.x, z - tgt.pos.z), r = Math.hypot(x - tgt.pos.x, z - tgt.pos.z);
+    if (Math.hypot(x, z) > ARENA_R - 3 || !navWalkable(x, z)) continue;
+    if (!retreat && (r < rMin * 0.8 || r > rMax + 2)) continue;
+    const y = groundAt(x, z);
+    _sp1.set(x, y + 1.5 * e.def.scale, z);
+    const los = lineOfSight(_sp1, tgt.eye);
+    let sc = retreat ? (los ? -8 : 6) : (los ? 4 : -5);
+    if (!retreat) sc -= Math.abs(r - e.prefDist) * 0.25;
+    sc += coverScore(x, z, tgt.pos) * (retreat ? 1 : 2.5);
+    if (!retreat) { let rel = a - look; rel = Math.atan2(Math.sin(rel), Math.cos(rel)); sc += Math.min(Math.abs(rel), 1.6) * 0.9; }
+    for (const o of enemies) {
+      if (o === e || !o.alive) continue;
+      const q = o.spot || o.pos, dd = Math.hypot(q.x - x, q.z - z);
+      if (dd < 5) sc -= (5 - dd) * 1.2;
+    }
+    sc -= Math.hypot(x - e.pos.x, z - e.pos.z) * 0.08;
+    if (sc > bestS) { bestS = sc; best = [x, y, z]; }
+  }
+  if (!best) return false;
+  e.spot = (e.spot || new THREE.Vector3()).set(best[0], best[1], best[2]);
+  e.path = null;
+  return true;
+}
+
+function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
+  const [rMin, rMax] = e.def.range;
+  const eye = _a.set(e.pos.x, e.pos.y + 1.6 * e.def.scale, e.pos.z);
+  e.losCheck = (e.losCheck || 0) - dt;
+  if (e.losCheck <= 0) { e.los = lineOfSight(eye, tgt.eye); e.losCheck = 0.3; }
+  e.noLosT = e.los ? 0 : (e.noLosT || 0) + dt;
+  e.dodgeCd -= dt; e.tauntCd -= dt; e.tacT -= dt; e.strafeT -= dt; e.retreatCd -= dt;
+  if (e.strafeT <= 0) { if (Math.random() < 0.6) e.strafeDir = -e.strafeDir; e.strafeT = rand(0.7, 1.7); }
+  if (e.rig && e.dodgeCd <= 0 && e.grounded && (e.flinchCrit && e.flinchT > 0 || (assist.current === e && player.adsK > 0.6 && Math.random() < dt * 1.5))) {
+    e.dodgeCd = rand(3.5, 6);
+    e.state = 'dash'; e.stateT = 0.62; e.dashSpeed = 6.5;
+    e.dashDir.copy(fwd).multiplyScalar(-0.6).addScaledVector(side, Math.random() < 0.5 ? -0.8 : 0.8).normalize();
+    rigOnce(e.rig, 'Rifle Jump Backward', 1.4, 0, Infinity, 0.06);
+    return;
+  }
+  if (e.rig && playerDowned && e.tauntCd <= 0 && dist < 28) {
+    e.tauntCd = rand(6, 10);
+    e.state = 'taunt'; e.stateT = 1.8;
+    if (Math.random() < 0.5) rigOnce(e.rig, 'Loser', 1.4, 0.2, 2.8); else rigOnce(e.rig, 'Slap thigh Taunt', 1.5, 0.5, 3.2);
+    return;
+  }
+  // fall back to cover to recharge when the shield breaks or health runs low
+  if (e.tac !== 'retreat' && e.retreatCd <= 0 && ((e.maxShield > 0 && e.shield <= 0) || e.hp < e.maxHp * 0.35)) {
+    e.retreatCd = 14;
+    if (pickSpot(e, tgt, true)) { e.tac = 'retreat'; e.tacT = rand(3.5, 5); }
+  }
+  if (!e.spot) { pickSpot(e, tgt, false); e.tac = 'move'; e.tacT = 8; }
+  const sd = e.spot ? Math.hypot(e.spot.x - e.pos.x, e.spot.z - e.pos.z) : 0;
+  let canFire = e.los && dist < rMax + 10;
+  if (!e.spot) {
+    _want.copy(side).multiplyScalar(e.strafeDir * sp * 0.4);
+  } else if (e.tac === 'retreat') {
+    canFire = false;
+    if (sd > 1) { steerTo(e, e.spot, dt, _b); _want.copy(_b).multiplyScalar(sp * 1.15); }
+    const recharged = e.maxShield ? e.shield >= e.maxShield * 0.8 : e.tacT <= 0;
+    if ((sd <= 1 && recharged) || e.tacT <= -5) { e.tac = 'move'; pickSpot(e, tgt, false); e.tacT = 8; }
+  } else if (e.tac === 'move') {
+    steerTo(e, e.spot, dt, _b);
+    _want.copy(_b).multiplyScalar(sp);
+    canFire = canFire && e.moveShoot;
+    if (sd < 1.2 || e.tacT <= 0) { e.tac = 'hold'; e.tacT = rand(2.5, 5.5); }
+  } else {
+    // hold the spot: short side steps, drift back if pushed off it
+    if (sd > 2.5) { steerTo(e, e.spot, dt, _b); _want.copy(_b).multiplyScalar(sp * 0.6); }
+    else _want.copy(side).multiplyScalar(e.strafeDir * sp * 0.35);
+    if (e.tacT <= 0 || dist < rMin * 0.7 || dist > rMax + 4 || e.noLosT > 1.5) {
+      pickSpot(e, tgt, false); e.tac = 'move'; e.tacT = 8; e.moveShoot = Math.random() < 0.4;
+    }
+  }
+  if (e.burstLeft > 0) {
+    if (!e.los) { e.burstLeft = 0; return; }
+    e.burstT -= dt;
+    if (e.burstT <= 0) {
+      e.burstLeft--; e.burstT = e.def.burstGap;
+      const muzzle = _b.set(e.pos.x + fwd.x * 0.6 * e.def.scale + side.x * 0.3, e.pos.y + 1.3 * e.def.scale, e.pos.z + fwd.z * 0.6 * e.def.scale + side.z * 0.3);
+      const aim = tgt.eye.clone();
+      const n = e.def.pellets || 1;
+      const moving = Math.hypot(e.vel.x, e.vel.z) > 1.5;
+      for (let k = 0; k < n; k++) enemyFire(e, muzzle.clone(), aim, { spread: e.def.spread * (moving ? 1.6 : 1) + dist / 400 });
+    }
+  } else if (canFire) {
+    e.fireCd -= dt * (playerDowned ? 0.6 : 1);
+    if (e.fireCd <= 0) {
+      if (tactics.shooters < tactics.maxShooters) { tactics.shooters++; e.burstLeft = e.def.burst; e.burstT = 0; e.fireCd = rand(e.def.cd[0], e.def.cd[1]); }
+      else e.fireCd = rand(0.25, 0.6); // wait for a turn to shoot
+    }
+  }
+}
+
+function afterMeleeAttack(e) {
+  if (Math.random() < 0.55) e.backoffT = rand(0.7, 1.3);
+}
+
+// Returns true when the enemy blew itself up.
+function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
+  const ai = e.def.ai;
+  e.yellT -= dt;
+  if (e.yellT <= 0 && ai !== 'skag') { e.yellT = rand(3, 7); SFX.yell(clamp(1.2 - dist / 40, 0, 1)); }
+  if (ai === 'suicide' && dist < 1.9) {
+    const c = enemyCenter(e, new THREE.Vector3());
+    e.alive = false;
+    explode(c, 5, e.def.dmg * e.dmgScale, 'explosive', { hurtsPlayer: true, enemyDmg: true });
+    e.alive = true;
+    killEnemy(e, { selfDestruct: true, explosive: true, noXp: true });
+    return true;
+  }
+  e.attackCd -= dt; e.dashCd -= dt; e.leapCd -= dt; e.tauntCd -= dt; e.waitT -= dt;
+
+  // attacks already under way
+  if (e.state === 'swing' && e.rig) {
+    _want.copy(fwd).multiplyScalar(sp * 0.2);
+    const t = rigTime(e.rig);
+    while (e.atkHit < e.atk.hits.length && t >= e.atk.hits[e.atkHit]) {
+      if (dist < 2.5 && !tgt.isTurret) player.hurt(e.def.dmg * e.dmgScale * e.atk.dmg[e.atkHit], e.pos);
+      SFX.swing();
+      e.atkHit++;
+    }
+    if (!e.rig.one || t >= e.atk.end - 0.02) { e.state = 'move'; afterMeleeAttack(e); }
+    return false;
+  }
+  if (e.state === 'swing') {
+    e.stateT -= dt;
+    _want.copy(fwd).multiplyScalar(sp * 0.3);
+    if (e.stateT <= 0) {
+      e.state = 'move';
+      if (dist < 2.6 && !tgt.isTurret) player.hurt(e.def.dmg * e.dmgScale, e.pos);
+      SFX.swing();
+      afterMeleeAttack(e);
+    }
+    return false;
+  }
+  if (e.state === 'leap') {
+    if (!e.hitDuringLeap && dist < 1.8 * e.def.scale && !tgt.isTurret) { player.hurt(e.def.dmg * 1.3 * e.dmgScale, e.pos); e.hitDuringLeap = true; }
+    if (e.grounded && e.stateT < 0.3) { e.state = 'move'; afterMeleeAttack(e); }
+    e.stateT -= dt;
+    _want.copy(e.vel);
+    return false;
+  }
+
+  // backing off after an attack, which frees the turn for someone else
+  if (e.backoffT > 0) {
+    e.backoffT -= dt;
+    _want.copy(fwd).multiplyScalar(-sp * 0.7).addScaledVector(side, e.orbitDir * sp * 0.45);
+    if (e.backoffT <= 0) { e.engaged = false; e.waitT = rand(1.2, 2.6); }
+    return false;
+  }
+
+  const engaged = e.engaged || ai === 'suicide' || dist < 3.2 || tgt.isTurret || player.downed;
+  if (engaged) {
+    // come in on a curve from further out, straight when close
+    const curve = e.direct && dist > 5 ? 0.55 * e.orbitDir : 0;
+    const zig = ai === 'suicide' && e.direct ? Math.sin(e.t * 2.3) * 0.45 : 0;
+    _want.copy(chase).addScaledVector(side, curve + zig).normalize().multiplyScalar(sp);
+    if (ai === 'skag') {
+      if (dist > 4 && dist < 9 && e.leapCd <= 0 && e.grounded && e.direct) {
+        e.state = 'leap'; e.stateT = 0.8; e.leapCd = rand(3, 5); e.hitDuringLeap = false;
+        e.vel.copy(fwd).multiplyScalar(15); e.vy = 6.5; e.grounded = false;
+        SFX.growl(clamp(1.2 - dist / 40, 0, 1));
+      } else if (dist < 1.9 * e.def.scale && e.attackCd <= 0) {
+        e.attackCd = 0.9; e.biteT = 0.25;
+        if (!tgt.isTurret) player.hurt(e.def.dmg * e.dmgScale, e.pos);
+        afterMeleeAttack(e);
+      }
+    } else if (dist < 2.0 && e.attackCd <= 0) {
+      e.state = 'swing'; e.stateT = 0.32; e.attackCd = 1.1;
+      if (e.rig && ai === 'melee') startRigAttack(e);
+      else if (e.rig) e.state = 'move';
+    } else if (e.rig && ai === 'melee' && e.direct && dist > 5 && dist < 9 && e.dashCd <= 0 && e.grounded) {
+      e.dashCd = rand(3, 6);
+      e.state = 'dash'; e.dashDir.copy(fwd);
+      if (Math.random() < 0.5) { e.stateT = 0.75; e.dashSpeed = 10; rigOnce(e.rig, 'Running Forward Flip', 1.4, 0, Infinity, 0.06); }
+      else { e.stateT = 0.8; e.dashSpeed = 11; rigOnce(e.rig, 'Running Slide 2', 1.6, 0.1, Infinity, 0.06); }
+    }
+    return false;
+  }
+
+  // waiting for a turn: circle the player at a distance
+  if (e.orbitAng == null) e.orbitAng = Math.atan2(e.pos.x - tgt.pos.x, e.pos.z - tgt.pos.z);
+  e.orbitAng += e.orbitDir * dt * (sp * 0.4) / e.orbitR;
+  let ox = tgt.pos.x + Math.sin(e.orbitAng) * e.orbitR, oz = tgt.pos.z + Math.cos(e.orbitAng) * e.orbitR;
+  if (!navWalkable(ox, oz) || Math.hypot(ox, oz) > ARENA_R - 3) { e.orbitDir = -e.orbitDir; e.orbitAng += e.orbitDir * 0.3; }
+  _b.set(ox, 0, oz);
+  const td = steerTo(e, _b, dt, _a);
+  _want.copy(_a).multiplyScalar(sp * (td > 3 ? 0.8 : 0.45));
+  if (e.rig && ai === 'melee' && e.tauntCd <= 0 && td < 3 && dist < 16 && Math.random() < dt * 0.4) {
+    e.tauntCd = rand(7, 12);
+    e.state = 'taunt'; e.stateT = 1.6;
+    rigOnce(e.rig, 'Slap thigh Taunt', 1.6, 0.5, 3.0);
+  } else if (ai === 'skag' && Math.random() < dt * 0.25) SFX.growl(clamp(1 - dist / 30, 0, 0.6));
+  return false;
+}
+
 function updateEnemy(e, dt) {
   e.t += dt; e.sinceHit += dt; e.flash -= dt;
   // damage over time
@@ -404,100 +688,10 @@ function updateEnemy(e, dt) {
     if (e.state === 'down') face = false;
     if (e.stateT <= 0) e.state = 'move';
   } else if (ai === 'ranged') {
-    e.strafeT -= dt;
-    if (e.strafeT <= 0) { e.strafeDir = Math.random() < 0.5 ? -1 : 1; e.strafeT = rand(1.2, 2.8); }
-    const eye = _a.set(e.pos.x, e.pos.y + 1.6 * e.def.scale, e.pos.z);
-    e.losCheck = (e.losCheck || 0) - dt;
-    if (e.losCheck <= 0) { e.los = lineOfSight(eye, tgt.eye); e.losCheck = 0.3; }
-    const [rMin, rMax] = e.def.range;
-    e.dodgeCd -= dt; e.tauntCd -= dt;
-    if (e.rig && e.dodgeCd <= 0 && e.grounded && (e.flinchCrit && e.flinchT > 0 || (assist.current === e && player.adsK > 0.6 && Math.random() < dt * 1.5))) {
-      e.dodgeCd = rand(3.5, 6);
-      e.state = 'dash'; e.stateT = 0.62; e.dashSpeed = 6.5;
-      e.dashDir.copy(fwd).multiplyScalar(-0.6).addScaledVector(side, Math.random() < 0.5 ? -0.8 : 0.8).normalize();
-      rigOnce(e.rig, 'Rifle Jump Backward', 1.4, 0, Infinity, 0.06);
-    } else if (e.rig && playerDowned && e.tauntCd <= 0 && dist < 28) {
-      e.tauntCd = rand(6, 10);
-      e.state = 'taunt'; e.stateT = 1.8;
-      if (Math.random() < 0.5) rigOnce(e.rig, 'Loser', 1.4, 0.2, 2.8); else rigOnce(e.rig, 'Slap thigh Taunt', 1.5, 0.5, 3.2);
-    }
-    if (!e.los || dist > rMax) _want.copy(chase).multiplyScalar(sp);
-    else if (dist < rMin) _want.copy(fwd).multiplyScalar(-sp * 0.8).addScaledVector(side, e.strafeDir * sp * 0.4);
-    else _want.copy(side).multiplyScalar(e.strafeDir * sp * 0.6);
-    if (e.los && dist < rMax + 10) {
-      if (e.burstLeft > 0) {
-        e.burstT -= dt;
-        if (e.burstT <= 0) {
-          e.burstLeft--; e.burstT = e.def.burstGap;
-          const muzzle = _b.set(e.pos.x + fwd.x * 0.6 * e.def.scale + side.x * 0.3, e.pos.y + 1.3 * e.def.scale, e.pos.z + fwd.z * 0.6 * e.def.scale + side.z * 0.3);
-          const aim = tgt.eye.clone();
-          const n = e.def.pellets || 1;
-          for (let k = 0; k < n; k++) enemyFire(e, muzzle.clone(), aim, { spread: e.def.spread + (dist / 400) });
-        }
-      } else {
-        e.fireCd -= dt * (playerDowned ? 0.6 : 1);
-        if (e.fireCd <= 0) { e.burstLeft = e.def.burst; e.burstT = 0; e.fireCd = rand(e.def.cd[0], e.def.cd[1]); }
-      }
-    }
-  } else if (ai === 'melee' || ai === 'suicide') {
-    e.yellT -= dt;
-    if (e.yellT <= 0) { e.yellT = rand(3, 7); SFX.yell(clamp(1.2 - dist / 40, 0, 1)); }
-    const zig = e.direct ? Math.sin(e.t * 2.3) * (dist > 6 ? 0.45 : 0) : 0;
-    _want.copy(chase).addScaledVector(side, zig).normalize().multiplyScalar(sp);
-    if (ai === 'suicide' && dist < 1.9) {
-      const c = enemyCenter(e, new THREE.Vector3());
-      e.alive = false;
-      explode(c, 5, e.def.dmg * e.dmgScale, 'explosive', { hurtsPlayer: true, enemyDmg: true });
-      e.alive = true;
-      killEnemy(e, { selfDestruct: true, explosive: true, noXp: true });
-      return;
-    }
-    e.attackCd -= dt; e.dashCd -= dt;
-    if (e.state === 'swing' && e.rig) {
-      _want.multiplyScalar(0.25);
-      const t = rigTime(e.rig);
-      while (e.atkHit < e.atk.hits.length && t >= e.atk.hits[e.atkHit]) {
-        if (dist < 2.5 && !tgt.isTurret) player.hurt(e.def.dmg * e.dmgScale * e.atk.dmg[e.atkHit], e.pos);
-        SFX.swing();
-        e.atkHit++;
-      }
-      if (!e.rig.one || t >= e.atk.end - 0.02) e.state = 'move';
-    } else if (e.state === 'swing') {
-      e.stateT -= dt;
-      _want.multiplyScalar(0.3);
-      if (e.stateT <= 0) {
-        e.state = 'move';
-        if (dist < 2.6) { if (tgt.isTurret) {} else player.hurt(e.def.dmg * e.dmgScale, e.pos); SFX.swing(); }
-      }
-    } else if (dist < 2.0 && e.attackCd <= 0) {
-      e.state = 'swing'; e.stateT = 0.32; e.attackCd = 1.1;
-      if (e.rig && ai === 'melee') startRigAttack(e);
-      else if (e.rig) e.state = 'move';
-    } else if (e.rig && ai === 'melee' && e.direct && dist > 5 && dist < 9 && e.dashCd <= 0 && e.grounded) {
-      e.dashCd = rand(3, 6);
-      e.state = 'dash'; e.dashDir.copy(fwd);
-      if (Math.random() < 0.5) { e.stateT = 0.75; e.dashSpeed = 10; rigOnce(e.rig, 'Running Forward Flip', 1.4, 0, Infinity, 0.06); }
-      else { e.stateT = 0.8; e.dashSpeed = 11; rigOnce(e.rig, 'Running Slide 2', 1.6, 0.1, Infinity, 0.06); }
-    }
-  } else if (ai === 'skag') {
-    e.leapCd -= dt; e.attackCd -= dt;
-    if (e.state === 'leap') {
-      face = false;
-      if (!e.hitDuringLeap && dist < 1.8 * e.def.scale && !tgt.isTurret) { player.hurt(e.def.dmg * 1.3 * e.dmgScale, e.pos); e.hitDuringLeap = true; }
-      if (e.grounded && e.stateT < 0.3) e.state = 'move';
-      e.stateT -= dt;
-      _want.copy(e.vel);
-    } else {
-      _want.copy(chase).multiplyScalar(sp);
-      if (dist > 4 && dist < 9 && e.leapCd <= 0 && e.grounded && e.direct) {
-        e.state = 'leap'; e.stateT = 0.8; e.leapCd = rand(3, 5); e.hitDuringLeap = false;
-        e.vel.copy(fwd).multiplyScalar(15); e.vy = 6.5; e.grounded = false;
-        SFX.growl(clamp(1.2 - dist / 40, 0, 1));
-      } else if (dist < 1.9 * e.def.scale && e.attackCd <= 0) {
-        e.attackCd = 0.9; e.biteT = 0.25;
-        if (!tgt.isTurret) player.hurt(e.def.dmg * e.dmgScale, e.pos);
-      }
-    }
+    updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned);
+  } else if (ai === 'melee' || ai === 'suicide' || ai === 'skag') {
+    if (updateMelee(e, dt, tgt, dist, fwd, side, sp, chase)) return; // blew itself up
+    if (e.state === 'leap') face = false;
   } else if (ai === 'boss') {
     updateBoss(e, dt, tgt, dist, fwd, side, sp, chase);
   }

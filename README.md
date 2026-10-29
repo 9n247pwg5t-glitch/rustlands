@@ -36,7 +36,8 @@ It also works on GitHub Pages: turn Pages on for the `main` branch.
 - **Progression.** You earn XP and level up. Loot chests appear after each wave, and vending machines sell ammo and healing.
 - **Controls.** The game supports touch as well as mouse and keyboard. Light aim assist (look slowdown near enemies, a gentle pull while firing, a snap when you start aiming) is stronger on touch and always aims at the body, so headshots are still on you.
 - **Animated enemies.** Bandits, marauders, psychos, nomads and the boss are rigged Mixamo characters (a male and female psycho, a top-heavy brawler, an "ugly" mutant and the Brute with his battle axe as the boss), cel-shaded with weapons pinned to their bones. They run, aim, shoot, punch and kick (damage lands on the clip's impact frame), dodge-roll when aimed at, flip or slide in to close distance, get knocked down by explosions and climb back up, taunt you when you're down, and play death animations. Their hitboxes follow the animation.
-- **Enemy pathfinding.** Enemies follow a navigation grid around buildings, walls, cars and rocks, and sidestep if they get stuck.
+- **Enemy tactics.** Gunners pick their own firing spot at their preferred range, spread apart and off to your sides, preferring cover; they hold it while side-stepping, relocate every few seconds, and fall back behind walls or rocks to recharge when their shield breaks or they're badly hurt. Only a few fire at the same moment. Melee enemies take turns: a few engage (curving in, flipping or sliding to close distance) while the rest circle at a distance and taunt, and after a combo they often back off to let another in.
+- **Enemy pathfinding.** A navigation grid with a flow field toward the player and A* paths to any spot route enemies around buildings, walls, cars and rocks; they sidestep if they get stuck.
 
 ## Controls
 
