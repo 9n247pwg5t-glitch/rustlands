@@ -20,7 +20,7 @@ const RIG_ATTACKS = [
 const RIG_FILES = {
   psycho1: 'male-psychosis-enemy-1',
   ugly: 'male-psychosis-enemy-2-ugly',
-  female: 'femal-psychosis-1',
+  female: 'psycho-clown-showgirl', // the psycho clown showgirl
   clown: 'brawler-clown',
   gangster: 'gangster-clown',
   brute: 'brute',
