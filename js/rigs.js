@@ -18,7 +18,7 @@ const RIG_ATTACKS = [
 
 // The uploaded characters: game name -> model file.
 const RIG_FILES = {
-  psycho1: 'male-psychosis-enemy-1',
+  psycho1: 'strung-out-clown', // the strung-out clown
   ugly: 'male-psychosis-enemy-2-ugly',
   female: 'psycho-clown-showgirl', // the psycho clown showgirl
   heavy: 'male-psychosis-top-heavy',
