@@ -82,14 +82,16 @@ window.convert = async (url) => {
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     const out = mats.map((m) => {
       const src = m.map && m.map.image ? Math.max(m.map.image.width || 0, m.map.image.height || 0) : 0;
-      const map = shrink(m.map, src >= 4096 ? 1024 : src >= 2048 ? 768 : 512);
-      const nm = new THREE.MeshStandardMaterial({ name: m.name, color: map ? 0xffffff : m.color, map, roughness: 0.9, metalness: 0, transparent: !!(map && map.format === THREE.RGBAFormat), alphaTest: map && map.format === THREE.RGBAFormat ? 0.5 : 0, side: m.side });
+      const map = shrink(m.map, Math.min(src, 2048));
+      const nsrc = m.normalMap && m.normalMap.image ? Math.max(m.normalMap.image.width || 0, m.normalMap.image.height || 0) : 0;
+      const normalMap = nsrc ? shrink(m.normalMap, Math.min(nsrc, 2048)) : null;
+      const nm = new THREE.MeshStandardMaterial({ name: m.name, color: map ? 0xffffff : m.color, map, normalMap, roughness: 0.9, metalness: 0, transparent: !!(map && map.format === THREE.RGBAFormat), alphaTest: map && map.format === THREE.RGBAFormat ? 0.5 : 0, side: m.side });
       return nm;
     });
     o.material = Array.isArray(o.material) ? out : out[0];
     info.meshes.push(`${o.name}${o.isSkinnedMesh ? ' (skinned)' : ''} ${o.geometry.attributes.position.count}v`);
   });
-  const glb = await new Promise((ok) => new GLTFExporter().parse(obj, ok, { binary: true, onlyVisible: true, maxTextureSize: 1024 }));
+  const glb = await new Promise((ok) => new GLTFExporter().parse(obj, ok, { binary: true, onlyVisible: true, maxTextureSize: 2048 }));
   const bytes = new Uint8Array(glb);
   let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   return { info, glb: btoa(bin) };

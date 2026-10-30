@@ -7,7 +7,8 @@ const fs = require('fs');
   p.on('console', (m) => { if (m.type() === 'error') console.log('console:', m.text().slice(0, 200)); });
   await p.goto('http://localhost:8766/conv/char.html');
   await p.waitForFunction(() => window.ready);
-  for (const f of fs.readdirSync('chars').filter((f) => f.endsWith('.fbx'))) {
+  const only = process.argv.slice(2);
+  for (const f of fs.readdirSync('chars').filter((f) => f.endsWith('.fbx') && (!only.length || only.some((o) => f.startsWith(o))))) {
     const name = f.replace(/\.fbx$/, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/_$/, '');
     const t0 = Date.now();
     const r = await p.evaluate((u) => convert(u), 'http://localhost:8766/chars/' + encodeURIComponent(f));

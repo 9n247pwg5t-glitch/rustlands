@@ -3,21 +3,24 @@
 // plus separate texture files, which is what the artifact host serves.
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { prune, dedup, weld, simplifyPrimitive, quantize, unpartition } from '@gltf-transform/functions';
-import { MeshoptSimplifier } from 'meshoptimizer';
+import { prune, dedup, weld, simplifyPrimitive, quantize, unpartition, meshopt } from '@gltf-transform/functions';
+import { MeshoptSimplifier, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 
-// usage: node optimize.mjs <glb dir> <out dir> [vertex budget] [--tex 2048] [--normals 1024]
-// --tex caps colour textures, --normals keeps normal maps at that size (default: dropped)
+// usage: node optimize.mjs <glb dir> <out dir> [vertex budget] [--tex 2048] [--normals 1024] [--meshopt 1]
+// --tex caps colour textures, --normals keeps normal maps at that size (default: dropped),
+// --meshopt 1 packs the geometry with EXT_meshopt_compression (the game loads it with vendor/meshopt_decoder.js)
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = +args[i + 1]; args.splice(i, 2); return v; };
-const TEX = opt('--tex', 1024), NORMALS = opt('--normals', 0);
+const TEX = opt('--tex', 1024), NORMALS = opt('--normals', 0), MESHOPT = opt('--meshopt', 0);
 const [inDir, outDir, budgetArg] = args;
 const BUDGET = +(budgetArg || 16000);
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 await MeshoptSimplifier.ready;
+await MeshoptEncoder.ready;
+io.registerDependencies({ 'meshopt.encoder': MeshoptEncoder });
 fs.mkdirSync(outDir, { recursive: true });
 
 for (const f of fs.readdirSync(inDir).filter((f) => f.endsWith('.glb'))) {
@@ -49,7 +52,8 @@ for (const f of fs.readdirSync(inDir).filter((f) => f.endsWith('.glb'))) {
     tex.setImage(new Uint8Array(out)).setMimeType('image/webp')
       .setURI(name + '-' + (tex.getName() || 'tex').replace(/[^A-Za-z0-9_-]+/g, '_') + '-' + root.listTextures().indexOf(tex) + '.webp');
   }
-  await doc.transform(prune(), dedup(), quantize({ quantizePosition: 14, quantizeNormal: 10, quantizeTexcoord: 12, quantizeWeight: 8 }), unpartition());
+  if (MESHOPT) await doc.transform(prune(), dedup(), meshopt({ encoder: MeshoptEncoder, level: 'medium', quantizePosition: 14, quantizeNormal: 10, quantizeTexcoord: 12 }), unpartition());
+  else await doc.transform(prune(), dedup(), quantize({ quantizePosition: 14, quantizeNormal: 10, quantizeTexcoord: 12, quantizeWeight: 8 }), unpartition());
   root.listBuffers()[0].setURI(name + '.bin');
   const gltf = path.join(outDir, name + '.gltf'), bin = path.join(outDir, name + '.bin');
   await io.write(gltf, doc);
