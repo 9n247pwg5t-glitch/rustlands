@@ -12,6 +12,14 @@ const ENEMY_DEFS = {
   boss: { name: 'Krag the Scrapjaw', body: 'human', hp: 2600, shield: 900, hpType: 'armor', speed: 3.8, xp: 600, ai: 'boss', dmg: 22, projSpeed: 30, scale: 2.4, boss: true, look: { shirt: 0x6a3a2a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x8a8a8a, weapon: 'hammer', armor: true, jaw: true } },
 };
 
+// How a gunner fires the weapon it carries (from its type's numbers): rifles use the type's own
+// stats, shotguns fire one spread of pellets up close, pistols fire slower, harder single shots.
+const GUN_FIRE = {
+  rifle: () => ({}),
+  shotgun: (d) => ({ pellets: 6, burst: 1, dmg: d.dmg * 0.75, spread: d.spread * 2.2, cd: [d.cd[0] + 0.3, d.cd[1] + 0.4], range: [5, 13], projSpeed: d.projSpeed + 6 }),
+  pistol: (d) => ({ burst: 2, burstGap: 0.3, dmg: d.dmg * 1.5, spread: d.spread * 0.8, range: [7, 19] }),
+};
+
 const enemies = [];
 const enemyShots = [];
 const hazards = [];
@@ -97,11 +105,12 @@ function buildSkag(look, parts) {
 
 // ---------------------------------------------------------------------------
 function spawnEnemy(key, level, pos) {
-  const def = ENEMY_DEFS[key];
+  let def = ENEMY_DEFS[key];
   const parts = [];
   let model, rig = null;
   if (RIG.ready && RIG_LOOKS[key]) { const m = makeRigEnemy(key, def); model = { root: m.root }; rig = m.rig; }
   else model = def.body === 'skag' ? buildSkag(def.look, parts) : buildHuman(def.look, parts);
+  if (rig && rig.gun && !rig.dual && def.ai === 'ranged' && GUN_FIRE[rig.gun]) def = Object.assign({}, def, GUN_FIRE[rig.gun](def));
   model.root.scale.setScalar(def.scale);
   const sc = levelScale(level);
   const e = {
@@ -539,9 +548,12 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
     if (e.burstT <= 0) {
       e.burstLeft--; e.burstT = e.def.burstGap;
       let muzzle;
-      if (e.rig && e.rig.dual) {
-        // two guns: alternate hands, each shot leaving its own barrel
-        e.handFlip = !e.handFlip;
+      if (e.rig && e.rig.dual) e.handFlip = !e.handFlip; // two guns: alternate hands
+      if (e.rig && e.rig.muzzles) {
+        // from the weapon's own barrel
+        e.rig.model.updateMatrixWorld(true);
+        muzzle = e.rig.muzzles[e.rig.muzzles.length > 1 && e.handFlip ? 1 : 0].getWorldPosition(_b);
+      } else if (e.rig && e.rig.dual) {
         (e.handFlip ? e.rig.bones.lhand : e.rig.bones.rhand).getWorldPosition(_b);
         muzzle = _b.addScaledVector(fwd, 0.35 * e.def.scale);
       } else muzzle = _b.set(e.pos.x + fwd.x * 0.6 * e.def.scale + side.x * 0.3, e.pos.y + 1.3 * e.def.scale, e.pos.z + fwd.z * 0.6 * e.def.scale + side.z * 0.3);

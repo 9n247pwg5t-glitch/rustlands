@@ -4,7 +4,7 @@
 // shares one skeleton, so every clip plays on every body. They're cel-shaded with an ink outline, and
 // weapons and gear are pinned to their bones. If nothing loads, the block figures are used.
 
-const RIG = { ready: false, failed: false, base: {}, data: null };
+const RIG = { ready: false, failed: false, base: {}, data: null, guns: {} };
 const RIG_HEIGHT = 1.85; // metres at enemy scale 1
 
 // Melee attacks: clip, start, impact times, end (seconds in the clip), damage share per impact.
@@ -28,13 +28,25 @@ const RIG_FILES = {
 // Per enemy type: which bodies, and the gear pinned to the bones. The characters are shown as
 // authored; `cloth` (optional) would dye the dark parts of their clothes.
 const RIG_LOOKS = {
-  bandit: { bases: ['psycho1', 'ugly', 'female'], weapon: 'rifle' },
-  marauder: { bases: ['gangster'], weapon: 'rifle' }, // the top-heavy gangster clown
+  bandit: { bases: ['psycho1', 'ugly', 'female'], weapon: ['rifle', 'rifle', 'shotgun', 'pistol'] },
+  marauder: { bases: ['gangster'], weapon: ['rifle', 'shotgun'] }, // the top-heavy gangster clown
   psycho: { bases: ['ugly', 'psycho1', 'female'], weapon: 'axe' },
   suicide: { bases: ['psycho1', 'ugly', 'female'], weapon: 'bomb' },
-  nomad: { bases: ['heavy'], weapon: 'smg', dual: true, style: 'clown' }, // the top-heavy brawler as a bloody clown, an SMG in each fist
+  nomad: { bases: ['heavy'], weapon: 'pistol', dual: true, style: 'clown' }, // the top-heavy brawler as a bloody clown, a pistol in each fist
   boss: { bases: ['brute'], pod: true }, // the Brute carries his own battle axe
 };
+
+// Weapon models (glTF as .json, vertex coloured; barrel or blade toward +Z, up +Y, metres). The
+// sockets are where the hand grips it and where shots leave. `size` scales the model in the fist.
+const GUN_FILES = { pistol: 'gun-pistol', rifle: 'gun-rifle', shotgun: 'gun-shotgun', axe: 'gun-axe' };
+const GUN_SOCKETS = {
+  pistol: { grip: [0, -0.035, -0.052], muzzle: [0, 0.034, 0.282], size: 0.9 },
+  rifle: { grip: [0, -0.03, -0.042], muzzle: [0, 0.046, 0.66], size: 0.8 },
+  shotgun: { grip: [0, -0.01, -0.03], muzzle: [0.004, 0.045, 0.668], size: 0.8 },
+  axe: { grip: [0, 0, 0], size: 0.85 },
+};
+// Paint variations: hue turns (radians) applied to the painted parts only (greys, whites and metal stay)
+const GUN_HUES = [0, 0, 0.7, 2.2, 3.4, 4.3, 5.2];
 
 const RIG_UPPER = /^mixamorig(Spine1|Spine2|Neck|Head|(Left|Right)(Shoulder|Arm|ForeArm|Hand))$/;
 
@@ -69,7 +81,12 @@ function loadRigs() {
   const names = Object.keys(RIG_FILES);
   RIG.loading = anims.then((data) => {
     RIG.data = data;
-    return Promise.allSettled(names.map((n) => get(RIG_FILES[n])));
+    const guns = Object.keys(GUN_FILES);
+    const gunLoads = Promise.allSettled(guns.map((k) => get(GUN_FILES[k]))).then((rs) => rs.forEach((r, i) => {
+      if (r.status === 'fulfilled') RIG.guns[guns[i]] = r.value.scene;
+      else console.warn('Weapon model failed to load:', GUN_FILES[guns[i]], r.reason);
+    }));
+    return Promise.all([Promise.allSettled(names.map((n) => get(RIG_FILES[n]))), gunLoads]).then(([rs]) => rs);
   }).then((results) => {
     results.forEach((r, i) => {
       if (r.status !== 'fulfilled') { console.warn('Enemy model failed to load:', RIG_FILES[names[i]], r.reason); return; }
@@ -362,6 +379,64 @@ function rigWeapon(kind, left = false) {
   }
   return g;
 }
+// the block-built stand-in when a weapon model didn't load
+const blockGun = (kind) => rigWeapon(kind === 'pistol' ? 'smg' : kind === 'shotgun' ? 'rifle' : kind);
+// A weapon model for the hand, in the same frame as rigWeapon (right hand reaching along -X, or +X
+// when `left`), with its grip in the fist. Returns the group and its muzzle point (null for the axe).
+const _gunMats = new Map();
+let _gunOutline = null;
+function gunMaterial(src, hue) {
+  const key = src.name + '_' + hue;
+  let m = _gunMats.get(key);
+  if (m) return m;
+  m = new THREE.MeshToonMaterial({ gradientMap: gradTex, vertexColors: true });
+  if (src.emissive && src.emissive.getHex()) { m.emissive = src.emissive.clone(); m.emissiveIntensity = 0.8; }
+  else { m.emissive = new THREE.Color(0xffffff); m.emissiveIntensity = 0.12; } // lift, like the bodies
+  if (src.name === 'Paint' && hue) {
+    // turn the hue about the grey axis: saturated paint changes colour, white, black and grey don't
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uHue = { value: hue };
+      sh.fragmentShader = 'uniform float uHue;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+        { vec3 k = vec3(0.57735); float c = cos(uHue), s = sin(uHue);
+          diffuseColor.rgb = clamp(diffuseColor.rgb * c + cross(k, diffuseColor.rgb) * s + k * dot(k, diffuseColor.rgb) * (1.0 - c), 0.0, 1.0); }`);
+    };
+    m.customProgramCacheKey = () => 'gunhue' + hue;
+  }
+  _gunMats.set(key, m);
+  return m;
+}
+function rigGun(kind, left = false) {
+  const src = RIG.guns[kind], sock = GUN_SOCKETS[kind];
+  if (!src || !sock) return null;
+  if (!_gunOutline) { _gunOutline = rigOutlineMaterial(0.007); _gunOutline.skinning = false; }
+  const hue = pick(GUN_HUES);
+  const gun = src.clone();
+  const meshes = [];
+  gun.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  for (const o of meshes) {
+    o.material = gunMaterial(o.material, hue);
+    o.castShadow = true;
+    o.add(new THREE.Mesh(o.geometry, _gunOutline));
+  }
+  const muzzle = sock.muzzle ? new THREE.Object3D() : null;
+  if (muzzle) { muzzle.position.fromArray(sock.muzzle); gun.add(muzzle); }
+  const g = new THREE.Group(), w = new THREE.Group();
+  g.add(w); w.add(gun);
+  const size = sock.size * rand(0.93, 1.07);
+  gun.scale.setScalar(size);
+  gun.position.fromArray(sock.grip).multiplyScalar(-size); // grip socket on w's origin
+  const sx = left ? -1 : 1;
+  if (kind === 'axe') {
+    // handle (+Y) through the fist along +Z, blade (+Z) up
+    w.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)));
+    w.position.set(-0.06 * sx, -0.03, 0);
+  } else {
+    // barrel along the fingers, grip in the curled fist just below the hand bone
+    w.rotation.y = -Math.PI / 2 * sx;
+    w.position.set(-0.07 * sx, -0.05, 0);
+  }
+  return { group: g, inner: w, muzzle };
+}
 function rigArmor() {
   const g = new THREE.Group();
   box(0.42, 0.3, 0.12, 0xd8b23a, 0, 0.0, 0.14, g, 0.014);
@@ -465,10 +540,13 @@ function pinDualGuns(model, base, bones, kind) {
   model.traverse((o) => { if (o.isBone && pose[o.name]) { saved.push([o, o.quaternion.clone()]); o.quaternion.copy(pose[o.name]); } });
   model.updateMatrixWorld(true);
   const face = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI); // barrel (-Z) to the front (+Z)
+  const muzzles = [];
   for (const hand of [bones.rhand, bones.lhand]) {
-    const gun = rigWeapon(kind);
-    const inner = gun.children[0];
-    inner.rotation.set(0, 0, 0); inner.position.set(0, -0.02, 0.05);
+    const made = rigGun(kind);
+    const gun = made ? made.group : blockGun(kind);
+    const inner = made ? made.inner : gun.children[0];
+    if (made) { inner.rotation.set(0, Math.PI, 0); inner.position.set(0, -0.04, 0.02); muzzles.push(made.muzzle); } // model barrel (+Z) to -Z
+    else { inner.rotation.set(0, 0, 0); inner.position.set(0, -0.02, 0.05); }
     const hq = hand.getWorldQuaternion(new THREE.Quaternion());
     const hs = hand.getWorldScale(new THREE.Vector3()).x;
     gun.quaternion.copy(hq).invert().multiply(face);
@@ -483,6 +561,7 @@ function pinDualGuns(model, base, bones, kind) {
   }
   for (const [o, q] of saved) o.quaternion.copy(q);
   model.updateMatrixWorld(true);
+  return muzzles.length === 2 ? muzzles : null;
 }
 
 function makeRigEnemy(key, def) {
@@ -512,15 +591,21 @@ function makeRigEnemy(key, def) {
     const neck = model.getObjectByName('mixamorigNeck');
     if (neck) pinToBone(neck, rigRuffle(), base.headSize);
   }
-  if (look.dual) pinDualGuns(model, base, bones, look.weapon);
-  else if (look.weapon) pinToBone(bones.rhand, rigWeapon(look.weapon), 1, handAlign(bones.rhand));
+  const gunKind = Array.isArray(look.weapon) ? pick(look.weapon) : look.weapon;
+  let muzzles = null;
+  if (look.dual) muzzles = pinDualGuns(model, base, bones, gunKind);
+  else if (gunKind) {
+    const made = rigGun(gunKind);
+    pinToBone(bones.rhand, made ? made.group : blockGun(gunKind), 1, handAlign(bones.rhand));
+    if (made && made.muzzle) muzzles = [made.muzzle];
+  }
   if (look.armor) pinToBone(bones.spine, rigArmor());
   if (look.pod) pinToBone(bones.spine, rigPod());
   const mixer = new THREE.AnimationMixer(model);
   const aimBones = [];
   const aimPose = look.dual ? dualAimPose(base) : base.aimPose;
   model.traverse((o) => { if (o.isBone && aimPose[o.name]) aimBones.push([o, aimPose[o.name]]); });
-  const rig = { model, mixer, clips: base.clips, bones, actions: {}, loop: null, one: null, lastState: null, baseName, aimBones, aimW: 0, gait: base.gaitScale, dual: !!look.dual };
+  const rig = { model, mixer, clips: base.clips, bones, actions: {}, loop: null, one: null, lastState: null, baseName, aimBones, aimW: 0, gait: base.gaitScale, dual: !!look.dual, gun: gunKind, muzzles };
   return { root, rig };
 }
 
