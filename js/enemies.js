@@ -136,7 +136,12 @@ function spawnEnemy(key, level, pos) {
   scene.add(model.root);
   enemies.push(e);
   burst(e.pos.clone().setY(e.pos.y + 1), 0x7fd6ff, 12, 5, 0.12, 0.5, 0.2, true);
-  if (rig && !def.boss && Math.random() < 0.35) { e.state = 'taunt'; e.stateT = 1.0; rigOnce(rig, 'Pointing', 1.6, 0.3, 1.9); }
+  if (rig && !def.boss && Math.random() < 0.35) {
+    e.state = 'taunt'; e.stateT = 1.0;
+    if (def.ai === 'ranged') rigOnce(rig, 'Pointing', 1.6, 0.3, 1.9);
+    else { e.stateT = 1.3; rigOnce(rig, 'Zombie Scream', 1.5, 0.3, 2.3); } // psychos scream as they arrive
+  }
+  if (rig && def.ai === 'ranged') { e.mag = magSize(e); e.nadeCd = rand(6, 14); }
   return e;
 }
 
@@ -203,6 +208,12 @@ function damageEnemy(e, amount, elem, opts = {}) {
   }
   e.sinceHit = 0; e.flash = 0.08;
   if (!opts.dot) { e.flinchT = Math.max(e.flinchT, opts.crit ? 0.32 : 0.12); e.flinchCrit = !!opts.crit; }
+  // flinch on the upper body (the legs keep going); not while reloading or mid-attack
+  if (!opts.dot && e.rig && !e.def.boss && e.state === 'move' && !e.reloadT && !e.rig.one && !(e.hitAnimT > 0)) {
+    e.hitAnimT = 0.7;
+    if (opts.crit || e.def.ai !== 'ranged') rigUpper(e.rig, 'Hit Reaction headshot', 1.2);
+    else rigUpper(e.rig, 'Walking Hit Reaction rifle', 1.5, 0.15, 0.95);
+  }
   e.aggro = true;
   if (broke) { SFX.shieldBreak(); burst(enemyCenter(e, new THREE.Vector3()), 0x7fd6ff, 14, 6, 0.1, 0.4, 0.3, true); }
   if (!opts.silent) {
@@ -386,7 +397,8 @@ function chaseDir(e, tgt, fwd, side, dt) {
 // fall back to cover to recharge. Melee enemies take turns: a few engage while the rest circle at a
 // distance; after a combo they often back off and let another one in. Only a few gunners fire at once.
 const tactics = { shooters: 0, maxShooters: 2, engaged: 0, maxEngaged: 2 };
-function tacticsFrame() {
+function tacticsFrame(dt = 1 / 60) {
+  if (tactics.nadeT > 0) tactics.nadeT -= dt;
   tactics.maxShooters = Math.min(6, 3 + Math.floor(game.wave / 3));
   tactics.maxEngaged = Math.min(4, 2 + Math.floor(game.wave / 5));
   let shooters = 0, engaged = 0;
@@ -485,12 +497,55 @@ function pickSpot(e, tgt, retreat) {
   }
   if (!best) return false;
   e.spot = (e.spot || new THREE.Vector3()).set(best[0], best[1], best[2]);
+  e.spotCover = coverScore(best[0], best[2], tgt.pos) >= 1;
   e.path = null;
   return true;
 }
 
+// Shots per magazine, counted in bursts (two-gun nomads never stop to reload).
+const magSize = (e) => (e.rig && e.rig.dual ? Infinity : e.rig && e.rig.gun === 'shotgun' ? 3 : e.rig && e.rig.gun === 'pistol' ? 4 : 3);
+function enemyReload(e) {
+  const v = Math.hypot(e.vel.x, e.vel.z);
+  // the clip that matches the legs, on the upper body only; it lasts as long as the reload does
+  if (v < 0.6) { rigUpper(e.rig, 'Reloading idle', 1.45, 0.1, 3.3); e.reloadT = 3.2 / 1.45; }
+  else if (v < 2.6) { rigUpper(e.rig, 'Reload walking', 1.7, 0.2, 4.1); e.reloadT = 3.9 / 1.7; }
+  else { rigUpper(e.rig, 'Reload running', 1.55, 0.2, 3.67); e.reloadT = 3.47 / 1.55; }
+  e.hitAnimT = 0;
+}
+// Grenade: wind up and throw (the clip's release is 2.05 s in), lobbed to land where the target is.
+const NADE_START = 1.0, NADE_RELEASE = 2.05, NADE_TS = 1.3;
+function enemyStartThrow(e) {
+  e.state = 'throw'; e.stateT = (2.6 - NADE_START) / NADE_TS; e.throwT = 0; e.nadeOut = false;
+  rigOnce(e.rig, 'Grenade Throw', NADE_TS, NADE_START, 2.6, 0.1);
+  tactics.nadeT = 5; // one grenade at a time across the arena
+}
+const NADE_MAT = glow(0x3a4a2a);
+function enemyLobGrenade(e, tgt) {
+  const from = e.rig.bones.rhand.getWorldPosition(new THREE.Vector3());
+  const to = tgt.pos.clone();
+  to.x += rand(-1.2, 1.2); to.z += rand(-1.2, 1.2); to.y = groundAt(to.x, to.z);
+  const d = Math.hypot(to.x - from.x, to.z - from.z);
+  const T = 0.7 + d / 18, g = 16;
+  const vel = new THREE.Vector3((to.x - from.x) / T, (to.y - from.y + 0.5 * g * T * T) / T, (to.z - from.z) / T);
+  const mesh = new THREE.Mesh(SHOT_GEO, NADE_MAT);
+  mesh.scale.setScalar(1.1);
+  mesh.position.copy(from);
+  scene.add(mesh);
+  enemyShots.push({ mesh, pos: from, vel, dmg: e.def.dmg * 3.5 * e.dmgScale, life: T + 1, rocket: false, grav: g, splash: 3.6, owner: e, nade: true });
+}
+function enemyUpdateThrow(e, dt, tgt) {
+  e.throwT += dt;
+  if (!e.nadeOut && e.throwT >= (NADE_RELEASE - NADE_START) / NADE_TS) { e.nadeOut = true; enemyLobGrenade(e, tgt); }
+}
+
 function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
   const [rMin, rMax] = e.def.range;
+  if (e.reloadT > 0) {
+    e.reloadT -= dt;
+    // done, or cut short by a dodge or throw (the reload clip is gone): magazine full
+    if (e.reloadT <= 0 || !e.rig.up) { e.reloadT = 0; e.mag = magSize(e); }
+  }
+  e.nadeCd -= dt;
   const eye = _a.set(e.pos.x, e.pos.y + 1.6 * e.def.scale, e.pos.z);
   e.losCheck = (e.losCheck || 0) - dt;
   if (e.losCheck <= 0) { e.los = lineOfSight(eye, tgt.eye); e.losCheck = 0.3; }
@@ -541,7 +596,17 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
       pickSpot(e, tgt, false); e.tac = 'move'; e.tacT = 8; e.moveShoot = Math.random() < 0.75;
     }
   }
-  e.aiming = e.burstLeft > 0 || (e.los && !e.faceMove && e.tac !== 'retreat' && dist < rMax + 12);
+  // crouched while holding a spot behind cover (standing up to fire)
+  e.inCover = !!(e.rig && e.tac === 'hold' && e.spotCover && sd < 1.6);
+  // a grenade to flush out a target that's been hiding, or now and then to break up a standoff
+  if (e.rig && e.nadeCd <= 0 && !e.burstLeft && !e.reloadT && e.grounded && !(tactics.nadeT > 0) && dist > 7 && dist < 24 && e.tac !== 'retreat' && !tgt.isTurret
+      && (e.noLosT > 2.5 || (e.los && Math.random() < 0.25))) {
+    e.nadeCd = rand(12, 20);
+    enemyStartThrow(e);
+    return;
+  }
+  if (e.reloadT) canFire = false;
+  e.aiming = !e.reloadT && (e.burstLeft > 0 || (e.los && !e.faceMove && e.tac !== 'retreat' && dist < rMax + 12));
   if (e.burstLeft > 0) {
     if (!e.los) { e.burstLeft = 0; return; }
     e.burstT -= dt;
@@ -561,6 +626,8 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
       const n = e.def.pellets || 1;
       const moving = Math.hypot(e.vel.x, e.vel.z) > 1.5;
       for (let k = 0; k < n; k++) enemyFire(e, muzzle.clone(), aim, { spread: e.def.spread * (moving ? 1.6 : 1) + dist / 400 });
+      // end of a burst: one less in the magazine, reload when it's empty
+      if (e.burstLeft === 0 && e.rig && e.mag != null && --e.mag <= 0) enemyReload(e);
     }
   } else if (canFire) {
     e.fireCd -= dt * (playerDowned ? 0.6 : 1);
@@ -670,7 +737,10 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   if (e.rig && ai === 'melee' && e.tauntCd <= 0 && td < 3 && dist < 16 && Math.random() < dt * 0.4) {
     e.tauntCd = rand(7, 12);
     e.state = 'taunt'; e.stateT = 1.6;
-    rigOnce(e.rig, 'Slap thigh Taunt', 1.6, 0.5, 3.0);
+    const r = Math.random();
+    if (r < 0.35) rigOnce(e.rig, 'Standing melee Taunt Battlecry', 1.4, 0.2, 2.6);
+    else if (r < 0.7) { rigOnce(e.rig, 'Zombie Scream', 1.4, 0.3, 2.6); SFX.yell(clamp(1.2 - dist / 40, 0, 1)); }
+    else rigOnce(e.rig, 'Slap thigh Taunt', 1.6, 0.5, 3.0);
   } else if (ai === 'skag' && Math.random() < dt * 0.25) SFX.growl(clamp(1 - dist / 30, 0, 0.6));
   return false;
 }
@@ -705,9 +775,10 @@ function updateEnemy(e, dt) {
   const chase = chaseDir(e, tgt, fwd, side, dt);
 
   const ai = e.def.ai;
-  const special = e.state === 'taunt' || e.state === 'down' || e.state === 'dash';
+  const special = e.state === 'taunt' || e.state === 'down' || e.state === 'dash' || e.state === 'throw';
   if (special) {
     e.stateT -= dt;
+    if (e.state === 'throw') enemyUpdateThrow(e, dt, tgt);
     if (e.state === 'dash') { _want.copy(e.dashDir).multiplyScalar(e.dashSpeed); }
     if (e.state === 'down') face = false;
     if (e.stateT <= 0) e.state = 'move';
@@ -721,6 +792,7 @@ function updateEnemy(e, dt) {
   }
 
   // hit stagger
+  if (e.hitAnimT > 0) e.hitAnimT -= dt;
   if (e.flinchT > 0) { e.flinchT -= dt; _want.multiplyScalar(e.def.boss ? 0.85 : 0.35); }
   // getting unstuck: sidestep for a moment, then re-path
   if (e.unstickT > 0) {

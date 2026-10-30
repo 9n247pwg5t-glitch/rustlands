@@ -711,7 +711,7 @@ function update(dt) {
   updateWeapon(dt);
   updateViewmodel(dt, moving);
   updateTurret(dt);
-  tacticsFrame();
+  tacticsFrame(dt);
   for (const e of enemies) if (e.alive) updateEnemy(e, dt);
   separateEnemies();
   updateEnemyShots(dt);

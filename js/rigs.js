@@ -8,11 +8,13 @@ const RIG = { ready: false, failed: false, base: {}, data: null, guns: {} };
 const RIG_HEIGHT = 1.85; // metres at enemy scale 1
 
 // Melee attacks: clip, start, impact times, end (seconds in the clip), damage share per impact.
+// Axe swings land where the hand moves fastest; the odd kick keeps them unpredictable.
 const RIG_ATTACKS = [
-  { clip: 'Hook', start: 0.4, hits: [1.0], end: 1.45, dmg: [1.1] },
-  { clip: 'Punch Combo', start: 0.3, hits: [0.63, 0.87, 1.13, 1.37], end: 1.55, dmg: [0.4, 0.4, 0.4, 0.5] },
+  { clip: 'Standing Melee Attack Downward', start: 0.35, hits: [0.85], end: 1.45, dmg: [1.3] },
+  { clip: 'Standing Melee Attack Downward', start: 0.35, hits: [0.85], end: 1.45, dmg: [1.3] },
+  { clip: 'Standing Melee Attack 360 High', start: 0.45, hits: [1.08], end: 1.75, dmg: [1.4] },
+  { clip: 'Standing Melee Combo Attack Ver. 3', start: 0.45, hits: [1.03, 1.78], end: 2.25, dmg: [0.8, 0.8] },
   { clip: 'Mma Kick 1', start: 0.35, hits: [0.73], end: 1.15, dmg: [1.2] },
-  { clip: 'Mma Kick 2', start: 0.3, hits: [0.63], end: 1.05, dmg: [1.2] },
   { clip: 'Roundhouse Kick', start: 0.55, hits: [1.0], end: 1.45, dmg: [1.4] },
 ];
 
@@ -641,6 +643,40 @@ function rigOnce(R, name, ts = 1, start = 0, end = Infinity, fade = 0.12) {
 }
 const rigTime = (R) => (R.one ? R.one.action.time : 0);
 
+// Upper-body layer: a clip on the chest, arms and head only, over whatever the legs are doing
+// (reloads, hit reactions). A second mixer writes those bones after the main one; it's blended in
+// and out from the pose underneath.
+function rigUpper(R, name, ts = 1, start = 0, end = Infinity) {
+  const base = RIG.base[R.baseName];
+  base.upper = base.upper || {};
+  let clip = base.upper[name];
+  if (!clip) {
+    const c = R.clips[name];
+    if (!c) return;
+    clip = base.upper[name] = new THREE.AnimationClip(name + ' (upper)', c.duration, c.tracks.filter((t) => RIG_UPPER.test(t.name.split('.')[0])));
+  }
+  if (!R.mixer2) {
+    R.mixer2 = new THREE.AnimationMixer(R.model);
+    R.upBones = [];
+    R.model.traverse((o) => { if (o.isBone && RIG_UPPER.test(o.name)) R.upBones.push([o, new THREE.Quaternion()]); });
+  }
+  if (R.up) R.up.action.stop();
+  const a = R.mixer2.clipAction(clip);
+  a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true;
+  a.time = start; a.timeScale = ts; a.play();
+  R.up = { action: a, end: Math.min(end, clip.duration), name };
+  R.upW = R.upW || 0;
+}
+const _uq = new THREE.Quaternion();
+function rigUpperApply(R, dt) {
+  const a = R.up.action, done = a.time >= R.up.end - 1e-3 || R.one;
+  R.upW = clamp(R.upW + (done ? -dt : dt) * 7, 0, 1);
+  if (done && R.upW === 0) { a.stop(); R.up = null; return; }
+  for (const [b, q] of R.upBones) q.copy(b.quaternion);
+  R.mixer2.update(dt);
+  if (R.upW < 1) for (const [b, q] of R.upBones) { _uq.copy(b.quaternion); b.quaternion.copy(q).slerp(_uq, R.upW); }
+}
+
 function startRigAttack(e) {
   e.atk = pick(RIG_ATTACKS);
   e.atkHit = 0;
@@ -669,10 +705,11 @@ function animateRig(e, dt) {
   R.mixer.update(dt);
   // gunners hold the rifle up while moving, blended in and out
   // (two-gun bodies use their own pose even when standing, since the rifle clip's stance doesn't fit them)
-  const wantAim = e.aiming && !R.one && (R.mode !== 'idle' || R.dual) && (e.def.ai === 'ranged' || e.def.ai === 'boss') && e.state === 'move';
+  const wantAim = e.aiming && !R.one && !e.reloadT && (R.mode !== 'idle' || R.dual) && (e.def.ai === 'ranged' || e.def.ai === 'boss') && e.state === 'move';
   R.aimW = clamp(R.aimW + (wantAim ? dt : -dt) * 6, 0, 1);
   if (R.aimW > 0) for (const [b, q] of R.aimBones) b.quaternion.slerp(q, R.aimW);
-  if (e.flinchCrit && fl > 0) R.bones.head.rotation.x -= fl * 2.2;
+  if (R.up) rigUpperApply(R, dt);
+  if (e.flinchCrit && fl > 0 && !R.up) R.bones.head.rotation.x -= fl * 2.2;
 }
 
 // How fast a clip travels (m/s) and which way it steps sideways (+1 = to the character's right),
@@ -684,15 +721,26 @@ function clipSpeed(name, fallback) {
 }
 function clipSide(name) { const c = RIG.data.clips[name]; return c && c.v && c.v[0] > 0 ? -1 : 1; }
 
-// Gait per kind of enemy: the clip for each direction and the fastest it may be played.
+// Gait per kind of enemy: the clips for each direction and the fastest each may be played. Forward
+// has tiers, slowest first (walk, then run); the first one fast enough is used. Side steps that
+// come as separate left and right clips are given as [right, left].
 // ("Running" circles on the spot, so straight runs use Rifle Run.)
 const GAIT = {
-  gun: { fwd: ['Rifle Run', 1.35], back: ['Backwards Rifle Walk', 2.0], side: ['Rifle Side Step', 2.2] },
-  melee: { fwd: ['Rifle Run', 1.4], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7] },
-  suicide: { fwd: ['Injured Run', 1.75], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7] },
+  gun: { fwd: [['Walk Forward rifle', 1.25], ['Rifle Run', 1.35]], back: ['Walk Backward rifle', 1.6], side: ['Rifle Side Step', 2.2], idle: 'Rifle Aiming Idle' },
+  pistol: { fwd: [['Walk Forward rifle', 1.25], ['Unarmed Run Forward 2', 1.5], ['Rifle Run', 1.35]], back: ['Pistol Run Backward', 1.3], side: ['Pistol Strafe', 1.4], idle: 'Pistol Idle' },
+  // gunners holding a spot behind cover crouch, and stand to fire over or around it
+  cover: { fwd: [['Rifle Crouch Walk', 1.8], ['Walk Forward rifle', 1.25], ['Rifle Run', 1.35]], back: ['Walk Backward rifle', 1.6], side: [['Crouch Walk Strafe Right rifle', 'Crouch Walk Strafe Left rifle'], 1.8], idle: 'Crouch Walk Strafe Left rifle', idleFrozen: true },
+  melee: { fwd: [['Mutant Run', 1.6], ['Rifle Run', 1.4]], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7], idle: 'Unarmed Idle' },
+  suicide: { fwd: [['Mutant Run', 1.85]], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7], idle: 'Unarmed Idle' },
 };
-const gaitOf = (e) => (e.def.ai === 'ranged' || e.def.ai === 'boss' ? GAIT.gun : e.def.ai === 'suicide' ? GAIT.suicide : GAIT.melee);
-const gaitMax = (e, g) => clipSpeed(g[0], 1) * g[1] * e.def.scale * e.rig.gait;
+const gaitOf = (e) => {
+  if (e.def.ai === 'suicide') return GAIT.suicide;
+  if (e.def.ai !== 'ranged' && e.def.ai !== 'boss') return GAIT.melee;
+  if (e.inCover && !e.burstLeft) return GAIT.cover;
+  return e.rig && e.rig.gun === 'pistol' && !e.rig.dual ? GAIT.pistol : GAIT.gun;
+};
+const sideClip = (g, right) => (Array.isArray(g[0]) ? g[0][right ? 0 : 1] : g[0]);
+const gaitMax = (e, g) => clipSpeed(Array.isArray(g[0]) ? g[0][0] : g[0], 1) * g[1] * e.def.scale * e.rig.gait;
 
 // Keep a rigged enemy no faster than its legs can carry it in the direction it's moving
 // relative to where it faces, so the feet never skate. Called on normal movement only.
@@ -700,7 +748,7 @@ function rigClampVelocity(e) {
   const G = gaitOf(e);
   const fx = Math.sin(e.yaw), fz = Math.cos(e.yaw);
   let vf = e.vel.x * fx + e.vel.z * fz, vr = -e.vel.x * fz + e.vel.z * fx;
-  const fMax = gaitMax(e, G.fwd), bMax = gaitMax(e, G.back), sMax = gaitMax(e, G.side);
+  const fMax = gaitMax(e, G.fwd[G.fwd.length - 1]), bMax = gaitMax(e, G.back), sMax = gaitMax(e, G.side);
   if (Math.abs(vr) > Math.abs(vf)) {
     vr = clamp(vr, -sMax, sMax);
     vf = clamp(vf, -bMax * 0.3, fMax * 0.15);
@@ -724,27 +772,29 @@ function rigLocomotion(e, R, dt) {
   const vf = e.vel.x * fx + e.vel.z * fz;
   const vr = -e.vel.x * fz + e.vel.z * fx;
   const speed = Math.hypot(vf, vr);
+  const cap = (g) => clipSpeed(g[0], 1) * sc * R.gait * g[1];
   let mode = speed < 0.35 * sc ? 'idle' : Math.abs(vr) > Math.abs(vf) ? 'side' : vf > 0 ? 'fwd' : 'back';
+  if (mode === 'fwd') { let i = 0; while (i < G.fwd.length - 1 && vf > cap(G.fwd[i]) * 0.92) i++; mode = 'fwd' + i; }
+  mode += G === GAIT.cover ? 'c' : '';
   // a short hold so brief wobbles don't flip clips back and forth
-  if (R.mode && mode !== R.mode) { R.modeT = (R.modeT || 0) + dt; if (R.modeT < 0.12) mode = R.mode; else R.modeT = 0; }
+  if (R.mode && mode !== R.mode) { R.modeT = (R.modeT || 0) + dt; if (R.modeT < 0.15) mode = R.mode; else R.modeT = 0; }
   else R.modeT = 0;
   R.mode = mode;
-  const play = (g, v) => {
-    const ts = clamp(Math.abs(v) / (clipSpeed(g[0], 1) * sc * R.gait), 0.4, g[1]);
-    return ts;
-  };
-  if (mode === 'idle') {
+  const play = (g, v) => clamp(Math.abs(v) / (clipSpeed(g[0], 1) * sc * R.gait), 0.4, g[1]);
+  if (mode.startsWith('idle')) {
     if (gun && R.dual) rigLoop(R, 'Backwards Rifle Walk', 0); // a standing frame that faces straight ahead
-    else if (gun) rigLoop(R, 'Shoot Rifle', 0); // aiming pose
-    else rigLoop(R, 'Slap thigh Taunt', 1);
-  } else if (mode === 'fwd') {
+    else if (G.idleFrozen) rigLoop(R, G.idle, 0); // crouched behind cover
+    else rigLoop(R, G.idle, 1);
+  } else if (mode.startsWith('fwd')) {
+    const g = G.fwd[Math.min(+mode[3], G.fwd.length - 1)];
     if (gun && e.burstLeft > 0 && vf < clipSpeed('Shoot Rifle', 1.9) * sc * 1.3) rigLoop(R, 'Shoot Rifle', play(['Shoot Rifle', 1.3], vf)); // walk and shoot
-    else rigLoop(R, G.fwd[0], play(G.fwd, vf));
-  } else if (mode === 'back') {
+    else rigLoop(R, g[0], play(g, vf));
+  } else if (mode.startsWith('back')) {
     rigLoop(R, G.back[0], play(G.back, vf));
   } else {
-    const ts = play(G.side, vr);
-    rigLoop(R, G.side[0], Math.sign(vr) === clipSide(G.side[0]) ? ts : -ts);
+    const name = sideClip(G.side, vr > 0);
+    const ts = play([name, G.side[1]], vr);
+    rigLoop(R, name, Math.sign(vr) === clipSide(name) ? ts : -ts);
   }
 }
 
