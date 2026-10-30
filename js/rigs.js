@@ -19,7 +19,7 @@ const RIG_ATTACKS = [
 // The uploaded characters: game name -> model file.
 const RIG_FILES = {
   psycho1: 'strung-out-clown', // the strung-out clown
-  ugly: 'male-psychosis-enemy-2-ugly',
+  ugly: 'burnt-clown', // the burnt clown
   female: 'psycho-clown-showgirl', // the psycho clown showgirl
   heavy: 'male-psychosis-top-heavy',
   gangster: 'gangster-clown',
@@ -113,7 +113,9 @@ function prepareRigBase(gltf) {
   const mats = {};
   for (const m of meshes) {
     const src = m.material;
-    mats[m.name] = { map: src.map || null, alpha: src.alphaTest > 0 || src.transparent, id: m.name, vc: !!m.geometry.attributes.color };
+    // glow: the model's own emissive map / colour (embers, eyes), kept instead of the lift below
+    const glow = src.emissive && src.emissive.getHex() ? { map: src.emissiveMap || null, color: src.emissive.clone() } : null;
+    mats[m.name] = { map: src.map || null, alpha: src.alphaTest > 0 || src.transparent, id: m.name, vc: !!m.geometry.attributes.color, glow };
     m.frustumCulled = false;
     m.castShadow = true;
     if (/Eye|Brow|Lash|Mouth|Facial/i.test(m.name)) continue;
@@ -162,6 +164,7 @@ function rigMaterial(baseName, info, tint, style) {
     mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: gradTex, skinning: true, vertexColors: info.vc });
     // lift dark textures a little so faces and clothes read under the cel shading
     if (info.map) { mat.emissiveMap = info.map; mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 0.28; }
+    if (info.glow) { mat.emissiveMap = info.glow.map; mat.emissive = info.glow.color; mat.emissiveIntensity = 1; }
     if (info.alpha) { mat.alphaTest = 0.5; mat.side = THREE.DoubleSide; }
     if (tint == null) { _rigMatCache.set(key, mat); return mat; }
     // Dye the dark parts of the texture (clothes) and keep the lighter ones (skin, prints) as they are.
