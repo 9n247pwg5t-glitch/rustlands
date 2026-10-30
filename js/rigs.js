@@ -134,7 +134,9 @@ function prepareRigBase(gltf) {
     const src = m.material;
     // glow: the model's own emissive map / colour (embers, eyes), kept instead of the lift below
     const glow = src.emissive && src.emissive.getHex() ? { map: src.emissiveMap || null, color: src.emissive.clone() } : null;
-    mats[m.name] = { map: src.map || null, alpha: src.alphaTest > 0 || src.transparent, id: m.name, vc: !!m.geometry.attributes.color, glow };
+    if (src.map) capTexture(src.map);
+    const normal = src.normalMap ? { map: capTexture(src.normalMap), scale: src.normalScale.clone() } : null;
+    mats[m.name] = { map: src.map || null, alpha: src.alphaTest > 0 || src.transparent, id: m.name, vc: !!m.geometry.attributes.color, glow, normal };
     m.frustumCulled = false;
     m.castShadow = true;
     if (/Eye|Brow|Lash|Mouth|Facial/i.test(m.name)) continue;
@@ -174,21 +176,55 @@ function prepareRigBase(gltf) {
   return { scene, fit, clips, mats, headSize, headLen, aimPose, gaitScale };
 }
 
+// Phones get textures no bigger than 1024 (the files carry up to 2048 for big screens).
+const RIG_TEX_CAP = window.matchMedia && matchMedia('(pointer: coarse)').matches ? 1024 : 4096;
+const _capped = new WeakSet();
+function capTexture(tex) {
+  const img = tex.image;
+  if (!img || _capped.has(tex) || Math.max(img.width, img.height) <= RIG_TEX_CAP) return tex;
+  const k = RIG_TEX_CAP / Math.max(img.width, img.height);
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  tex.image = c; _capped.add(tex); tex.needsUpdate = true;
+  return tex;
+}
+// Character and weapon shading on top of the cel bands: four light steps (the world uses three),
+// ink-dark creases wherever the normal map bends the surface away from the mesh (folds, seams,
+// muscle), and a thin rim of light along the silhouette.
+const rigGradTex = (() => {
+  const d = new Uint8Array([64, 64, 64, 255, 118, 118, 118, 255, 178, 178, 178, 255, 255, 255, 255, 255]);
+  const t = new THREE.DataTexture(d, 4, 1, THREE.RGBAFormat);
+  t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
+  return t;
+})();
+const RIG_DETAIL = `{
+    float crease = 1.0 - clamp(dot(normal, geometryNormal), 0.0, 1.0);
+    float rim = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
+    outgoingLight *= 1.0 - smoothstep(0.012, 0.09, crease) * 0.4;
+    outgoingLight += diffuseColor.rgb * smoothstep(0.6, 0.78, rim) * 0.32;
+  }
+  #include <output_fragment>`;
+function rigDetail(sh) { sh.fragmentShader = sh.fragmentShader.replace('#include <output_fragment>', RIG_DETAIL); }
 const _rigMatCache = new Map();
 function rigMaterial(baseName, info, tint, style) {
   const key = baseName + '_' + info.id + '_' + tint + '_' + style;
   let mat = _rigMatCache.get(key);
   if (!mat && style === 'clown') { mat = clownMaterial(info); _rigMatCache.set(key, mat); }
   if (!mat) {
-    mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: gradTex, skinning: true, vertexColors: info.vc });
+    mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: rigGradTex, skinning: true, vertexColors: info.vc });
+    mat.onBeforeCompile = rigDetail;
     // lift dark textures a little so faces and clothes read under the cel shading
-    if (info.map) { mat.emissiveMap = info.map; mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 0.28; }
+    if (info.map) { mat.emissiveMap = info.map; mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 0.24; }
     if (info.glow) { mat.emissiveMap = info.glow.map; mat.emissive = info.glow.color; mat.emissiveIntensity = 1; }
     if (info.alpha) { mat.alphaTest = 0.5; mat.side = THREE.DoubleSide; }
+    // surface detail (folds, seams, muscle) from the model's normal map, read through the cel bands
+    if (info.normal) { mat.normalMap = info.normal.map; mat.normalScale.copy(info.normal.scale); }
     if (tint == null) { _rigMatCache.set(key, mat); return mat; }
     // Dye the dark parts of the texture (clothes) and keep the lighter ones (skin, prints) as they are.
     const uTint = { value: new THREE.Color(tint) };
     mat.onBeforeCompile = (sh) => {
+      rigDetail(sh);
       sh.uniforms.uTint = uTint;
       sh.fragmentShader = 'uniform vec3 uTint;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
         float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
@@ -249,9 +285,11 @@ const CLOWN_NOISE = `
                mix(mix(cHash(i + vec3(0,0,1)), cHash(i + vec3(1,0,1)), f.x), mix(cHash(i + vec3(0,1,1)), cHash(i + vec3(1,1,1)), f.x), f.y), f.z);
   }`;
 function clownMaterial(info) {
-  const mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: gradTex, skinning: true, vertexColors: info.vc });
+  const mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: rigGradTex, skinning: true, vertexColors: info.vc });
   if (info.alpha) { mat.alphaTest = 0.5; mat.side = THREE.DoubleSide; }
+  if (info.normal) { mat.normalMap = info.normal.map; mat.normalScale.copy(info.normal.scale); }
   mat.onBeforeCompile = (sh) => {
+    rigDetail(sh);
     sh.vertexShader = 'attribute vec3 aBind;\nattribute float aZone;\nattribute vec3 aFace;\nvarying vec3 vBind;\nvarying float vZone;\nvarying vec3 vFace;\n' +
       sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBind = aBind; vZone = aZone; vFace = aFace;');
     sh.fragmentShader = 'varying vec3 vBind;\nvarying float vZone;\nvarying vec3 vFace;\n' + CLOWN_NOISE + '\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
@@ -391,12 +429,14 @@ function gunMaterial(src, hue) {
   const key = src.name + '_' + hue;
   let m = _gunMats.get(key);
   if (m) return m;
-  m = new THREE.MeshToonMaterial({ gradientMap: gradTex, vertexColors: true });
+  m = new THREE.MeshToonMaterial({ gradientMap: rigGradTex, vertexColors: true });
+  m.onBeforeCompile = rigDetail;
   if (src.emissive && src.emissive.getHex()) { m.emissive = src.emissive.clone(); m.emissiveIntensity = 0.8; }
   else { m.emissive = new THREE.Color(0xffffff); m.emissiveIntensity = 0.12; } // lift, like the bodies
   if (src.name === 'Paint' && hue) {
     // turn the hue about the grey axis: saturated paint changes colour, white, black and grey don't
     m.onBeforeCompile = (sh) => {
+      rigDetail(sh);
       sh.uniforms.uHue = { value: hue };
       sh.fragmentShader = 'uniform float uHue;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
         { vec3 k = vec3(0.57735); float c = cos(uHue), s = sin(uHue);

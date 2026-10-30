@@ -9,7 +9,12 @@ import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 
-const [inDir, outDir, budgetArg] = process.argv.slice(2);
+// usage: node optimize.mjs <glb dir> <out dir> [vertex budget] [--tex 2048] [--normals 1024]
+// --tex caps colour textures, --normals keeps normal maps at that size (default: dropped)
+const args = process.argv.slice(2);
+const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = +args[i + 1]; args.splice(i, 2); return v; };
+const TEX = opt('--tex', 1024), NORMALS = opt('--normals', 0);
+const [inDir, outDir, budgetArg] = args;
 const BUDGET = +(budgetArg || 16000);
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 await MeshoptSimplifier.ready;
@@ -32,12 +37,13 @@ for (const f of fs.readdirSync(inDir).filter((f) => f.endsWith('.glb'))) {
     if (r < 1) simplifyPrimitive(p, { simplifier: MeshoptSimplifier, ratio: r, error: 0.01, lockBorder: false });
     after += p.getAttribute('POSITION').getCount();
   }
-  // the game's cel shading ignores normal maps
-  for (const m of root.listMaterials()) m.setNormalTexture(null);
+  if (!NORMALS) for (const m of root.listMaterials()) m.setNormalTexture(null);
   await doc.transform(prune());
+  const normalTex = new Set(root.listMaterials().map((m) => m.getNormalTexture()).filter(Boolean));
   for (const tex of root.listTextures()) {
     const meta0 = await sharp(Buffer.from(tex.getImage())).metadata();
-    const img = sharp(Buffer.from(tex.getImage())).resize(Math.min(meta0.width, 1024), Math.min(meta0.height, 1024), { fit: 'fill' });
+    const cap = normalTex.has(tex) ? NORMALS : TEX;
+    const img = sharp(Buffer.from(tex.getImage())).resize(Math.min(meta0.width, cap), Math.min(meta0.height, cap), { fit: 'fill' });
     const meta = await img.metadata();
     const out = await (meta.hasAlpha ? img.webp({ quality: 82, alphaQuality: 90 }) : img.removeAlpha().webp({ quality: 80 })).toBuffer();
     tex.setImage(new Uint8Array(out)).setMimeType('image/webp')

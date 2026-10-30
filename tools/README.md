@@ -12,8 +12,10 @@ and Playwright (for the browser step).
 2. **Characters** (Mixamo, "with skin"): serve this folder's parent over HTTP, then
    `node char-run.js` loads each FBX in a headless browser with three.js's FBXLoader, merges duplicate
    skeleton copies, splits multi-material meshes, shrinks textures and exports a GLB.
-3. `node optimize.mjs <glb dir> ../models 16000` simplifies each character to about 16k vertices,
-   re-encodes textures as WebP and writes glTF JSON (buffer embedded) plus texture files.
+3. `node optimize.mjs <glb dir> ../models 30000 --tex 2048 --normals 1024` simplifies each character to
+   about 30k vertices, keeps colour textures up to 2048 and normal maps up to 1024 (without `--normals`
+   they're dropped), re-encodes textures as WebP and writes glTF JSON (buffer embedded) plus texture
+   files. The weapons use `12000` and no options.
 4. Add the file to `RIG_FILES` in `js/rigs.js` and use it in `RIG_LOOKS`.
 
 ## Rigging a static model
