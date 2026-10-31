@@ -7,15 +7,17 @@
 const RIG = { ready: false, failed: false, base: {}, data: null, guns: {} };
 const RIG_HEIGHT = 1.85; // metres at enemy scale 1
 
-// Melee attacks: clip, start, impact times, end (seconds in the clip), damage share per impact.
-// Axe swings land where the hand moves fastest; the odd kick keeps them unpredictable.
+// Melee attacks: clip, start, impact times, end (seconds in the clip), damage share per impact,
+// and when the axe leaves a trail. Swings play from their wind-up through the follow-through;
+// impacts are where the hand moves fastest. The odd kick keeps them unpredictable.
+const RIG_ATK_TS = 1.15;
 const RIG_ATTACKS = [
-  { clip: 'Standing Melee Attack Downward', start: 0.35, hits: [0.85], end: 1.45, dmg: [1.3] },
-  { clip: 'Standing Melee Attack Downward', start: 0.35, hits: [0.85], end: 1.45, dmg: [1.3] },
-  { clip: 'Standing Melee Attack 360 High', start: 0.45, hits: [1.08], end: 1.75, dmg: [1.4] },
-  { clip: 'Standing Melee Combo Attack Ver. 3', start: 0.45, hits: [1.03, 1.78], end: 2.25, dmg: [0.8, 0.8] },
-  { clip: 'Mma Kick 1', start: 0.35, hits: [0.73], end: 1.15, dmg: [1.2] },
-  { clip: 'Roundhouse Kick', start: 0.55, hits: [1.0], end: 1.45, dmg: [1.4] },
+  { clip: 'Standing Melee Attack Downward', start: 0.2, hits: [0.84], end: 1.6, dmg: [1.3], trail: [[0.58, 0.98]] },
+  { clip: 'Standing Melee Attack Downward', start: 0.2, hits: [0.84], end: 1.6, dmg: [1.3], trail: [[0.58, 0.98]] },
+  { clip: 'Standing Melee Attack 360 High', start: 0.3, hits: [1.08], end: 1.9, dmg: [1.4], trail: [[0.82, 1.32]] },
+  { clip: 'Standing Melee Combo Attack Ver. 3', start: 0.3, hits: [1.03, 1.78], end: 2.4, dmg: [0.8, 0.8], trail: [[0.86, 1.14], [1.58, 1.95]] },
+  { clip: 'Mma Kick 1', start: 0.3, hits: [0.73], end: 1.2, dmg: [1.2] },
+  { clip: 'Roundhouse Kick', start: 0.45, hits: [1.0], end: 1.5, dmg: [1.4] },
 ];
 
 // The uploaded characters: game name -> model file.
@@ -45,7 +47,7 @@ const GUN_SOCKETS = {
   pistol: { grip: [0, -0.035, -0.052], muzzle: [0, 0.034, 0.282], size: 0.9 },
   rifle: { grip: [0, -0.03, -0.042], muzzle: [0, 0.046, 0.66], size: 0.8 },
   shotgun: { grip: [0, -0.01, -0.03], muzzle: [0.004, 0.045, 0.668], size: 0.8 },
-  axe: { grip: [0, 0, 0], size: 0.85 },
+  axe: { grip: [0, 0, 0], size: 0.85, edge: [0, 0.571, 0.246], inner: [0, 0.16, 0.02] },
 };
 // Paint variations: hue turns (radians) applied to the painted parts only (greys, whites and metal stay)
 const GUN_HUES = [0, 0, 0.7, 2.2, 3.4, 4.3, 5.2];
@@ -464,6 +466,12 @@ function rigGun(kind, left = false) {
   }
   const muzzle = sock.muzzle ? new THREE.Object3D() : null;
   if (muzzle) { muzzle.position.fromArray(sock.muzzle); gun.add(muzzle); }
+  let blade = null;
+  if (sock.edge) {
+    blade = { edge: new THREE.Object3D(), inner: new THREE.Object3D() };
+    blade.edge.position.fromArray(sock.edge); blade.inner.position.fromArray(sock.inner);
+    gun.add(blade.edge, blade.inner);
+  }
   const g = new THREE.Group(), w = new THREE.Group();
   g.add(w); w.add(gun);
   const size = sock.size * rand(0.93, 1.07);
@@ -479,7 +487,7 @@ function rigGun(kind, left = false) {
     w.rotation.y = -Math.PI / 2 * sx;
     w.position.set(-0.07 * sx, -0.05, 0);
   }
-  return { group: g, inner: w, muzzle };
+  return { group: g, inner: w, muzzle, blade };
 }
 function rigArmor() {
   const g = new THREE.Group();
@@ -636,12 +644,13 @@ function makeRigEnemy(key, def) {
     if (neck) pinToBone(neck, rigRuffle(), base.headSize);
   }
   const gunKind = Array.isArray(look.weapon) ? pick(look.weapon) : look.weapon;
-  let muzzles = null;
+  let muzzles = null, blade = null;
   if (look.dual) muzzles = pinDualGuns(model, base, bones, gunKind);
   else if (gunKind) {
     const made = rigGun(gunKind);
     pinToBone(bones.rhand, made ? made.group : blockGun(gunKind), 1, handAlign(bones.rhand));
     if (made && made.muzzle) muzzles = [made.muzzle];
+    if (made) blade = made.blade;
   }
   if (look.armor) pinToBone(bones.spine, rigArmor());
   if (look.pod) pinToBone(bones.spine, rigPod());
@@ -649,7 +658,7 @@ function makeRigEnemy(key, def) {
   const aimBones = [];
   const aimPose = look.dual ? dualAimPose(base) : base.aimPose;
   model.traverse((o) => { if (o.isBone && aimPose[o.name]) aimBones.push([o, aimPose[o.name]]); });
-  const rig = { model, mixer, clips: base.clips, bones, actions: {}, loop: null, one: null, lastState: null, baseName, aimBones, aimW: 0, gait: base.gaitScale, dual: !!look.dual, gun: gunKind, muzzles };
+  const rig = { model, mixer, clips: base.clips, bones, actions: {}, loop: null, one: null, lastState: null, baseName, aimBones, aimW: 0, gait: base.gaitScale, dual: !!look.dual, gun: gunKind, muzzles, blade };
   return { root, rig };
 }
 
@@ -722,7 +731,64 @@ function rigUpperApply(R, dt) {
 function startRigAttack(e) {
   e.atk = pick(RIG_ATTACKS);
   e.atkHit = 0;
-  rigOnce(e.rig, e.atk.clip, 1.35, e.atk.start, e.atk.end, 0.08);
+  rigOnce(e.rig, e.atk.clip, RIG_ATK_TS, e.atk.start, e.atk.end, 0.12);
+}
+
+// Axe trail: a fading ribbon swept between the blade's edge and the haft during a swing.
+const TRAIL_N = 16;
+const rigTrails = [];
+let _trailIdx = null;
+function rigTrail(R) {
+  if (R.trail) return R.trail;
+  if (!_trailIdx) {
+    const ix = [];
+    for (let i = 0; i < TRAIL_N - 1; i++) { const a = i * 2; ix.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    _trailIdx = ix;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_N * 6), 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('fade', new THREE.BufferAttribute(new Float32Array(TRAIL_N * 2), 1).setUsage(THREE.DynamicDrawUsage));
+  geo.setIndex(_trailIdx);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { color: { value: new THREE.Color(0xfff1d6) } },
+    vertexShader: 'attribute float fade; varying float vF; void main() { vF = fade; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform vec3 color; varying float vF; void main() { gl_FragColor = vec4(color, vF * 0.85); }',
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  R.trail = { mesh, pts: [] };
+  rigTrails.push(R.trail);
+  return R.trail;
+}
+const _te = new THREE.Vector3(), _ti = new THREE.Vector3();
+function updateRigTrail(e, R) {
+  const a = e.state === 'swing' && R.one && e.atk && e.atk.trail;
+  const t = a ? rigTime(R) : 0;
+  const on = a && R.blade && e.atk.trail.some(([t0, t1]) => t >= t0 && t <= t1);
+  if (!on && !R.trail) return;
+  const tr = rigTrail(R);
+  if (on) {
+    R.model.updateMatrixWorld(true);
+    R.blade.edge.getWorldPosition(_te); R.blade.inner.getWorldPosition(_ti);
+    tr.pts.push([_te.x, _te.y, _te.z, _ti.x, _ti.y, _ti.z]);
+    if (tr.pts.length > TRAIL_N) tr.pts.shift();
+  } else if (tr.pts.length) tr.pts.splice(0, 2); // shrink away from the tail
+  const n = tr.pts.length, P = tr.mesh.geometry.attributes.position, F = tr.mesh.geometry.attributes.fade;
+  for (let i = 0; i < n; i++) {
+    const p = tr.pts[i], f = Math.pow((i + 1) / n, 1.4);
+    P.setXYZ(i * 2, p[0], p[1], p[2]); P.setXYZ(i * 2 + 1, p[3], p[4], p[5]);
+    F.setX(i * 2, f); F.setX(i * 2 + 1, f * 0.3);
+  }
+  P.needsUpdate = F.needsUpdate = true;
+  tr.mesh.geometry.setDrawRange(0, Math.max(0, n - 1) * 6);
+}
+function removeRigTrail(R) {
+  if (!R.trail) return;
+  scene.remove(R.trail.mesh); R.trail.mesh.geometry.dispose(); R.trail.mesh.material.dispose();
+  rigTrails.splice(rigTrails.indexOf(R.trail), 1);
+  R.trail = null;
 }
 
 function animateRig(e, dt) {
@@ -751,6 +817,7 @@ function animateRig(e, dt) {
   R.aimW = clamp(R.aimW + (wantAim ? dt : -dt) * 6, 0, 1);
   if (R.aimW > 0) for (const [b, q] of R.aimBones) b.quaternion.slerp(q, R.aimW);
   if (R.up) rigUpperApply(R, dt);
+  updateRigTrail(e, R);
   if (e.flinchCrit && fl > 0 && !R.up) R.bones.head.rotation.x -= fl * 2.2;
 }
 
@@ -843,6 +910,7 @@ function rigLocomotion(e, R, dt) {
 // Dead enemies keep playing their death clip, then sink into the sand.
 const rigCorpses = [];
 function rigDie(e, violent) {
+  removeRigTrail(e.rig);
   rigOnce(e.rig, violent ? 'Flying Back Death' : 'Dying', violent ? 1.3 : 1.5, violent ? 0 : 0.2, Infinity, 0.08);
   e.rig.one.keep = true;
   rigCorpses.push({ e, t: 0 });
@@ -857,6 +925,7 @@ function updateRigCorpses(dt) {
   }
 }
 function clearRigCorpses() {
+  while (rigTrails.length) scene.remove(rigTrails.pop().mesh);
   for (const c of rigCorpses) scene.remove(c.e.model.root);
   rigCorpses.length = 0;
 }

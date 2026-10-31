@@ -6,8 +6,6 @@ const ENEMY_DEFS = {
   marauder: { name: 'Marauder', body: 'human', hp: 58, shield: 45, hpType: 'flesh', speed: 4.2, xp: 16, ai: 'ranged', dmg: 7, burst: 5, burstGap: 0.11, cd: [1.0, 1.8], projSpeed: 38, spread: 0.045, range: [10, 26], scale: 1.05, look: { shirt: 0x3f5b7a, pants: 0x2e2e33, skin: 0xd09a72, mask: 0x30302c, weapon: 'gun', goggles: true } },
   psycho: { name: 'Psycho', body: 'human', hp: 62, shield: 0, hpType: 'flesh', speed: 7.6, xp: 12, ai: 'melee', dmg: 14, scale: 1, look: { shirt: null, pants: 0x6b2a20, skin: 0xe6b08a, mask: 0xf3efe2, weapon: 'axe', stripes: true } },
   suicide: { name: 'Suicide Psycho', body: 'human', hp: 34, shield: 0, hpType: 'flesh', speed: 8.4, xp: 10, ai: 'suicide', dmg: 36, scale: 0.95, look: { shirt: null, pants: 0x3a3a3a, skin: 0xe6b08a, mask: 0xd13a2a, weapon: 'bomb' } },
-  skag: { name: 'Skag Pup', body: 'skag', hp: 40, shield: 0, hpType: 'flesh', speed: 9.5, xp: 8, ai: 'skag', dmg: 8, scale: 0.75, look: { hide: 0xc9a77a, belly: 0xe8cfa0 } },
-  skagAdult: { name: 'Adult Skag', body: 'skag', hp: 75, shield: 0, hpType: 'armor', speed: 8.2, xp: 18, ai: 'skag', dmg: 14, scale: 1.15, look: { hide: 0x8e7a5a, belly: 0xc9b088 } },
   nomad: { name: 'Badass Nomad', body: 'human', hp: 230, shield: 90, hpType: 'armor', speed: 3.3, xp: 70, ai: 'ranged', dmg: 4.5, burst: 10, burstGap: 0.07, cd: [1.2, 1.9], projSpeed: 42, spread: 0.075, range: [6, 18], scale: 1.4, badass: true, look: { shirt: 0x5a4a3a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x222222, weapon: 'gun', armor: true } },
   boss: { name: 'Krag the Scrapjaw', body: 'human', hp: 2600, shield: 900, hpType: 'armor', speed: 3.8, xp: 600, ai: 'boss', dmg: 22, projSpeed: 30, scale: 2.4, boss: true, look: { shirt: 0x6a3a2a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x8a8a8a, weapon: 'hammer', armor: true, jaw: true } },
 };
@@ -80,36 +78,13 @@ function buildHuman(look, parts) {
   return { root, legL, legR, armL, armR, head, torso, weapon };
 }
 
-function buildSkag(look, parts) {
-  const root = new THREE.Group();
-  const reg = (m) => { parts.push(m); return m; };
-  const body = reg(box(0.8, 0.62, 1.4, look.hide, 0, 0.78, 0, root));
-  box(0.7, 0.12, 1.2, look.belly, 0, -0.3, 0, body, 0);
-  for (let i = 0; i < 4; i++) box(0.12, 0.22, 0.12, 0xefe4cc, 0, 0.38, -0.45 + i * 0.3, body, 0.015).rotation.x = -0.4; // spikes
-  const head = new THREE.Group(); head.position.set(0, 0.86, 0.78); root.add(head);
-  reg(box(0.64, 0.28, 0.6, look.hide, 0, 0.1, 0.25, head));
-  box(0.6, 0.06, 0.56, 0xa8303a, 0, -0.06, 0.25, head, 0);
-  for (let i = -2; i <= 2; i++) box(0.05, 0.1, 0.05, 0xffffff, i * 0.12, -0.06, 0.52, head, 0);
-  const jaw = new THREE.Group(); jaw.position.set(0, -0.06, 0); head.add(jaw);
-  reg(box(0.58, 0.16, 0.56, look.belly, 0, -0.1, 0.25, jaw));
-  const legs = [];
-  for (const [lx, lz] of [[-0.32, 0.5], [0.32, 0.5], [-0.32, -0.5], [0.32, -0.5]]) {
-    const l = new THREE.Group(); l.position.set(lx, 0.6, lz); root.add(l);
-    reg(box(0.2, 0.6, 0.22, look.hide, 0, -0.3, 0, l));
-    legs.push(l);
-  }
-  const tail = new THREE.Group(); tail.position.set(0, 0.9, -0.7); root.add(tail);
-  box(0.12, 0.12, 0.6, look.hide, 0, 0, -0.3, tail, 0.02).rotation.x = 0.4;
-  return { root, head, jaw, legs, tail };
-}
-
 // ---------------------------------------------------------------------------
 function spawnEnemy(key, level, pos) {
   let def = ENEMY_DEFS[key];
   const parts = [];
   let model, rig = null;
   if (RIG.ready && RIG_LOOKS[key]) { const m = makeRigEnemy(key, def); model = { root: m.root }; rig = m.rig; }
-  else model = def.body === 'skag' ? buildSkag(def.look, parts) : buildHuman(def.look, parts);
+  else model = buildHuman(def.look, parts);
   if (rig && rig.gun && !rig.dual && def.ai === 'ranged' && GUN_FIRE[rig.gun]) def = Object.assign({}, def, GUN_FIRE[rig.gun](def));
   model.root.scale.setScalar(def.scale);
   const sc = levelScale(level);
@@ -120,9 +95,9 @@ function spawnEnemy(key, level, pos) {
     yaw: Math.atan2(-pos.x, -pos.z),
     maxHp: def.hp * sc, maxShield: def.shield * sc,
     hpType: def.hpType, alive: true,
-    radius: (def.body === 'skag' ? 0.6 : 0.42) * def.scale, height: (def.body === 'skag' ? 1.2 : 1.85) * def.scale,
+    radius: 0.42 * def.scale, height: 1.85 * def.scale,
     dmgScale: Math.pow(1.11, level - 1),
-    t: rand(0, 10), fireCd: rand(1, 2.5), burstLeft: 0, burstT: 0, attackCd: 0.5, leapCd: rand(1, 3),
+    t: rand(0, 10), fireCd: rand(1, 2.5), burstLeft: 0, burstT: 0, attackCd: 0.5,
     strafeDir: Math.random() < 0.5 ? -1 : 1, strafeT: 0, state: 'move', stateT: 0,
     dots: [], dotTick: 0, sinceHit: 99, lastSeenPlayer: 0, flash: 0, yellT: rand(2, 6),
     bossPhase: 0, bossAttackT: 4, summoned: false,
@@ -153,17 +128,10 @@ function enemySpheres(e) {
   const s = e.def.scale, p = e.pos;
   _sph.length = 0;
   if (e.rig) { rigSpheres(e, _sph); return _sph; }
-  if (e.def.body === 'skag') {
-    const fx = Math.sin(e.yaw), fz = Math.cos(e.yaw);
-    _sph.push([p.x, p.y + 0.78 * s, p.z, 0.5 * s, false]);
-    _sph.push([p.x - fx * 0.45 * s, p.y + 0.75 * s, p.z - fz * 0.45 * s, 0.45 * s, false]);
-    _sph.push([p.x + fx * 1.0 * s, p.y + 0.85 * s, p.z + fz * 1.0 * s, 0.34 * s, true]);
-  } else {
-    const hy = e.model.head.position.y;
-    _sph.push([p.x, p.y + (hy + 0.03) * s, p.z, 0.23 * s, true]);
-    _sph.push([p.x, p.y + 1.25 * s, p.z, 0.42 * s, false]);
-    _sph.push([p.x, p.y + 0.55 * s, p.z, 0.33 * s, false]);
-  }
+  const hy = e.model.head.position.y;
+  _sph.push([p.x, p.y + (hy + 0.03) * s, p.z, 0.23 * s, true]);
+  _sph.push([p.x, p.y + 1.25 * s, p.z, 0.42 * s, false]);
+  _sph.push([p.x, p.y + 0.55 * s, p.z, 0.33 * s, false]);
   return _sph;
 }
 
@@ -407,7 +375,7 @@ function tacticsFrame(dt = 1 / 60) {
     if (!e.alive) continue;
     if (e.burstLeft > 0) shooters++;
     const ai = e.def.ai;
-    if (ai === 'melee' || ai === 'skag') {
+    if (ai === 'melee') {
       if (e.engaged) engaged++;
       else if (!(e.waitT > 0) && e.state !== 'taunt') waiting.push(e);
     }
@@ -646,7 +614,7 @@ function afterMeleeAttack(e) {
 function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   const ai = e.def.ai;
   e.yellT -= dt;
-  if (e.yellT <= 0 && ai !== 'skag') { e.yellT = rand(3, 7); SFX.yell(clamp(1.2 - dist / 40, 0, 1)); }
+  if (e.yellT <= 0) { e.yellT = rand(3, 7); SFX.yell(clamp(1.2 - dist / 40, 0, 1)); }
   if (ai === 'suicide' && dist < 1.9) {
     const c = enemyCenter(e, new THREE.Vector3());
     e.alive = false;
@@ -655,18 +623,34 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     killEnemy(e, { selfDestruct: true, explosive: true, noXp: true });
     return true;
   }
-  e.attackCd -= dt; e.dashCd -= dt; e.leapCd -= dt; e.tauntCd -= dt; e.waitT -= dt;
+  e.attackCd -= dt; e.dashCd -= dt; e.tauntCd -= dt; e.waitT -= dt;
 
   // attacks already under way
+  e.faceLock = false;
   if (e.state === 'swing' && e.rig) {
-    _want.copy(fwd).multiplyScalar(sp * 0.2);
-    const t = rigTime(e.rig);
-    while (e.atkHit < e.atk.hits.length && t >= e.atk.hits[e.atkHit]) {
-      if (dist < 2.5 && !tgt.isTurret) player.hurt(e.def.dmg * e.dmgScale * e.atk.dmg[e.atkHit], e.pos);
+    const a = e.atk, t = rigTime(e.rig);
+    const next = a.hits[Math.min(e.atkHit, a.hits.length - 1)];
+    const toHit = e.atkHit < a.hits.length ? (next - t) / RIG_ATK_TS : -1;
+    const sinceHit = e.atkHit > 0 ? (t - a.hits[e.atkHit - 1]) / RIG_ATK_TS : 9;
+    // planted through the wind-up, a quick step into the blow just before it lands, planted again after
+    if (toHit > 0 && toHit < 0.3) _want.copy(fwd).multiplyScalar(clamp((dist - 1.25) / Math.max(toHit, 0.1), 0, 7.5));
+    else _want.set(0, 0, 0);
+    // track the target while winding up, then commit to the swing (a sidestep can dodge it)
+    e.faceLock = (toHit >= 0 && toHit < 0.16) || sinceHit < 0.3;
+    while (e.atkHit < a.hits.length && t >= a.hits[e.atkHit]) {
       SFX.swing();
+      if (dist < 2.4 * e.def.scale && !tgt.isTurret) {
+        player.hurt(e.def.dmg * e.dmgScale * a.dmg[e.atkHit], e.pos);
+        game.shake(0.35);
+        if (e.rig.blade) { const p = e.rig.blade.edge.getWorldPosition(new THREE.Vector3()); burst(p, 0xffe2a8, 8, 5, 0.06, 0.25, 1, true); burst(p, 0x8a1d1d, 6, 3, 0.09, 0.5); }
+      }
       e.atkHit++;
     }
-    if (!e.rig.one || t >= e.atk.end - 0.02) { e.state = 'move'; afterMeleeAttack(e); }
+    if (!e.rig.one || t >= a.end - 0.02) {
+      // still in reach: sometimes chain straight into another swing
+      if (dist < 2.8 && !e.chained && Math.random() < 0.35) { e.chained = true; startRigAttack(e); return false; }
+      e.chained = false; e.state = 'move'; afterMeleeAttack(e);
+    }
     return false;
   }
   if (e.state === 'swing') {
@@ -678,13 +662,6 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
       SFX.swing();
       afterMeleeAttack(e);
     }
-    return false;
-  }
-  if (e.state === 'leap') {
-    if (!e.hitDuringLeap && dist < 1.8 * e.def.scale && !tgt.isTurret) { player.hurt(e.def.dmg * 1.3 * e.dmgScale, e.pos); e.hitDuringLeap = true; }
-    if (e.grounded && e.stateT < 0.3) { e.state = 'move'; afterMeleeAttack(e); }
-    e.stateT -= dt;
-    _want.copy(e.vel);
     return false;
   }
 
@@ -702,17 +679,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     const curve = e.direct && dist > 5 ? 0.55 * e.orbitDir : 0;
     const zig = ai === 'suicide' && e.direct ? Math.sin(e.t * 2.3) * 0.45 : 0;
     _want.copy(chase).addScaledVector(side, curve + zig).normalize().multiplyScalar(sp);
-    if (ai === 'skag') {
-      if (dist > 4 && dist < 9 && e.leapCd <= 0 && e.grounded && e.direct) {
-        e.state = 'leap'; e.stateT = 0.8; e.leapCd = rand(3, 5); e.hitDuringLeap = false;
-        e.vel.copy(fwd).multiplyScalar(15); e.vy = 6.5; e.grounded = false;
-        SFX.growl(clamp(1.2 - dist / 40, 0, 1));
-      } else if (dist < 1.9 * e.def.scale && e.attackCd <= 0) {
-        e.attackCd = 0.9; e.biteT = 0.25;
-        if (!tgt.isTurret) player.hurt(e.def.dmg * e.dmgScale, e.pos);
-        afterMeleeAttack(e);
-      }
-    } else if (dist < 2.0 && e.attackCd <= 0) {
+    if (dist < (e.rig && ai === 'melee' ? 2.8 : 2.0) && e.attackCd <= 0) {
       e.state = 'swing'; e.stateT = 0.32; e.attackCd = 1.1;
       if (e.rig && ai === 'melee') startRigAttack(e);
       else if (e.rig) e.state = 'move';
@@ -741,7 +708,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     if (r < 0.35) rigOnce(e.rig, 'Standing melee Taunt Battlecry', 1.4, 0.2, 2.6);
     else if (r < 0.7) { rigOnce(e.rig, 'Zombie Scream', 1.4, 0.3, 2.6); SFX.yell(clamp(1.2 - dist / 40, 0, 1)); }
     else rigOnce(e.rig, 'Slap thigh Taunt', 1.6, 0.5, 3.0);
-  } else if (ai === 'skag' && Math.random() < dt * 0.25) SFX.growl(clamp(1 - dist / 30, 0, 0.6));
+  }
   return false;
 }
 
@@ -784,9 +751,8 @@ function updateEnemy(e, dt) {
     if (e.stateT <= 0) e.state = 'move';
   } else if (ai === 'ranged') {
     updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned);
-  } else if (ai === 'melee' || ai === 'suicide' || ai === 'skag') {
+  } else if (ai === 'melee' || ai === 'suicide') {
     if (updateMelee(e, dt, tgt, dist, fwd, side, sp, chase)) return; // blew itself up
-    if (e.state === 'leap') face = false;
   } else if (ai === 'boss') {
     updateBoss(e, dt, tgt, dist, fwd, side, sp, chase);
   }
@@ -802,7 +768,7 @@ function updateEnemy(e, dt) {
   const px = e.pos.x, pz = e.pos.z;
 
   // movement
-  if (e.state !== 'leap' && e.state !== 'charge' && e.state !== 'dash') {
+  if (e.state !== 'charge' && e.state !== 'dash') {
     const k = e.grounded ? 1 - Math.exp(-8 * dt) : 1 - Math.exp(-1 * dt);
     e.vel.x = lerp(e.vel.x, _want.x, k); e.vel.z = lerp(e.vel.z, _want.z, k);
     if (e.rig && e.grounded && (e.state === 'move' || e.state === 'swing')) {
@@ -834,7 +800,7 @@ function updateEnemy(e, dt) {
   }
 
   // face the target, or the way it's running when it turned to run
-  if (face) {
+  if (face && !e.faceLock) {
     const vs = Math.hypot(e.vel.x, e.vel.z);
     const want = e.faceMove && vs > 1 ? Math.atan2(e.vel.x, e.vel.z) : Math.atan2(_to.x, _to.z);
     let d = want - e.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -868,36 +834,27 @@ function animateEnemy(e, dt) {
   r.position.copy(e.pos);
   r.rotation.y = e.yaw;
   const speed = Math.hypot(e.vel.x, e.vel.z);
-  e.phase = (e.phase || 0) + dt * speed * (e.def.body === 'skag' ? 2.2 : 1.9) / e.def.scale;
+  e.phase = (e.phase || 0) + dt * speed * 1.9 / e.def.scale;
   const sw = Math.sin(e.phase) * clamp(speed / 4, 0, 1);
-  if (e.def.body === 'skag') {
-    M.legs[0].rotation.x = sw * 0.8; M.legs[3].rotation.x = sw * 0.8;
-    M.legs[1].rotation.x = -sw * 0.8; M.legs[2].rotation.x = -sw * 0.8;
-    M.tail.rotation.y = Math.sin(e.t * 6) * 0.4;
-    const open = e.state === 'leap' ? 0.7 : (e.biteT > 0 ? 0.8 : 0.15 + Math.sin(e.t * 3) * 0.1);
-    e.biteT = (e.biteT || 0) - dt;
-    M.jaw.rotation.x = open;
-  } else {
-    M.legL.rotation.x = sw * 0.9; M.legR.rotation.x = -sw * 0.9;
-    let armL = -sw * 0.7, armR = sw * 0.7;
-    if (e.def.ai === 'ranged') { armR = -1.45; armL = -1.2; }
-    if (e.def.ai === 'melee') { armR = e.state === 'swing' ? -2.8 + (0.32 - e.stateT) * 9 : -0.6 + sw * 0.3; }
-    if (e.def.ai === 'suicide') armR = -2.7;
-    if (e.def.ai === 'boss') {
-      if (e.state === 'slamWind' || e.state === 'slamAir') { armR = -3.0; armL = -3.0; }
-      else if (e.state === 'charge') { armR = -1.4; armL = -1.4; }
-      else armR = -0.7 + sw * 0.3;
-    }
-    M.armL.rotation.x = armL; M.armR.rotation.x = armR;
-    M.armL.rotation.z = e.def.ai === 'ranged' ? 0.5 : 0;
-    M.torso.position.y = 1.27 + Math.abs(sw) * 0.04;
-    M.head.rotation.z = e.def.ai === 'melee' ? Math.sin(e.t * 9) * 0.15 : 0;
+  M.legL.rotation.x = sw * 0.9; M.legR.rotation.x = -sw * 0.9;
+  let armL = -sw * 0.7, armR = sw * 0.7;
+  if (e.def.ai === 'ranged') { armR = -1.45; armL = -1.2; }
+  if (e.def.ai === 'melee') { armR = e.state === 'swing' ? -2.8 + (0.32 - e.stateT) * 9 : -0.6 + sw * 0.3; }
+  if (e.def.ai === 'suicide') armR = -2.7;
+  if (e.def.ai === 'boss') {
+    if (e.state === 'slamWind' || e.state === 'slamAir') { armR = -3.0; armL = -3.0; }
+    else if (e.state === 'charge') { armR = -1.4; armL = -1.4; }
+    else armR = -0.7 + sw * 0.3;
   }
+  M.armL.rotation.x = armL; M.armR.rotation.x = armR;
+  M.armL.rotation.z = e.def.ai === 'ranged' ? 0.5 : 0;
+  M.torso.position.y = 1.27 + Math.abs(sw) * 0.04;
+  M.head.rotation.z = e.def.ai === 'melee' ? Math.sin(e.t * 9) * 0.15 : 0;
   // hit flash and stagger
   r.scale.setScalar(e.def.scale * (e.flash > 0 ? 1.04 : 1));
   const fl = Math.max(0, e.flinchT);
-  r.rotation.x = (e.state === 'leap' ? -0.3 : 0) - fl * (e.def.boss ? 0.3 : 0.9);
-  if (M.head && e.def.body !== 'skag') M.head.rotation.x = e.flinchCrit ? -fl * 2.2 : 0;
+  r.rotation.x = -fl * (e.def.boss ? 0.3 : 0.9);
+  if (M.head) M.head.rotation.x = e.flinchCrit ? -fl * 2.2 : 0;
 }
 
 // ---------------------------------------------------------------------------

@@ -36,7 +36,7 @@ function buildWave(w) {
   const list = [];
   const boss = w % 5 === 0;
   const n = Math.min(6 + Math.floor(w * 2.2), 34);
-  const pool = [['bandit', 10], ['psycho', 6], ['skag', w >= 2 ? 6 : 0], ['marauder', w >= 3 ? 5 : 0], ['suicide', w >= 4 ? 3 : 0], ['skagAdult', w >= 4 ? 4 : 0]].filter((p) => p[1] > 0);
+  const pool = [['bandit', 10], ['psycho', 7], ['marauder', w >= 3 ? 5 : 0], ['suicide', w >= 4 ? 3 : 0]].filter((p) => p[1] > 0);
   for (let i = 0; i < (boss ? Math.floor(n * 0.5) : n); i++) list.push(weighted(pool));
   const badass = w >= 3 ? 1 + Math.floor((w - 3) / 3) : 0;
   for (let i = 0; i < (boss ? Math.floor(badass / 2) : badass); i++) list.splice(randi(2, list.length), 0, 'nomad');
