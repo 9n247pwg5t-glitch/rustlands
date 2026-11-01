@@ -42,5 +42,8 @@ When something is approved, add a dated line to `docs/decisions.md` in the same 
 
 - Run locally: `python3 -m http.server 8000`, open `http://localhost:8000`.
 - Character/animation/weapon conversion tools and their usage are in `tools/README.md`.
+- Campaign and saves: `js/stages.js`. To add a stage, add an entry to `STAGES` (it unlocks when the
+  one before it is completed) with `load()`/`unload()` that build and remove its world, so only one
+  stage is ever in the scene. Bump `SAVE_KEY`'s version and migrate if the save format changes.
 - Spoiler material (the writer's answer key for the Layer 3 mysteries) is not stored here unless
   the creator adds it; don't infer answers to those mysteries.

@@ -23,15 +23,24 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
 
 ## Structure (§7, §8)
 
-- **No stage select.** The game is one desert arena with endless waves; the bible calls for main
-  menu → stage select → briefing → separately loaded stage → completion → rewards saved → stage
-  select, with locked/unlocked/completed stages and replay.
-- **No persistent progression.** Only the best wave/level is saved (`localStorage`, `js/main.js`).
-  Inventory, equipped gear, player level and unlocked stages are not kept between sessions or levels.
+- **Only one playable stage, and it's a stand-in.** The campaign flow exists (`js/stages.js`):
+  main menu → stage select → briefing → stage → results → stage select, with locked, unlocked and
+  completed stages, replay and a save file. Stage 1 is the desert arena (clear 5 waves, the 5th a
+  boss wave); Stages 2 and 3 are empty placeholders that unlock but can't be entered.
 - **The desert arena** doesn't match the bible's visual identity (early-2000s suburbs, retail
   strips, highways, carnival/wrestling venues, distant metropolis). It's a prototype space.
-- **No objectives.** Stages need a culminating objective and a completion condition; the arena
-  only has waves and an intermission.
+- **Stages don't load their own worlds yet.** The arena is built once at boot (`js/world.js`);
+  each stage has `load()`/`unload()` hooks for building and tearing down its own map, but the arena
+  doesn't use them. The first real stage should move world building behind these hooks.
+- **Objectives are wave-based only.** The bible imagines explorable zones with branching paths,
+  optional discoveries and a culminating objective; stage objectives are just "clear N waves" so far.
+- **Placeholder progression numbers.** Stage rewards (first clear: $300 × level scale and 60% of a
+  level's XP; replays a quarter of that), the 20-second extraction window after the last wave, and
+  "unlock the next stage in the list" are prototype choices, not approved rules (§8: confirm exact
+  progression and loot rules).
+- **Saves are per browser.** The save lives in this browser's `localStorage` (`rustlands.save.v1`):
+  it doesn't follow the player to another device, and iPhone Safari can clear site storage for sites
+  not visited for a while. Cross-device saves or a save export would need deciding.
 
 ## Narrative delivery (§5)
 

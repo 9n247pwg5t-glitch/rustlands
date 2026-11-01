@@ -159,7 +159,47 @@
   .controls b { color: var(--hazard); font-family: var(--display); font-weight: 400; letter-spacing: 0.05em; margin-right: 6px; }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; font: 700 14px/1 var(--body); letter-spacing: 0.06em; text-transform: uppercase; text-shadow: 1px 1px 0 var(--ink); }
   .legend span::before { content: "◆ "; }
-  #bestLine { font: 600 16px/1.2 var(--body); letter-spacing: 0.06em; opacity: 0.9; text-shadow: 1px 1px 0 var(--ink); }
+  #saveLine, .note { font: 600 16px/1.2 var(--body); letter-spacing: 0.06em; opacity: 0.9; text-shadow: 1px 1px 0 var(--ink); }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+  /* Stage select and briefing */
+  .panel.wide { max-width: 980px; width: 100%; }
+  .stage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px; width: 100%; }
+  .stage-card { pointer-events: auto; display: grid; grid-template-rows: auto 1fr; padding: 0; text-align: left; color: var(--paper); font: inherit; background: var(--panel); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); cursor: pointer; }
+  .stage-card:not(:disabled):hover { border-color: var(--hazard); }
+  .stage-card:not(:disabled):active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 var(--ink); }
+  .stage-card:focus-visible { outline: 3px solid var(--paper); outline-offset: 3px; }
+  .stage-card:disabled { cursor: default; }
+  .preview { position: relative; aspect-ratio: 16 / 9; background: repeating-linear-gradient(-45deg, #3a2a1e 0 14px, #2a1d14 14px 28px); background-size: cover; background-position: center; border-bottom: 3px solid var(--ink); }
+  .stage-card[data-state="locked"] .preview::after, .stage-card[data-state="dev"] .preview::after { content: "?"; position: absolute; inset: 0; display: grid; place-items: center; font: 64px/1 var(--display); color: rgba(255, 243, 220, 0.35); }
+  .stage-card[data-state="locked"] { opacity: 0.75; }
+  .badge { position: absolute; top: 8px; left: 8px; z-index: 1; font: 16px/1 var(--display); letter-spacing: 0.06em; padding: 5px 8px; color: var(--ink); background: var(--paper); border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); }
+  .badge.open { background: var(--hazard); }
+  .badge.done { background: #9fff6a; }
+  .badge.locked { background: #9a9a9a; }
+  .badge.dev { background: var(--shield); }
+  .card-body { display: grid; gap: 4px; align-content: start; padding: 10px 12px 12px; }
+  .card-title { font: 28px/1 var(--display); letter-spacing: 0.05em; color: var(--hazard); text-shadow: 2px 2px 0 var(--ink); }
+  .card-sub { font: 700 15px/1.2 var(--body); letter-spacing: 0.06em; text-transform: uppercase; }
+  .card-info { font: 600 15px/1.3 var(--body); opacity: 0.85; }
+  .brief-card { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); width: 100%; text-align: left; background: var(--panel); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); }
+  .brief-card .preview { border-bottom: 0; border-right: 3px solid var(--ink); aspect-ratio: auto; min-height: 200px; }
+  .brief-body { display: grid; gap: 8px; align-content: start; padding: 14px 16px; font: 600 16px/1.35 var(--body); }
+  .brief-body p { margin: 0; opacity: 0.9; }
+  .brief-line b { display: block; color: var(--hazard); font: 18px/1 var(--display); letter-spacing: 0.06em; }
+  .res-stats { display: grid; gap: 6px; padding: 14px 20px; background: var(--panel); border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); font: 600 17px/1.35 var(--body); }
+  .res-stats b { color: var(--hazard); font-weight: 700; }
+  @media (max-width: 700px) {
+    .brief-card { grid-template-columns: minmax(0, 1fr); }
+    .brief-card .preview { border-right: 0; border-bottom: 3px solid var(--ink); aspect-ratio: 16 / 9; min-height: 0; }
+  }
+  /* landscape phones: tighter headings so the cards fit */
+  @media (max-height: 500px) {
+    .screen h2 { font-size: 40px; }
+    .panel { gap: 10px; }
+    .stage-grid { grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px; }
+    .card-title { font-size: 22px; }
+    .brief-card .preview { min-height: 150px; }
+  }
   .screen h2 { margin: 0; font: clamp(44px, 9vw, 80px)/1 var(--display); letter-spacing: 0.05em; color: var(--hazard); -webkit-text-stroke: 2px var(--ink); text-shadow: 5px 5px 0 var(--ink); transform: rotate(-3deg); }
   #deadStats { font: 600 18px/1.5 var(--body); letter-spacing: 0.04em; }
   #deadStats b { color: var(--hazard); }
@@ -286,15 +326,18 @@
   <div class="panel">
     <h1 class="logo">RUSTLANDS</h1>
     <div class="tag">Shoot · Loot · Repeat</div>
-    <button class="btn" id="btnDeploy">DEPLOY</button>
-    <div id="bestLine"></div>
+    <div class="row">
+      <button class="btn" id="btnContinue" hidden>CONTINUE</button>
+      <button class="btn" id="btnNew">START</button>
+    </div>
+    <div id="saveLine"></div>
     <div class="controls" id="ctlDesktop">
       <div><b>WASD</b>Move</div><div><b>MOUSE</b>Aim · shoot · right-click to zoom</div>
       <div><b>SHIFT</b>Sprint</div><div><b>SPACE</b>Jump</div>
       <div><b>R</b>Reload</div><div><b>E</b>Pick up · open · buy</div>
       <div><b>1–4</b>Weapons (or wheel)</div><div><b>F</b>Melee</div>
       <div><b>G</b>Grenade</div><div><b>Q</b>Deploy turret</div>
-      <div><b>N</b>Skip to next wave</div><div><b>ESC</b>Pause</div>
+      <div><b>N</b>Skip to next wave / leave a cleared stage</div><div><b>ESC</b>Pause</div>
     </div>
     <div class="controls" id="ctlTouch" hidden>
       <div><b>LEFT</b>Drag to move, push all the way to sprint</div><div><b>RIGHT</b>Drag to aim</div>
@@ -307,14 +350,52 @@
   </div>
 </div>
 
+<div id="stages" class="screen" hidden>
+  <div class="panel wide">
+    <h2>STAGE SELECT</h2>
+    <div id="stageGrid" class="stage-grid"></div>
+    <div class="row"><button class="btn alt" id="btnStagesBack">MAIN MENU</button></div>
+  </div>
+</div>
+
+<div id="brief" class="screen" hidden>
+  <div class="panel wide">
+    <div class="brief-card">
+      <div id="briefPreview" class="preview"></div>
+      <div class="brief-body">
+        <div id="briefTitle" class="card-title"></div>
+        <div id="briefSub" class="card-sub"></div>
+        <p id="briefEnv"></p>
+        <div class="brief-line"><b>OBJECTIVE</b><span id="briefObj"></span></div>
+        <div class="brief-line"><b>REWARD</b><span id="briefReward"></span></div>
+        <div class="brief-line"><b>RECORD</b><span id="briefRecord"></span></div>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn" id="btnBriefGo">DEPLOY</button>
+      <button class="btn alt" id="btnBriefBack">BACK</button>
+    </div>
+  </div>
+</div>
+
+<div id="results" class="screen" hidden>
+  <div class="panel">
+    <h2 id="resTitle">STAGE COMPLETE</h2>
+    <div id="resStats" class="res-stats"></div>
+    <div class="row"><button class="btn" id="btnResDone">STAGE SELECT</button></div>
+  </div>
+</div>
+
 <div id="pause" class="screen" hidden>
   <div class="panel">
     <h2>PAUSED</h2>
     <div class="row">
       <button class="btn" id="btnResume">RESUME</button>
-      <button class="btn alt" id="btnRestart">RESTART</button>
+      <button class="btn alt" id="btnRestart">RESTART STAGE</button>
+      <button class="btn alt" id="btnLeave">LEAVE STAGE</button>
       <button class="btn alt" id="btnMute">Sound: on</button>
     </div>
+    <div class="note">Leaving keeps your level, cash and gear.</div>
   </div>
 </div>
 
@@ -324,7 +405,7 @@
     <div id="deadStats"></div>
     <div class="row">
       <button class="btn" id="btnRespawn">RESPAWN</button>
-      <button class="btn alt" id="btnRestart2">NEW RUN</button>
+      <button class="btn alt" id="btnLeave2">LEAVE STAGE</button>
     </div>
   </div>
 </div>
@@ -340,4 +421,5 @@
 <script src="js/enemies.js"></script>
 <script src="js/player.js"></script>
 <script src="js/hud.js"></script>
+<script src="js/stages.js"></script>
 <script src="js/main.js"></script>

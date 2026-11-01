@@ -1,17 +1,19 @@
 'use strict';
-// Game flow (waves, chests, vending, pickups), input (mouse, keyboard, touch) and the main loop.
-
-const BEST_KEY = 'rustlands.best';
-function loadBest() { try { return JSON.parse(localStorage.getItem(BEST_KEY)) || { wave: 0, level: 1 }; } catch (e) { return { wave: 0, level: 1 }; } }
-function saveBest(b) { try { localStorage.setItem(BEST_KEY, JSON.stringify(b)); } catch (e) { /* storage unavailable */ } }
+// Stage play (waves, chests, vending, pickups), input (mouse, keyboard, touch) and the main loop.
+// The campaign around it (menus, stage list, save file) is in stages.js.
 
 const game = {
   state: 'menu', wave: 0, phase: 'intermission', interT: 0,
-  toSpawn: [], spawnT: 0, enemyLevel: 1, chest: null, shakeAmt: 0, hitstop: 0, best: loadBest(),
+  toSpawn: [], spawnT: 0, enemyLevel: 1, chest: null, shakeAmt: 0, hitstop: 0,
   waveStartKills: 0, waveTotal: 0, waveKilled: 0,
 
-  waveLabel() { return this.wave === 0 ? 'GET READY' : (this.wave % 5 === 0 ? 'BOSS WAVE ' : 'WAVE ') + this.wave; },
+  waveLabel() {
+    if (this.phase === 'complete') return 'STAGE CLEARED';
+    const of = campaign.stage ? '/' + campaign.stage.waves : '';
+    return this.wave === 0 ? 'GET READY' : (this.wave % 5 === 0 ? 'BOSS WAVE ' : 'WAVE ') + this.wave + of;
+  },
   waveSub() {
+    if (this.phase === 'complete') return 'Extraction in ' + Math.ceil(campaign.extractT) + 's' + (IS_TOUCH ? ' · pause to leave now' : ' · N to leave now');
     if (this.phase === 'intermission') return 'Next wave in ' + Math.ceil(this.interT) + 's' + (IS_TOUCH ? '' : ' · N to start now');
     const left = this.waveTotal - this.waveKilled;
     return left + (left === 1 ? ' enemy' : ' enemies') + ' left · Enemy Lv ' + this.enemyLevel;
@@ -54,16 +56,20 @@ function startWave() {
   hud.banner(game.waveLabel(), game.wave % 5 === 0 ? 'Krag the Scrapjaw has entered the arena' : game.waveTotal + ' enemies incoming');
 }
 function endWave() {
+  spawnChest(game.wave % 5 === 0);
+  if (player.grenades < player.maxGrenades) player.grenades++;
+  if (campaign.stage && game.wave >= campaign.stage.waves) { stageCleared(); savePlayer(); return; }
   game.phase = 'intermission';
   game.interT = 25;
   hud.banner('WAVE ' + game.wave + ' CLEARED', 'A loot chest has appeared');
-  if (game.wave > game.best.wave) { game.best.wave = game.wave; }
-  game.best.level = Math.max(game.best.level, player.level);
-  saveBest(game.best);
-  spawnChest(game.wave % 5 === 0);
-  if (player.grenades < player.maxGrenades) player.grenades++;
+  savePlayer(); // mid-stage progress survives closing the tab
 }
 function updateWaves(dt) {
+  if (game.phase === 'complete') {
+    campaign.extractT -= dt;
+    if (campaign.extractT <= 0) finishStage(true);
+    return;
+  }
   if (game.phase === 'intermission') {
     game.interT -= dt;
     if (game.interT <= 0) startWave();
@@ -401,28 +407,39 @@ function applyLook(dt) {
 
 // ---------------------------------------------------------------------------
 // Screens
-const screens = { menu: $('menu'), pause: $('pause'), dead: $('dead') };
-function show(name) { for (const k in screens) screens[k].hidden = k !== name; $('hud').hidden = name === 'menu'; $('touch').hidden = !IS_TOUCH || name !== null; }
-
-function renderBest() {
-  $('bestLine').textContent = game.best.wave > 0 ? `Best run: wave ${game.best.wave} · level ${game.best.level}` : 'Survive the waves. Grab the loot.';
+const screens = { menu: $('menu'), stages: $('stages'), brief: $('brief'), results: $('results'), pause: $('pause'), dead: $('dead') };
+const MENU_SCREENS = ['menu', 'stages', 'brief', 'results'];
+function show(name) {
+  for (const k in screens) screens[k].hidden = k !== name;
+  $('hud').hidden = $('overlay').hidden = MENU_SCREENS.includes(name);
+  $('touch').hidden = !IS_TOUCH || name !== null;
 }
-function startGame() {
-  SFX.init();
+
+// Empty the arena of everything a run leaves behind.
+function clearStageWorld() {
   clearEnemies();
   for (const d of drops.slice()) removeDrop(d);
   for (const p of playerProj) scene.remove(p.mesh);
   playerProj.length = 0;
   if (turret.active) { turret.active = false; scene.remove(turret.group); }
   if (game.chest) { scene.remove(game.chest.group); game.chest = null; }
-  resetPlayer();
+}
+// Start (or restart) the current stage with the player's current gear, at full health.
+function startGame() {
+  SFX.init();
+  clearStageWorld();
+  player.alive = true; player.downed = false; player.invuln = 1;
+  player.reloadT = 0; player.swapT = 0; player.fireCd = 0; player.burstLeft = 0; player.skillCd = 0;
+  player.hp = player.maxHp; player.shield = player.shieldMax();
+  respawnAt(new THREE.Vector3(0, 0, 12));
+  setViewmodel();
   Object.assign(game, { wave: 0, phase: 'intermission', interT: 6, toSpawn: [], waveTotal: 0, waveKilled: 0, enemyLevel: 1 });
   camera.fov = baseFov(); camera.updateProjectionMatrix();
   game.state = 'play';
   show(null);
   lockPointer();
   if (IS_TOUCH) setAds(false);
-  hud.log('Shoot bandits. Grab loot. Don\'t die.', '#ffd23a');
+  hud.log(campaign.stage ? campaign.stage.objective : 'Shoot bandits. Grab loot. Don\'t die.', '#ffd23a');
   hud.log(IS_TOUCH ? 'Left thumb moves. Drag right side to aim.' : 'WASD move · Mouse aim · Q turret · G grenade', '#fff3dc');
 }
 function pauseGame() {
@@ -430,6 +447,7 @@ function pauseGame() {
   game.state = 'paused';
   input.fire = false;
   if (IS_TOUCH) setAds(false); else input.ads = false;
+  if (document.pointerLockElement) document.exitPointerLock(); // the menu needs the cursor
   show('pause');
 }
 function resumeGame() {
@@ -443,7 +461,6 @@ function playerDied() {
   const cost = Math.floor(player.cash * 0.07);
   $('deadStats').innerHTML = `Reached wave <b>${game.wave}</b> · Level <b>${player.level}</b><br>${player.stats.kills} kills · ${player.stats.crits} crits · ${Math.round(player.stats.damage).toLocaleString()} damage dealt`;
   $('btnRespawn').textContent = `Respawn ($${cost.toLocaleString()})`;
-  game.best.wave = Math.max(game.best.wave, game.wave - 1); game.best.level = Math.max(game.best.level, player.level); saveBest(game.best);
   if (document.pointerLockElement) document.exitPointerLock();
   show('dead');
 }
@@ -461,11 +478,11 @@ function respawn() {
   lockPointer();
 }
 
-$('btnDeploy').addEventListener('click', startGame);
 $('btnResume').addEventListener('click', resumeGame);
 $('btnRestart').addEventListener('click', startGame);
+$('btnLeave').addEventListener('click', leaveStage);
 $('btnRespawn').addEventListener('click', respawn);
-$('btnRestart2').addEventListener('click', startGame);
+$('btnLeave2').addEventListener('click', leaveStage);
 $('btnMute').addEventListener('click', () => { $('btnMute').textContent = SFX.toggleMute() ? 'Sound: off' : 'Sound: on'; });
 $('pauseBtn').addEventListener('click', pauseGame);
 
@@ -515,7 +532,7 @@ window.addEventListener('keydown', (e) => {
     case 'Digit2': switchWeapon(1); break;
     case 'Digit3': switchWeapon(2); break;
     case 'Digit4': switchWeapon(3); break;
-    case 'KeyN': if (game.phase === 'intermission') game.interT = 0; break;
+    case 'KeyN': if (game.phase === 'intermission') game.interT = 0; else if (game.phase === 'complete') finishStage(true); break;
     case 'KeyM': $('btnMute').textContent = SFX.toggleMute() ? 'Sound: off' : 'Sound: on'; break;
     case 'KeyP': case 'Escape': pauseGame(); break;
   }
@@ -721,6 +738,7 @@ function update(dt) {
   updateFx(dt);
   updateRigCorpses(dt);
   updateWaves(dt);
+  campaign.runT += dt;
   updateInteraction(dt);
   if (IS_TOUCH) { updateUseButton(); updateWheelButton(); }
   if (game.chest) {
@@ -758,15 +776,14 @@ function frame(now) {
 }
 
 // boot
-show('menu');
+showMainMenu();
 (function waitForRigs() {
-  const btn = $('btnDeploy');
+  const btn = $('btnBriefGo');
   btn.disabled = true; btn.textContent = 'LOADING…';
-  const ready = () => { btn.disabled = false; btn.textContent = 'DEPLOY'; };
+  const ready = () => { btn.disabled = false; btn.textContent = 'DEPLOY'; campaign.previewUrl = null; };
   const fallback = setTimeout(ready, 15000);
   loadRigs().then(() => { clearTimeout(fallback); ready(); });
 })();
-renderBest();
 $('ctlDesktop').hidden = IS_TOUCH;
 $('ctlTouch').hidden = !IS_TOUCH;
 requestAnimationFrame(frame);
