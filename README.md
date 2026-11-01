@@ -52,6 +52,13 @@ It also works on GitHub Pages: turn Pages on for the `main` branch.
 | Melee | F | — |
 | Skip intermission / pause | N / Esc | II button |
 
+## Design docs
+
+- `docs/narrative-bible.md`: the authoritative creative and design spec (Narrative Bible v2.0).
+- `docs/decisions.md`: dated decisions approved since the bible; they override it.
+- `docs/conflicts.md`: where the current prototype still differs from the bible.
+- `CLAUDE.md`: working rules for Claude Code sessions in this repo (it loads the bible automatically).
+
 ## Code layout
 
 ```
