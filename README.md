@@ -30,7 +30,7 @@ It also works on GitHub Pages: turn Pages on for the `main` branch.
 - **Shields.** Equippable shields come in Standard, Tortoise, Nova and Snapback types.
 - **Item cards.** Each item shows its stats compared with what you have equipped.
 - **Enemies.** There are Bandits, Marauders (with shields), Psychos, Suicide Psychos and Badass Nomads. Every 5th wave adds a boss, **Krag the Scrapjaw**, who has ground slams, rocket barrages and charges.
-- **Combat feedback.** Damage numbers pop off enemies, headshots score critical hits, and enemies fall apart when they die.
+- **Combat feedback.** Every enemy shot flashes a comic-book starburst at the muzzle (camera-facing, gone in 70 ms). Damage numbers pop off enemies, headshots score critical hits, and enemies fall apart when they die.
 - **Fight For Your Life.** When your health hits zero you go down. Kill an enemy before the timer runs out to get a Second Wind.
 - **Action skill.** You can deploy a turret. You also have grenades, a melee attack and explosive barrels.
 - **Campaign.** Main menu → the hub, a room you walk around in → use the console in front of the wall of TVs (one per stage) → stage select → briefing → stage → results → back in the hub. No fighting in the hub. Stages show as locked, unlocked or completed, unlock in order, and can be replayed. Your level, XP, cash, guns, shield, ammo and grenades are saved in the browser after every wave and when you leave or finish a stage; Continue picks up where you left off. Stage 1 is the prototype arena (clear 5 waves, the 5th a boss wave, then a 20-second window to grab the loot); Stages 2 and 3 are placeholders.

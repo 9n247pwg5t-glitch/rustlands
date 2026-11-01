@@ -704,7 +704,36 @@ function addDebris(mesh, vel, spin, life = 4) {
   fx.debris.push({ mesh, vel, spin, life, max: life, rest: false });
 }
 
+// Muzzle flash: a comic-book starburst that faces the camera, popping in and out in a blink.
+// A small pool of sprites is reused.
+const MUZZLE_TEX = new THREE.TextureLoader().load('models/fx-muzzle.webp');
+const muzzlePool = [];
+for (let i = 0; i < 12; i++) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: MUZZLE_TEX, transparent: true, depthWrite: false, fog: false }));
+  s.visible = false; s.renderOrder = 5; s.userData = { t: 0, life: 0, size: 1 };
+  scene.add(s); muzzlePool.push(s);
+}
+let muzzleIdx = 0;
+function muzzleFlash(pos, size = 1) {
+  const s = muzzlePool[muzzleIdx++ % muzzlePool.length];
+  s.position.copy(pos);
+  s.material.rotation = Math.random() * Math.PI * 2;
+  Object.assign(s.userData, { t: 0, life: 0.07, size: size * (0.75 + Math.random() * 0.35) });
+  s.visible = true;
+}
+function updateMuzzleFlashes(dt) {
+  for (const s of muzzlePool) {
+    if (!s.visible) continue;
+    const u = s.userData;
+    u.t += dt;
+    const k = u.t / u.life;
+    if (k >= 1) { s.visible = false; continue; }
+    s.scale.setScalar(u.size * (k < 0.3 ? 0.6 + k / 0.3 * 0.4 : 1 + (k - 0.3) * 0.25)); // pop to full size, then a slight swell
+    s.material.opacity = k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5;
+  }
+}
 function updateFx(dt) {
+  updateMuzzleFlashes(dt);
   for (let i = fx.particles.length - 1; i >= 0; i--) {
     const p = fx.particles[i];
     p.life -= dt;

@@ -277,6 +277,7 @@ function damageBarrel(b, dmg) {
 // ---------------------------------------------------------------------------
 // Enemy shots
 const SHOT_GEO = new THREE.IcosahedronGeometry(0.13, 0);
+const _mf = new THREE.Vector3();
 function enemyFire(e, from, target, opts = {}) {
   const dir = target.clone().sub(from).normalize();
   const sp = opts.spread != null ? opts.spread : e.def.spread;
@@ -289,8 +290,13 @@ function enemyFire(e, from, target, opts = {}) {
   scene.add(mesh);
   const speed = opts.speed || e.def.projSpeed || 34;
   enemyShots.push({ mesh, pos: from.clone(), vel: dir.multiplyScalar(speed), dmg: opts.dmg != null ? opts.dmg : e.def.dmg * e.dmgScale, life: 3, rocket, grav: opts.grav || 0, splash: opts.splash || 0, owner: e });
-  SFX.enemyShot(clamp(1.3 - from.distanceTo(player.pos) / 50, 0.1, 1));
-  flashAt(from, 0xffa040, 2, 5, 0.06);
+  if (!opts.noFlash) {
+    SFX.enemyShot(clamp(1.3 - from.distanceTo(player.pos) / 50, 0.1, 1));
+    flashAt(from, 0xffa040, 2, 5, 0.06);
+    // the starburst sits just in front of the barrel (dir is the shot's velocity by now); bigger for
+    // rockets and big enemies
+    muzzleFlash(_mf.copy(from).addScaledVector(dir, 0.18 / speed), (rocket ? 1.6 : 1.1) * Math.sqrt(e.def.scale));
+  }
 }
 
 function updateEnemyShots(dt) {
@@ -600,7 +606,7 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
       const aim = tgt.eye.clone();
       const n = e.def.pellets || 1;
       const moving = Math.hypot(e.vel.x, e.vel.z) > 1.5;
-      for (let k = 0; k < n; k++) enemyFire(e, muzzle.clone(), aim, { spread: e.def.spread * (moving ? 1.6 : 1) + dist / 400 });
+      for (let k = 0; k < n; k++) enemyFire(e, muzzle.clone(), aim, { spread: e.def.spread * (moving ? 1.6 : 1) + dist / 400, noFlash: k > 0 });
       // end of a burst: one less in the magazine, reload when it's empty
       if (e.burstLeft === 0 && e.rig && e.mag != null && --e.mag <= 0) enemyReload(e);
     }
