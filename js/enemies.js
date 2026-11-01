@@ -102,7 +102,7 @@ function spawnEnemy(key, level, pos) {
     dots: [], dotTick: 0, sinceHit: 99, lastSeenPlayer: 0, flash: 0, yellT: rand(2, 6),
     bossPhase: 0, bossAttackT: 4, summoned: false,
     chase: new THREE.Vector3(), direct: true, directCheck: 0, stuckT: 0, unstickT: 0, unstickDir: new THREE.Vector3(), flinchT: 0,
-    engaged: false, waitT: 0, backoffT: 0, orbitAng: null, orbitR: rand(7, 11), orbitDir: Math.random() < 0.5 ? -1 : 1,
+    engaged: false, waitT: 0, backoffT: 0, orbitAng: null, orbitR: rand(5, 8), orbitDir: Math.random() < 0.5 ? -1 : 1,
     tac: null, tacT: 0, spot: null, prefDist: 0, moveShoot: false, retreatCd: rand(3, 6), noLosT: 0,
     path: null, pathT: 0, pathI: 0, pathGoal: new THREE.Vector3(),
   };
@@ -329,6 +329,7 @@ function pointInBox(p) {
 // ---------------------------------------------------------------------------
 // AI
 const _to = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _want = new THREE.Vector3();
+const _lead = new THREE.Vector3();
 
 function enemyTarget(e) {
   const pp = player.pos;
@@ -367,8 +368,8 @@ function chaseDir(e, tgt, fwd, side, dt) {
 const tactics = { shooters: 0, maxShooters: 2, engaged: 0, maxEngaged: 2 };
 function tacticsFrame(dt = 1 / 60) {
   if (tactics.nadeT > 0) tactics.nadeT -= dt;
-  tactics.maxShooters = Math.min(6, 3 + Math.floor(game.wave / 3));
-  tactics.maxEngaged = Math.min(4, 2 + Math.floor(game.wave / 5));
+  tactics.maxShooters = Math.min(7, 4 + Math.floor(game.wave / 2));
+  tactics.maxEngaged = Math.min(5, 3 + Math.floor(game.wave / 4));
   let shooters = 0, engaged = 0;
   const waiting = [];
   for (const e of enemies) {
@@ -607,7 +608,7 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
 }
 
 function afterMeleeAttack(e) {
-  if (Math.random() < 0.55) e.backoffT = rand(1.1, 1.7);
+  if (Math.random() < 0.3) e.backoffT = rand(0.7, 1.1);
 }
 
 // Returns true when the enemy blew itself up.
@@ -632,8 +633,10 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     const next = a.hits[Math.min(e.atkHit, a.hits.length - 1)];
     const toHit = e.atkHit < a.hits.length ? (next - t) / RIG_ATK_TS : -1;
     const sinceHit = e.atkHit > 0 ? (t - a.hits[e.atkHit - 1]) / RIG_ATK_TS : 9;
-    // planted through the wind-up, a quick step into the blow just before it lands, planted again after
-    if (toHit > 0 && toHit < 0.3) _want.copy(fwd).multiplyScalar(clamp((dist - 1.25) / Math.max(toHit, 0.1), 0, 7.5));
+    // stalk after a target that backs off during the wind-up, then a quick step into the blow just
+    // before it lands, planted after
+    if (toHit > 0 && toHit < 0.32) _want.copy(fwd).multiplyScalar(clamp((dist - 1.25) / Math.max(toHit, 0.1), 0, 9));
+    else if (toHit > 0 && dist > 2) _want.copy(fwd).multiplyScalar(Math.min(3, (dist - 2) * 3));
     else _want.set(0, 0, 0);
     // track the target while winding up, then commit to the swing (a sidestep can dodge it)
     e.faceLock = (toHit >= 0 && toHit < 0.16) || sinceHit < 0.3;
@@ -648,7 +651,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     }
     if (!e.rig.one || t >= a.end - 0.02) {
       // still in reach: sometimes chain straight into another swing
-      if (dist < 2.8 && !e.chained && Math.random() < 0.35) { e.chained = true; startRigAttack(e); return false; }
+      if (dist < 3 && !e.chained && Math.random() < 0.4) { e.chained = true; startRigAttack(e, true); return false; }
       e.chained = false; e.state = 'move'; afterMeleeAttack(e);
     }
     return false;
@@ -669,22 +672,30 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   if (e.backoffT > 0) {
     e.backoffT -= dt;
     _want.copy(fwd).multiplyScalar(-2.2).addScaledVector(side, e.orbitDir * 0.9);
-    if (e.backoffT <= 0) { e.engaged = false; e.waitT = rand(1.2, 2.6); }
+    if (e.backoffT <= 0) { e.engaged = false; e.waitT = rand(0.4, 1.0); }
     return false;
   }
 
   const engaged = e.engaged || ai === 'suicide' || dist < 3.2 || tgt.isTurret || player.downed;
   if (engaged) {
-    // come in on a curve from further out, straight when close
-    const curve = e.direct && dist > 5 ? 0.55 * e.orbitDir : 0;
+    // a target on the move is cut off: run at where it's heading (when the way is clear), straight
+    // in; a slow one is approached on a curve from further out
+    const tv = tgt.isTurret ? 0 : Math.hypot(player.vel.x, player.vel.z);
+    _lead.copy(chase);
+    if (e.direct && tv > 2.5 && dist > 2.5) {
+      const t = Math.min(1.2, dist / Math.max(sp, 1));
+      _a.set(tgt.pos.x + player.vel.x * t, 0, tgt.pos.z + player.vel.z * t);
+      if (navLineClear(e.pos, _a)) _lead.set(_a.x - e.pos.x, 0, _a.z - e.pos.z).normalize();
+    }
+    const curve = e.direct && dist > 5 && tv < 2.5 ? 0.55 * e.orbitDir : 0;
     const zig = ai === 'suicide' && e.direct ? Math.sin(e.t * 2.3) * 0.45 : 0;
-    _want.copy(chase).addScaledVector(side, curve + zig).normalize().multiplyScalar(sp);
-    if (dist < (e.rig && ai === 'melee' ? 2.8 : 2.0) && e.attackCd <= 0) {
-      e.state = 'swing'; e.stateT = 0.32; e.attackCd = 1.1;
+    _want.copy(_lead).addScaledVector(side, curve + zig).normalize().multiplyScalar(sp);
+    if (dist < (e.rig && ai === 'melee' ? 3.0 : 2.0) && e.attackCd <= 0) {
+      e.state = 'swing'; e.stateT = 0.32; e.attackCd = 0.8;
       if (e.rig && ai === 'melee') startRigAttack(e);
       else if (e.rig) e.state = 'move';
-    } else if (e.rig && ai === 'melee' && e.direct && dist > 5 && dist < 9 && e.dashCd <= 0 && e.grounded) {
-      e.dashCd = rand(3, 6);
+    } else if (e.rig && ai === 'melee' && e.direct && dist > 4 && dist < 10 && e.dashCd <= 0 && e.grounded) {
+      e.dashCd = rand(2.5, 4.5);
       e.state = 'dash'; e.dashDir.copy(fwd);
       if (Math.random() < 0.5) { e.stateT = 0.75; e.dashSpeed = 10; rigOnce(e.rig, 'Running Forward Flip', 1.4, 0, Infinity, 0.06); }
       else { e.stateT = 0.8; e.dashSpeed = 11; rigOnce(e.rig, 'Running Slide 2', 1.6, 0.1, Infinity, 0.06); }
@@ -701,7 +712,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   const td = steerTo(e, _b, dt, _a);
   e.faceMove = td > 4;
   _want.copy(_a).multiplyScalar(sp * (td > 3 ? 0.8 : 0.45));
-  if (e.rig && ai === 'melee' && e.tauntCd <= 0 && td < 3 && dist < 16 && Math.random() < dt * 0.4) {
+  if (e.rig && ai === 'melee' && e.tauntCd <= 0 && td < 3 && dist < 16 && Math.random() < dt * 0.2) {
     e.tauntCd = rand(7, 12);
     e.state = 'taunt'; e.stateT = 1.6;
     const r = Math.random();

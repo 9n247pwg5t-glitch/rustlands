@@ -8,16 +8,16 @@ const RIG = { ready: false, failed: false, base: {}, data: null, guns: {} };
 const RIG_HEIGHT = 1.85; // metres at enemy scale 1
 
 // Melee attacks: clip, start, impact times, end (seconds in the clip), damage share per impact,
-// and when the axe leaves a trail. Swings play from their wind-up through the follow-through;
-// impacts are where the hand moves fastest. The odd kick keeps them unpredictable.
+// how often it's picked (w), and when the axe leaves a trail. Swings play from their wind-up
+// through the follow-through; impacts are where the hand moves fastest. Mostly axe swings, with
+// the odd kick (about one attack in seven) to keep them unpredictable.
 const RIG_ATK_TS = 1.15;
 const RIG_ATTACKS = [
-  { clip: 'Standing Melee Attack Downward', start: 0.2, hits: [0.84], end: 1.6, dmg: [1.3], trail: [[0.58, 0.98]] },
-  { clip: 'Standing Melee Attack Downward', start: 0.2, hits: [0.84], end: 1.6, dmg: [1.3], trail: [[0.58, 0.98]] },
-  { clip: 'Standing Melee Attack 360 High', start: 0.3, hits: [1.08], end: 1.9, dmg: [1.4], trail: [[0.82, 1.32]] },
-  { clip: 'Standing Melee Combo Attack Ver. 3', start: 0.3, hits: [1.03, 1.78], end: 2.4, dmg: [0.8, 0.8], trail: [[0.86, 1.14], [1.58, 1.95]] },
-  { clip: 'Mma Kick 1', start: 0.3, hits: [0.73], end: 1.2, dmg: [1.2] },
-  { clip: 'Roundhouse Kick', start: 0.45, hits: [1.0], end: 1.5, dmg: [1.4] },
+  { clip: 'Standing Melee Attack Downward', w: 4, axe: true, start: 0.2, hits: [0.84], end: 1.6, dmg: [1.3], trail: [[0.58, 0.98]] },
+  { clip: 'Standing Melee Attack 360 High', w: 2.5, axe: true, start: 0.3, hits: [1.08], end: 1.9, dmg: [1.4], trail: [[0.82, 1.32]] },
+  { clip: 'Standing Melee Combo Attack Ver. 3', w: 2.5, axe: true, start: 0.3, hits: [1.03, 1.78], end: 2.4, dmg: [0.8, 0.8], trail: [[0.86, 1.14], [1.58, 1.95]] },
+  { clip: 'Mma Kick 1', w: 0.8, start: 0.3, hits: [0.73], end: 1.2, dmg: [1.2] },
+  { clip: 'Roundhouse Kick', w: 0.8, start: 0.45, hits: [1.0], end: 1.5, dmg: [1.4] },
 ];
 
 // The uploaded characters: game name -> model file.
@@ -728,8 +728,9 @@ function rigUpperApply(R, dt) {
   if (R.upW < 1) for (const [b, q] of R.upBones) { _uq.copy(b.quaternion); b.quaternion.copy(q).slerp(_uq, R.upW); }
 }
 
-function startRigAttack(e) {
-  e.atk = pick(RIG_ATTACKS);
+// `axeOnly` for follow-ups: a chained second attack is always a swing.
+function startRigAttack(e, axeOnly = false) {
+  e.atk = weighted(RIG_ATTACKS.filter((a) => a.axe || !axeOnly).map((a) => [a, a.w]));
   e.atkHit = 0;
   rigOnce(e.rig, e.atk.clip, RIG_ATK_TS, e.atk.start, e.atk.end, 0.12);
 }
@@ -839,8 +840,9 @@ const GAIT = {
   pistol: { fwd: [['Walk Forward rifle', 1.25], ['Unarmed Run Forward 2', 1.5], ['Rifle Run', 1.35]], back: ['Pistol Run Backward', 1.3], side: ['Pistol Strafe', 1.4], idle: 'Pistol Idle' },
   // gunners holding a spot behind cover crouch, and stand to fire over or around it
   cover: { fwd: [['Rifle Crouch Walk', 1.8], ['Walk Forward rifle', 1.25], ['Rifle Run', 1.35]], back: ['Walk Backward rifle', 1.6], side: [['Crouch Walk Strafe Right rifle', 'Crouch Walk Strafe Left rifle'], 1.8], idle: 'Crouch Walk Strafe Left rifle', idleFrozen: true },
-  melee: { fwd: [['Mutant Run', 1.6], ['Rifle Run', 1.4]], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7], idle: 'Unarmed Idle' },
-  suicide: { fwd: [['Mutant Run', 1.85]], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7], idle: 'Unarmed Idle' },
+  // melee enemies have to be able to run down a walking player (7 m/s), so their sprint plays fast
+  melee: { fwd: [['Mutant Run', 1.6], ['Rifle Run', 1.85]], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7], idle: 'Unarmed Idle' },
+  suicide: { fwd: [['Mutant Run', 1.85], ['Rifle Run', 2.0]], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7], idle: 'Unarmed Idle' },
 };
 const gaitOf = (e) => {
   if (e.def.ai === 'suicide') return GAIT.suicide;
