@@ -52,6 +52,33 @@ const GUN_SOCKETS = {
 // Paint variations: hue turns (radians) applied to the painted parts only (greys, whites and metal stay)
 const GUN_HUES = [0, 0, 0.7, 2.2, 3.4, 4.3, 5.2];
 
+// Taunts, and which of them also come mirrored (left and right swapped) for variety.
+const RIG_TAUNTS = {
+  // [clip, speed, start, end]
+  melee: [['Standing melee Taunt Battlecry', 1.4, 0.2, 2.6], ['Zombie Scream', 1.4, 0.3, 2.6], ['Slap thigh Taunt', 1.6, 0.5, 3.0], ['Pointing', 1.5, 0.3, 2.2], ['Loser', 1.4, 0.2, 2.8]],
+  ranged: [['Pointing', 1.5, 0.3, 2.2], ['Loser', 1.4, 0.2, 2.8], ['Slap thigh Taunt', 1.6, 0.5, 3.0], ['Standing melee Taunt Battlecry', 1.5, 0.2, 2.4]],
+};
+const RIG_MIRRORED = ['Standing melee Taunt Battlecry', 'Slap thigh Taunt', 'Pointing', 'Loser'];
+// Swap a clip's left and right: Left/Right bone tracks trade places and every rotation is reflected
+// across the body's left-right axis.
+function mirrorClip(clip) {
+  const tracks = clip.tracks.map((t) => {
+    const name = t.name.replace(/Left|Right/, (m) => (m === 'Left' ? 'Right' : 'Left'));
+    const v = Float32Array.from(t.values);
+    if (t instanceof THREE.QuaternionKeyframeTrack) for (let i = 0; i < v.length; i += 4) { v[i + 1] = -v[i + 1]; v[i + 2] = -v[i + 2]; }
+    return new t.constructor(name, Array.from(t.times), Array.from(v));
+  });
+  return new THREE.AnimationClip(clip.name + ' (mirrored)', clip.duration, tracks);
+}
+// Play a random taunt for this kind of enemy (half the time mirrored when it can be); returns its
+// length in seconds.
+function rigTaunt(e) {
+  const [clip, ts, t0, t1] = pick(RIG_TAUNTS[e.def.ai === 'ranged' ? 'ranged' : 'melee']);
+  const name = RIG_MIRRORED.includes(clip) && Math.random() < 0.5 ? clip + ' (mirrored)' : clip;
+  rigOnce(e.rig, e.rig.clips[name] ? name : clip, ts, t0, t1, 0.15);
+  return (t1 - t0) / ts;
+}
+
 const RIG_UPPER = /^mixamorig(Spine1|Spine2|Neck|Head|(Left|Right)(Shoulder|Arm|ForeArm|Hand))$/;
 
 function rigOutlineMaterial(thick) {
@@ -166,6 +193,7 @@ function prepareRigBase(gltf) {
     });
     clips[name] = new THREE.AnimationClip(name, c.d, tracks);
   }
+  for (const n of RIG_MIRRORED) if (clips[n]) clips[n + ' (mirrored)'] = mirrorClip(clips[n]);
   // The upper body's aiming pose (rifle shouldered), sampled from Shoot Rifle, so gunners can keep
   // aiming while their legs walk, side-step or backpedal.
   const aimPose = {}, rest = [];
@@ -735,6 +763,55 @@ function startRigAttack(e, axeOnly = false) {
   rigOnce(e.rig, e.atk.clip, RIG_ATK_TS, e.atk.start, e.atk.end, 0.12);
 }
 
+// Axe swings are made heavier than the stock clips: the clip's clock is warped around each impact
+// (a slower, longer wind-up and a fast strike), the chest and swinging arm are over-rotated through
+// the strike, and the swing freezes for a moment when it connects.
+const AXE_WINDUP = 0.8, AXE_STRIKE = 1.75, AXE_STRIKE_T = 0.32; // speed before / within this long of an impact
+function axeSpeed(atk, t) {
+  for (const h of atk.hits) { const d = h - t; if (d > -0.1 && d <= AXE_STRIKE_T) return AXE_STRIKE; if (d > AXE_STRIKE_T) return AXE_WINDUP; }
+  return 1;
+}
+// Real seconds until clip time `h` from clip time `t` under that warp.
+function axeTimeTo(atk, t, h) {
+  if (!atk.axe) return (h - t) / RIG_ATK_TS;
+  const s = Math.max(0, h - t - AXE_STRIKE_T);
+  return (s / AXE_WINDUP + Math.min(h - t, AXE_STRIKE_T) / AXE_STRIKE) / RIG_ATK_TS;
+}
+const AXE_AMP = { Spine: 1.3, Spine1: 1.4, Spine2: 1.4, RightShoulder: 1.3, RightArm: 1.3, RightForeArm: 1.15 };
+const _axeRef = new Map();
+// The bones' rotations at the attack's first frame: the over-rotation pushes away from these.
+function axeRefPose(clip, t) {
+  const key = clip.name + t;
+  let ref = _axeRef.get(key);
+  if (!ref) {
+    ref = {};
+    for (const tr of clip.tracks) {
+      const bone = tr.name.split('.')[0].replace('mixamorig', '');
+      if (!AXE_AMP[bone] || !(tr instanceof THREE.QuaternionKeyframeTrack)) continue;
+      const v = tr.createInterpolant().evaluate(t);
+      ref['mixamorig' + bone] = new THREE.Quaternion(v[0], v[1], v[2], v[3]);
+    }
+    _axeRef.set(key, ref);
+  }
+  return ref;
+}
+const _aq = new THREE.Quaternion();
+function axeExaggerate(e, R) {
+  const a = e.atk, t = rigTime(R);
+  let w = 0;
+  for (const h of a.hits) w = Math.max(w, clamp(1 - Math.abs(t - (h - 0.08)) / 0.42, 0, 1));
+  if (w <= 0) return;
+  w = w * w * (3 - 2 * w);
+  const ref = axeRefPose(R.clips[a.clip], a.start);
+  if (!R.axeBones) { R.axeBones = []; R.model.traverse((o) => { const k = o.name.replace('mixamorig', ''); if (o.isBone && AXE_AMP[k]) R.axeBones.push([o, AXE_AMP[k]]); }); }
+  for (const [b, amp] of R.axeBones) {
+    const q0 = ref[b.name];
+    if (!q0) continue;
+    _aq.copy(q0).slerp(b.quaternion, amp); // past the clip's own rotation
+    b.quaternion.slerp(_aq, w);
+  }
+}
+
 // Axe trail: a fading ribbon swept between the blade's edge and the haft during a swing.
 const TRAIL_N = 16;
 const rigTrails = [];
@@ -811,7 +888,11 @@ function animateRig(e, dt) {
     else if (e.state === 'rockets') rigLoop(R, 'Shoot Rifle', 0);
     else rigLocomotion(e, R, dt);
   }
+  const axe = e.state === 'swing' && R.one && e.atk && e.atk.axe;
+  if (R.freezeT > 0) R.freezeT -= dt;
+  if (axe) R.one.action.timeScale = R.freezeT > 0 ? 0 : RIG_ATK_TS * axeSpeed(e.atk, rigTime(R));
   R.mixer.update(dt);
+  if (axe) axeExaggerate(e, R);
   // gunners hold the rifle up while moving, blended in and out
   // (two-gun bodies use their own pose even when standing, since the rifle clip's stance doesn't fit them)
   const wantAim = e.aiming && !R.one && !e.reloadT && (R.mode !== 'idle' || R.dual) && (e.def.ai === 'ranged' || e.def.ai === 'boss') && e.state === 'move';

@@ -113,7 +113,7 @@ function spawnEnemy(key, level, pos) {
   burst(e.pos.clone().setY(e.pos.y + 1), 0x7fd6ff, 12, 5, 0.12, 0.5, 0.2, true);
   if (rig && !def.boss && Math.random() < 0.35) {
     e.state = 'taunt'; e.stateT = 1.0;
-    if (def.ai === 'ranged') rigOnce(rig, 'Pointing', 1.6, 0.3, 1.9);
+    if (def.ai === 'ranged') e.stateT = rigTaunt(e);
     else { e.stateT = 1.3; rigOnce(rig, 'Zombie Scream', 1.5, 0.3, 2.3); } // psychos scream as they arrive
   }
   if (rig && def.ai === 'ranged') { e.mag = magSize(e); e.nadeCd = rand(6, 14); }
@@ -530,8 +530,14 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
   }
   if (e.rig && playerDowned && e.tauntCd <= 0 && dist < 28) {
     e.tauntCd = rand(6, 10);
-    e.state = 'taunt'; e.stateT = 1.8;
-    if (Math.random() < 0.5) rigOnce(e.rig, 'Loser', 1.4, 0.2, 2.8); else rigOnce(e.rig, 'Slap thigh Taunt', 1.5, 0.5, 3.2);
+    e.state = 'taunt'; e.stateT = rigTaunt(e);
+    return;
+  }
+  // a target that's gone to ground gets heckled, to bait it out
+  if (e.rig && e.tauntCd <= 0 && e.tac === 'hold' && e.noLosT > 2.5 && !e.reloadT && dist < 30 && Math.random() < dt * 0.35) {
+    e.tauntCd = rand(8, 14);
+    e.state = 'taunt'; e.stateT = rigTaunt(e);
+    SFX.yell(clamp(1 - dist / 40, 0, 0.8));
     return;
   }
   // fall back to cover to recharge when the shield breaks or health runs low
@@ -608,6 +614,9 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
 }
 
 function afterMeleeAttack(e) {
+  // a psycho that drew blood sometimes stops to gloat (an opening for the player)
+  if (e.landed && e.rig && Math.random() < 0.3) { e.landed = false; e.state = 'taunt'; e.stateT = rigTaunt(e) * 0.8; e.tauntCd = rand(4, 7); return; }
+  e.landed = false;
   if (Math.random() < 0.3) e.backoffT = rand(0.7, 1.1);
 }
 
@@ -631,7 +640,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   if (e.state === 'swing' && e.rig) {
     const a = e.atk, t = rigTime(e.rig);
     const next = a.hits[Math.min(e.atkHit, a.hits.length - 1)];
-    const toHit = e.atkHit < a.hits.length ? (next - t) / RIG_ATK_TS : -1;
+    const toHit = e.atkHit < a.hits.length ? axeTimeTo(a, t, next) : -1;
     const sinceHit = e.atkHit > 0 ? (t - a.hits[e.atkHit - 1]) / RIG_ATK_TS : 9;
     // stalk after a target that backs off during the wind-up, then a quick step into the blow just
     // before it lands, planted after
@@ -641,12 +650,19 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     // track the target while winding up, then commit to the swing (a sidestep can dodge it)
     e.faceLock = (toHit >= 0 && toHit < 0.16) || sinceHit < 0.3;
     while (e.atkHit < a.hits.length && t >= a.hits[e.atkHit]) {
-      SFX.swing();
-      if (dist < 2.4 * e.def.scale && !tgt.isTurret) {
+      const connect = dist < 2.4 * e.def.scale && !tgt.isTurret;
+      if (a.axe) SFX.chop(connect); else SFX.swing();
+      const p = e.rig.blade && a.axe ? e.rig.blade.edge.getWorldPosition(new THREE.Vector3()) : null;
+      if (connect) {
         player.hurt(e.def.dmg * e.dmgScale * a.dmg[e.atkHit], e.pos);
-        game.shake(0.35);
-        if (e.rig.blade) { const p = e.rig.blade.edge.getWorldPosition(new THREE.Vector3()); burst(p, 0xffe2a8, 8, 5, 0.06, 0.25, 1, true); burst(p, 0x8a1d1d, 6, 3, 0.09, 0.5); }
-      }
+        e.landed = true;
+        // weight: the swing stops dead in the target for a beat, the screen jolts, the target is shoved
+        e.rig.freezeT = a.axe ? 0.09 : 0.05;
+        game.hitstop = Math.max(game.hitstop, 0.05);
+        game.shake(a.axe ? 0.55 : 0.4);
+        player.vel.x += fwd.x * 4.5; player.vel.z += fwd.z * 4.5;
+        if (p) { burst(p, 0xffe2a8, 10, 6, 0.06, 0.25, 1, true); burst(p, 0x8a1d1d, 8, 3.5, 0.09, 0.5); }
+      } else if (p && p.y < e.pos.y + 0.7) burst(p, 0xc9a070, 10, 3, 0.12, 0.6, 0.6); // a chop into the dirt
       e.atkHit++;
     }
     if (!e.rig.one || t >= a.end - 0.02) {
@@ -714,11 +730,8 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   _want.copy(_a).multiplyScalar(sp * (td > 3 ? 0.8 : 0.45));
   if (e.rig && ai === 'melee' && e.tauntCd <= 0 && td < 3 && dist < 16 && Math.random() < dt * 0.2) {
     e.tauntCd = rand(7, 12);
-    e.state = 'taunt'; e.stateT = 1.6;
-    const r = Math.random();
-    if (r < 0.35) rigOnce(e.rig, 'Standing melee Taunt Battlecry', 1.4, 0.2, 2.6);
-    else if (r < 0.7) { rigOnce(e.rig, 'Zombie Scream', 1.4, 0.3, 2.6); SFX.yell(clamp(1.2 - dist / 40, 0, 1)); }
-    else rigOnce(e.rig, 'Slap thigh Taunt', 1.6, 0.5, 3.0);
+    e.state = 'taunt'; e.stateT = rigTaunt(e);
+    SFX.yell(clamp(1.2 - dist / 40, 0, 1));
   }
   return false;
 }

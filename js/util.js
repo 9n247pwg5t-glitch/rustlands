@@ -130,6 +130,8 @@ const SFX = (() => {
     reload() { tone(320, 0.04, 0.1, 'square'); tone(520, 0.05, 0.1, 'square', 0.22); },
     empty() { tone(1100, 0.02, 0.1, 'square'); },
     swing() { noise(0.16, 1600, 2, 0.3, 'bandpass', 0, 400); },
+    // a heavy blade arriving: low whoosh into a thud
+    chop(connect) { noise(0.2, 900, 1.5, 0.32, 'bandpass', 0, 220); if (connect) { tone(110, 0.16, 0.32, 'sine', 0.02, 45); noise(0.09, 600, 1, 0.3, 'lowpass', 0.02); } },
     jump() { tone(200, 0.08, 0.06, 'sine', 0, 320); },
     land() { noise(0.08, 400, 1, 0.12); },
     levelUp() { [392, 523, 659, 784, 1046].forEach((f, i) => tone(f, 0.3, 0.12, 'square', i * 0.09)); },
