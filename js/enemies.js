@@ -2,11 +2,11 @@
 // Enemies: models, AI, damage, death and explosions.
 
 const ENEMY_DEFS = {
-  bandit: { name: 'Bandit', body: 'human', hp: 52, shield: 0, hpType: 'flesh', speed: 4.4, xp: 10, ai: 'ranged', dmg: 6, burst: 4, burstGap: 0.14, cd: [0.9, 1.7], projSpeed: 34, spread: 0.05, range: [9, 24], scale: 1, look: { shirt: 0xb3753a, pants: 0x4a3b2e, skin: 0xe0a77a, mask: 0xe8e2d0, weapon: 'gun' } },
-  marauder: { name: 'Marauder', body: 'human', hp: 58, shield: 45, hpType: 'flesh', speed: 4.2, xp: 16, ai: 'ranged', dmg: 7, burst: 5, burstGap: 0.11, cd: [1.0, 1.8], projSpeed: 38, spread: 0.045, range: [10, 26], scale: 1.05, look: { shirt: 0x3f5b7a, pants: 0x2e2e33, skin: 0xd09a72, mask: 0x30302c, weapon: 'gun', goggles: true } },
+  bandit: { name: 'Bandit', body: 'human', hp: 52, shield: 0, hpType: 'flesh', speed: 4.4, xp: 10, ai: 'ranged', dmg: 6, burst: 4, burstGap: 0.14, cd: [0.9, 1.7], projSpeed: 80, spread: 0.05, range: [9, 24], scale: 1, look: { shirt: 0xb3753a, pants: 0x4a3b2e, skin: 0xe0a77a, mask: 0xe8e2d0, weapon: 'gun' } },
+  marauder: { name: 'Marauder', body: 'human', hp: 58, shield: 45, hpType: 'flesh', speed: 4.2, xp: 16, ai: 'ranged', dmg: 7, burst: 5, burstGap: 0.11, cd: [1.0, 1.8], projSpeed: 88, spread: 0.045, range: [10, 26], scale: 1.05, look: { shirt: 0x3f5b7a, pants: 0x2e2e33, skin: 0xd09a72, mask: 0x30302c, weapon: 'gun', goggles: true } },
   psycho: { name: 'Psycho', body: 'human', hp: 62, shield: 0, hpType: 'flesh', speed: 7.6, xp: 12, ai: 'melee', dmg: 14, scale: 1, look: { shirt: null, pants: 0x6b2a20, skin: 0xe6b08a, mask: 0xf3efe2, weapon: 'axe', stripes: true } },
   suicide: { name: 'Suicide Psycho', body: 'human', hp: 34, shield: 0, hpType: 'flesh', speed: 8.4, xp: 10, ai: 'suicide', dmg: 36, scale: 0.95, look: { shirt: null, pants: 0x3a3a3a, skin: 0xe6b08a, mask: 0xd13a2a, weapon: 'bomb' } },
-  nomad: { name: 'Badass Nomad', body: 'human', hp: 230, shield: 90, hpType: 'armor', speed: 3.3, xp: 70, ai: 'ranged', dmg: 4.5, burst: 10, burstGap: 0.07, cd: [1.2, 1.9], projSpeed: 42, spread: 0.075, range: [6, 18], scale: 1.4, badass: true, look: { shirt: 0x5a4a3a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x222222, weapon: 'gun', armor: true } },
+  nomad: { name: 'Badass Nomad', body: 'human', hp: 230, shield: 90, hpType: 'armor', speed: 3.3, xp: 70, ai: 'ranged', dmg: 4.5, burst: 10, burstGap: 0.07, cd: [1.2, 1.9], projSpeed: 90, spread: 0.075, range: [6, 18], scale: 1.4, badass: true, look: { shirt: 0x5a4a3a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x222222, weapon: 'gun', armor: true } },
   boss: { name: 'Krag the Scrapjaw', body: 'human', hp: 2600, shield: 900, hpType: 'armor', speed: 3.8, xp: 600, ai: 'boss', dmg: 22, projSpeed: 30, scale: 2.4, boss: true, look: { shirt: 0x6a3a2a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x8a8a8a, weapon: 'hammer', armor: true, jaw: true } },
 };
 
@@ -14,7 +14,7 @@ const ENEMY_DEFS = {
 // stats, shotguns fire one spread of pellets up close, pistols fire slower, harder single shots.
 const GUN_FIRE = {
   rifle: () => ({}),
-  shotgun: (d) => ({ pellets: 6, burst: 1, dmg: d.dmg * 0.75, spread: d.spread * 2.2, cd: [d.cd[0] + 0.3, d.cd[1] + 0.4], range: [5, 13], projSpeed: d.projSpeed + 6 }),
+  shotgun: (d) => ({ pellets: 6, burst: 1, dmg: d.dmg * 0.75, spread: d.spread * 2.2, cd: [d.cd[0] + 0.3, d.cd[1] + 0.4], range: [5, 13], projSpeed: d.projSpeed + 10 }),
   pistol: (d) => ({ burst: 2, burstGap: 0.3, dmg: d.dmg * 1.5, spread: d.spread * 0.8, range: [7, 19] }),
 };
 
@@ -278,17 +278,24 @@ function damageBarrel(b, dmg) {
 // Enemy shots
 const SHOT_GEO = new THREE.IcosahedronGeometry(0.13, 0);
 const _mf = new THREE.Vector3();
+const BULLET_GEO = new THREE.BoxGeometry(0.04, 0.04, 1); BULLET_GEO.translate(0, 0, -0.5); // head at the bullet, tail behind it
 function enemyFire(e, from, target, opts = {}) {
   const dir = target.clone().sub(from).normalize();
   const sp = opts.spread != null ? opts.spread : e.def.spread;
   dir.x += rand(-sp, sp); dir.y += rand(-sp, sp) * 0.6; dir.z += rand(-sp, sp);
   dir.normalize();
   const rocket = !!opts.rocket;
-  const mesh = new THREE.Mesh(SHOT_GEO, glow(rocket ? 0xff6a2a : 0xffa040));
-  mesh.scale.setScalar(rocket ? 1.8 : 1);
+  const speed = opts.speed || e.def.projSpeed || 34;
+  let mesh;
+  if (rocket || opts.grav) { mesh = new THREE.Mesh(SHOT_GEO, glow(rocket ? 0xff6a2a : 0xffa040)); mesh.scale.setScalar(rocket ? 1.8 : 1); }
+  else {
+    // a bullet: a glowing streak along its flight, longer the faster it goes
+    mesh = new THREE.Mesh(BULLET_GEO, glow(0xffa83a));
+    mesh.scale.set(1, 1, clamp(speed * 0.011, 0.4, 1.1));
+    mesh.lookAt(_mf.copy(mesh.position).add(dir));
+  }
   mesh.position.copy(from);
   scene.add(mesh);
-  const speed = opts.speed || e.def.projSpeed || 34;
   enemyShots.push({ mesh, pos: from.clone(), vel: dir.multiplyScalar(speed), dmg: opts.dmg != null ? opts.dmg : e.def.dmg * e.dmgScale, life: 3, rocket, grav: opts.grav || 0, splash: opts.splash || 0, owner: e });
   if (!opts.noFlash) {
     SFX.enemyShot(clamp(1.3 - from.distanceTo(player.pos) / 50, 0.1, 1));
@@ -371,16 +378,18 @@ function chaseDir(e, tgt, fwd, side, dt) {
 // apart, off to the player's sides, near cover), hold it while strafing, move on after a while and
 // fall back to cover to recharge. Melee enemies take turns: a few engage while the rest circle at a
 // distance; after a combo they often back off and let another one in. Only a few gunners fire at once.
-const tactics = { shooters: 0, maxShooters: 2, engaged: 0, maxEngaged: 2 };
+const tactics = { shooters: 0, maxShooters: 2, engaged: 0, maxEngaged: 2, movers: 0, maxMovers: 2 };
 function tacticsFrame(dt = 1 / 60) {
   if (tactics.nadeT > 0) tactics.nadeT -= dt;
   tactics.maxShooters = Math.min(7, 4 + Math.floor(game.wave / 2));
   tactics.maxEngaged = Math.min(5, 3 + Math.floor(game.wave / 4));
-  let shooters = 0, engaged = 0;
+  let shooters = 0, engaged = 0, gunners = 0, movers = 0, slot = 0;
   const waiting = [];
   for (const e of enemies) {
     if (!e.alive) continue;
     if (e.burstLeft > 0) shooters++;
+    if (e.def.ai === 'ranged') { gunners++; if (e.tac === 'move' && !e.entering) movers++; }
+    if (e.def.ai === 'melee' && e.engaged) e.slot = slot++; // approach angles, so the engaged ones surround
     const ai = e.def.ai;
     if (ai === 'melee') {
       if (e.engaged) engaged++;
@@ -390,6 +399,8 @@ function tacticsFrame(dt = 1 / 60) {
   waiting.sort((a, b) => a.pos.distanceToSquared(player.pos) - b.pos.distanceToSquared(player.pos));
   for (const e of waiting) { if (engaged >= tactics.maxEngaged) break; e.engaged = true; engaged++; }
   tactics.shooters = shooters; tactics.engaged = engaged;
+  // bounding overwatch: only a couple of gunners relocate at once while the rest hold and fire
+  tactics.movers = movers; tactics.maxMovers = 2 + Math.floor(gunners / 8);
 }
 
 // Steer toward a point: straight when the grid line is clear, otherwise along an A* path.
@@ -465,9 +476,14 @@ function pickSpot(e, tgt, retreat) {
     for (const o of enemies) {
       if (o === e || !o.alive) continue;
       const q = o.spot || o.pos, dd = Math.hypot(q.x - x, q.z - z);
-      if (dd < 5) sc -= (5 - dd) * 1.2;
+      if (dd < 7) sc -= (7 - dd) * 1.1;
+      // fan out around the target: other gunners on the same bearing count against a spot
+      if (!retreat && o.def.ai === 'ranged') {
+        let db = Math.atan2(q.x - tgt.pos.x, q.z - tgt.pos.z) - a; db = Math.abs(Math.atan2(Math.sin(db), Math.cos(db)));
+        if (db < 0.45) sc -= (0.45 - db) * 6;
+      }
     }
-    sc -= Math.hypot(x - e.pos.x, z - e.pos.z) * 0.08;
+    sc -= Math.hypot(x - e.pos.x, z - e.pos.z) * 0.14; // short moves
     if (sc > bestS) { bestS = sc; best = [x, y, z]; }
   }
   if (!best) return false;
@@ -551,7 +567,7 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
     e.retreatCd = 14;
     if (pickSpot(e, tgt, true)) { e.tac = 'retreat'; e.tacT = rand(3.5, 5); }
   }
-  if (!e.spot) { pickSpot(e, tgt, false); e.tac = 'move'; e.tacT = 8; }
+  if (!e.spot) { pickSpot(e, tgt, false); e.tac = 'move'; e.tacT = 8; e.entering = true; } // walking in from the spawn gate
   const sd = e.spot ? Math.hypot(e.spot.x - e.pos.x, e.spot.z - e.pos.z) : 0;
   let canFire = e.los && dist < rMax + 10;
   if (!e.spot) {
@@ -560,7 +576,8 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
     canFire = false;
     if (sd > 1) { steerTo(e, e.spot, dt, _b); _want.copy(_b).multiplyScalar(sp * 1.15); e.faceMove = sd > 2.5; }
     const recharged = e.maxShield ? e.shield >= e.maxShield * 0.8 : e.tacT <= 0;
-    if ((sd <= 1 && recharged) || e.tacT <= -5) { e.tac = 'move'; pickSpot(e, tgt, false); e.tacT = 8; }
+    // recharged: hold here, and bound out with the others when there's a turn to move
+    if ((sd <= 1 && recharged) || e.tacT <= -5) { e.tac = 'hold'; e.spot.copy(e.pos); e.spotCover = coverScore(e.pos.x, e.pos.z, tgt.pos) >= 1; e.tacT = rand(0.5, 1.5); }
   } else if (e.tac === 'move') {
     steerTo(e, e.spot, dt, _b);
     // long moves away from the player: turn and run; short ones: backpedal or side-step while facing them
@@ -568,13 +585,19 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
     e.faceMove = sd > 7 && _b.dot(fwd) < 0.3;
     _want.copy(_b).multiplyScalar(sp);
     canFire = canFire && e.moveShoot && !e.faceMove;
-    if (sd < 1.2 || e.tacT <= 0) { e.tac = 'hold'; e.tacT = rand(4.5, 8); }
+    // arrived, or taking too long: hold where it is (a short bound, then the next one's turn)
+    if (sd < 1.2 || e.tacT <= 0) { e.tac = 'hold'; e.entering = false; if (sd >= 1.2) e.spot.copy(e.pos); e.tacT = rand(4.5, 8); }
   } else {
     // hold the spot: short side steps, drift back if pushed off it
     if (sd > 2.5) { steerTo(e, e.spot, dt, _b); _want.copy(_b).multiplyScalar(sp * 0.6); }
     else _want.copy(side).multiplyScalar(e.strafeDir * Math.min(sp * 0.35, 1.0));
-    if (e.tacT <= 0 || dist < rMin * 0.7 || dist > rMax + 4 || e.noLosT > 1.5) {
-      pickSpot(e, tgt, false); e.tac = 'move'; e.tacT = 8; e.moveShoot = Math.random() < 0.75;
+    const urgent = dist < rMin * 0.7 || e.noLosT > 6;
+    if (urgent || e.tacT <= 0 || dist > rMax + 4 || e.noLosT > 1.5) {
+      if (urgent || tactics.movers < tactics.maxMovers) {
+        pickSpot(e, tgt, false); e.tac = 'move'; e.tacT = 5; e.moveShoot = Math.random() < 0.75;
+        tactics.movers++;
+        coverMe(e, tgt);
+      } else e.tacT = rand(0.6, 1.4); // wait for a teammate to finish moving
     }
   }
   // crouched while holding a spot behind cover (standing up to fire)
@@ -617,6 +640,17 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
       else e.fireCd = rand(0.25, 0.6); // wait for a turn to shoot
     }
   }
+}
+
+// A gunner breaking cover: the nearest teammate holding a spot with a clear shot fires right away.
+function coverMe(mover, tgt) {
+  let best = null, bd = 30;
+  for (const o of enemies) {
+    if (o === mover || !o.alive || o.def.ai !== 'ranged' || o.tac !== 'hold' || !o.los || o.burstLeft > 0 || o.reloadT) continue;
+    const d = o.pos.distanceTo(mover.pos);
+    if (d < bd) { bd = d; best = o; }
+  }
+  if (best && tactics.shooters < tactics.maxShooters + 1) { best.burstLeft = best.def.burst; best.burstT = 0; best.fireCd = rand(best.def.cd[0], best.def.cd[1]); tactics.shooters++; }
 }
 
 function afterMeleeAttack(e) {
@@ -709,7 +743,15 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
       _a.set(tgt.pos.x + player.vel.x * t, 0, tgt.pos.z + player.vel.z * t);
       if (navLineClear(e.pos, _a)) _lead.set(_a.x - e.pos.x, 0, _a.z - e.pos.z).normalize();
     }
-    const curve = e.direct && dist > 5 && tv < 2.5 ? 0.55 * e.orbitDir : 0;
+    // surround: the engaged ones close in from different sides (front, flanks, behind) before
+    // going straight in
+    const SLOTS = [0, 1.2, -1.2, 2.4, -2.4];
+    if (e.direct && tv <= 2.5 && dist > 4 && e.slot != null) {
+      const ang = Math.atan2(-Math.sin(player.yaw), -Math.cos(player.yaw)) + SLOTS[e.slot % SLOTS.length]; // around where the player faces
+      _a.set(tgt.pos.x + Math.sin(ang) * 3.2, 0, tgt.pos.z + Math.cos(ang) * 3.2);
+      if (navLineClear(e.pos, _a)) _lead.set(_a.x - e.pos.x, 0, _a.z - e.pos.z).normalize();
+    }
+    const curve = e.direct && dist > 5 && tv < 2.5 && e.slot == null ? 0.55 * e.orbitDir : 0;
     const zig = ai === 'suicide' && e.direct ? Math.sin(e.t * 2.3) * 0.45 : 0;
     _want.copy(_lead).addScaledVector(side, curve + zig).normalize().multiplyScalar(sp);
     if (dist < (e.rig && ai === 'melee' ? 3.0 : 2.0) && e.attackCd <= 0) {
@@ -787,6 +829,15 @@ function updateEnemy(e, dt) {
     updateBoss(e, dt, tgt, dist, fwd, side, sp, chase);
   }
 
+  // personal space: steer away from nearby enemies so they don't bunch up (not mid-attack)
+  if (e.state === 'move') {
+    const room = e.def.ai === 'ranged' ? 3.2 : 1.8;
+    for (const o of enemies) {
+      if (o === e || !o.alive) continue;
+      const dx = e.pos.x - o.pos.x, dz = e.pos.z - o.pos.z, d = Math.hypot(dx, dz);
+      if (d < room && d > 1e-3) { const k = (room - d) / room * sp * 0.9 / d; _want.x += dx * k; _want.z += dz * k; }
+    }
+  }
   // hit stagger
   if (e.hitAnimT > 0) e.hitAnimT -= dt;
   if (e.flinchT > 0) { e.flinchT -= dt; _want.multiplyScalar(e.def.boss ? 0.85 : 0.35); }
