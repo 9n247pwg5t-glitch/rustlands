@@ -33,7 +33,7 @@ It also works on GitHub Pages: turn Pages on for the `main` branch.
 - **Combat feedback.** Damage numbers pop off enemies, headshots score critical hits, and enemies fall apart when they die.
 - **Fight For Your Life.** When your health hits zero you go down. Kill an enemy before the timer runs out to get a Second Wind.
 - **Action skill.** You can deploy a turret. You also have grenades, a melee attack and explosive barrels.
-- **Campaign.** Main menu → stage select → briefing → stage → results → back to stage select. Stages show as locked, unlocked or completed, unlock in order, and can be replayed. Your level, XP, cash, guns, shield, ammo and grenades are saved in the browser after every wave and when you leave or finish a stage; Continue picks up where you left off. Stage 1 is the prototype arena (clear 5 waves, the 5th a boss wave, then a 20-second window to grab the loot); Stages 2 and 3 are placeholders.
+- **Campaign.** Main menu → the hub, a room you walk around in → use the console in front of the wall of TVs (one per stage) → stage select → briefing → stage → results → back in the hub. No fighting in the hub. Stages show as locked, unlocked or completed, unlock in order, and can be replayed. Your level, XP, cash, guns, shield, ammo and grenades are saved in the browser after every wave and when you leave or finish a stage; Continue picks up where you left off. Stage 1 is the prototype arena (clear 5 waves, the 5th a boss wave, then a 20-second window to grab the loot); Stages 2 and 3 are placeholders.
 - **Progression.** You earn XP and level up. Loot chests appear after each wave, and vending machines sell ammo and healing. Clearing a stage pays a reward (less on replays).
 - **Controls.** The game supports touch as well as mouse and keyboard. Light aim assist (look slowdown near enemies, a gentle pull while firing, a snap when you start aiming) is stronger on touch and always aims at the body, so headshots are still on you.
 - **Animated enemies.** Bandits, marauders, psychos, nomads and the boss are rigged Mixamo characters (a strung-out clown, a psycho clown showgirl, a burnt clown with glowing embers, a top-heavy gangster clown as the Marauder, a top-heavy brawler restyled as a bloody clown (face paint, ruffle, stripes and blood drawn by a shader) dual-wielding SMGs as the Badass Nomad and the Brute with his battle axe as the boss), cel-shaded with weapons pinned to their bones. Their weapons are four clown-built models (the Honkmaker pistol, the Calliope rifle, the Sad Sack shotgun and the Punchline axe), each repainted in a random colour and sized a little differently per enemy; a gunner fires the way its weapon does (rifle bursts, shotgun pellet spreads up close, slower, harder pistol shots), and shots leave from the barrel. They pick forward, backpedal or side-step clips from how they're actually moving relative to where they face (walking or running by speed, with playback speed matched to their ground speed), stand in proper idles (rifle, pistol or unarmed), turn and run on long moves, and they aim, shoot and reload (the reload plays on the upper body while the legs keep moving), flinch when hit (head-snap on headshots), and psychos hunch into a mutant run and swing their axes: a full wind-up while planted, a quick step into the blow, a trail behind the blade and a follow-through, committing to the direction just before impact so a late sidestep can dodge it, sometimes chaining into a second swing (damage lands on the swing's impact frame), dodge-roll when aimed at, flip or slide in to close distance, get knocked down by explosions and climb back up, scream and taunt when they arrive and when you're down, and play death animations. Their hitboxes follow the animation.
@@ -49,7 +49,7 @@ It also works on GitHub Pages: turn Pages on for the `main` branch.
 | Aim down sights | Right click | Swipe FIRE left to aim, right for hip fire |
 | Reload | R | Tap the weapon wheel |
 | Switch weapon / grenade / turret | 1–4 or mouse wheel / G / Q | Hold the weapon wheel and slide toward a gun, the grenade or the turret (time slows while it's open) |
-| Interact (pick up, open, buy) | E | Pop-up TAKE / OPEN / BUY button |
+| Interact (pick up, open, buy, hub console) | E | Pop-up TAKE / OPEN / BUY / STAGES button |
 | Melee | F | — |
 | Skip intermission / leave a cleared stage / pause | N / N / Esc | — / pause menu / II button |
 
@@ -75,5 +75,6 @@ vendor/        three.js GLTFLoader and SkeletonUtils (r128)
 js/player.js   movement, weapons, viewmodel, projectiles, turret
 js/hud.js      HUD and overlay canvas (damage numbers, compass, hit markers)
 js/stages.js   campaign: stage list, save file, main menu, stage select, briefing, results
+js/hub.js      the hub room between stages: TV wall showing the stages, console that opens stage select
 js/main.js     waves, loot chests, vending, input, main loop
 ```

@@ -326,6 +326,7 @@ function updateWeapon(dt) {
 }
 
 function doMelee() {
+  if (game.mode === 'hub') return; // no fighting in the hub
   if (player.meleeCd > 0 || !player.alive || player.downed) return;
   player.meleeCd = 0.8; player.meleeT = 0.35;
   SFX.swing();
@@ -376,6 +377,7 @@ function throwTediore(g) {
 }
 
 function throwGrenade() {
+  if (game.mode === 'hub') return; // no fighting in the hub
   if (player.grenades <= 0 || !player.alive || player.downed) { if (player.grenades <= 0) hud.log('No grenades', '#ff6a5a'); return; }
   player.grenades--;
   camBasis();
@@ -465,6 +467,7 @@ const turret = { active: false, pos: new THREE.Vector3(), t: 0, fireT: 0, scanT:
 })();
 
 function deployTurret() {
+  if (game.mode === 'hub') return; // no fighting in the hub
   if (turret.active || player.skillCd > 0 || !player.alive || player.downed) { if (player.skillCd > 0) SFX.deny(); return; }
   camBasis();
   const flat = new THREE.Vector3(_fwd.x, 0, _fwd.z).normalize();

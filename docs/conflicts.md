@@ -24,9 +24,13 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
 ## Structure (§7, §8)
 
 - **Only one playable stage, and it's a stand-in.** The campaign flow exists (`js/stages.js`):
-  main menu → stage select → briefing → stage → results → stage select, with locked, unlocked and
+  main menu → hub room → console → stage select → briefing → stage → results → hub, with locked, unlocked and
   completed stages, replay and a save file. Stage 1 is the desert arena (clear 5 waves, the 5th a
   boss wave); Stages 2 and 3 are empty placeholders that unlock but can't be entered.
+- **The hub room is a placeholder.** Between stages the player walks around a room (`js/hub.js`)
+  and uses a console in front of a wall of TVs to open stage select. Whose place it is, where it
+  is, how it looks and what else it holds (shop, gear, story) are OPEN; it's a generic panelled
+  interior with no story content, labelled "HUB" in the HUD.
 - **The desert arena** doesn't match the bible's visual identity (early-2000s suburbs, retail
   strips, highways, carnival/wrestling venues, distant metropolis). It's a prototype space.
 - **Stages don't load their own worlds yet.** The arena is built once at boot (`js/world.js`);

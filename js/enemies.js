@@ -267,11 +267,11 @@ function damageBarrel(b, dmg) {
   b.hp -= dmg;
   if (b.hp > 0) return;
   b.alive = false;
-  scene.remove(b.group);
+  b.group.visible = false;
   const i = boxCols.indexOf(b.col); if (i >= 0) boxCols.splice(i, 1);
   explode(new THREE.Vector3(b.x, b.y + 0.6, b.z), 6, 70 * levelScale(Math.max(1, game.enemyLevel)), 'explosive', { fromPlayer: true, hurtsPlayer: true, selfScale: 2.5 });
   // barrels respawn later so the arena doesn't run dry
-  setTimeout(() => { b.alive = true; b.hp = 25; scene.add(b.group); boxCols.push(b.col); }, 45000);
+  setTimeout(() => { b.alive = true; b.hp = 25; b.group.visible = true; worldBoxCols('arena').push(b.col); }, 45000);
 }
 
 // ---------------------------------------------------------------------------

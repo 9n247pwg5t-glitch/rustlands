@@ -1,7 +1,8 @@
 'use strict';
-// Campaign (narrative bible §7): main menu → stage select → briefing → stage → results → stage
-// select. Stages are listed here and loaded one at a time; the save file keeps the player's level,
-// gear and stage unlocks between stages and between sessions.
+// Campaign (narrative bible §7), Ape Escape style: main menu → the hub room → walk up to the
+// console → stage select → briefing → stage → results → back in the hub. Stages are listed here
+// and loaded one at a time; the save file keeps the player's level, gear and stage unlocks between
+// stages and between sessions.
 
 // A stage: what the select screen and briefing show, how it's won, and load/unload hooks that
 // build and tear down its world, so only the current stage exists in the scene. A stage unlocks
@@ -13,7 +14,7 @@ const STAGES = [
     env: 'The desert test arena, standing in until the first real stage is built.',
     objective: 'Clear 5 waves. The 5th is a boss wave.',
     waves: 5, ready: true, preview: 'snapshot',
-    load() {}, unload() {}, // the arena is the world built at boot
+    load() { switchWorld('arena'); }, unload() {}, // the arena is the world built at boot
   },
   { id: 'stage-2', title: 'Stage 2', subtitle: 'Not built yet', ready: false },
   { id: 'stage-3', title: 'Stage 3', subtitle: 'Not built yet', ready: false },
@@ -79,7 +80,7 @@ function showMainMenu() {
 function continueGame() {
   SFX.init();
   restorePlayer(campaign.save.player);
-  showStageSelect();
+  enterHub();
 }
 function newGame() {
   // a second tap within 3 s confirms erasing an existing save
@@ -93,16 +94,56 @@ function newGame() {
   campaign.save = freshSave();
   resetPlayer();
   savePlayer();
+  enterHub();
+}
+
+// The hub: walk around, use the console to pick a stage.
+function enterHub() {
+  if (campaign.stage) campaign.stage.unload();
+  campaign.stage = null;
+  clearStageWorld();
+  switchWorld('hub');
+  readyPlayer(HUB.spawn);
+  Object.assign(game, { mode: 'hub', phase: 'hub', wave: 0, toSpawn: [] });
+  refreshHubScreens();
+  hud.reset();
+  game.state = 'play';
+  show(null);
+  lockPointer();
+  hud.log('Walk up to the console to pick a stage.', '#ffd23a');
+  savePlayer();
+}
+function resumeHub() {
+  game.state = 'play';
+  show(null);
+  lockPointer();
+}
+// Opened from the hub console.
+function openStageSelect() {
+  if (document.pointerLockElement) document.exitPointerLock();
+  input.fire = false;
   showStageSelect();
 }
 
-function stagePreview(st) {
-  if (st.preview !== 'snapshot') return '';
+// A stage's picture: for the arena, a snapshot rendered from above (the arena is swapped in just
+// for the shot, then the hub is put back).
+function stagePreviewUrl(st) {
+  if (st.preview !== 'snapshot') return null;
   if (!campaign.previewUrl) {
-    try { renderer.render(scene, camera); campaign.previewUrl = renderer.domElement.toDataURL('image/jpeg', 0.7); } catch (e) { return ''; }
+    const back = WORLD.id, c = renderer.domElement;
+    try {
+      switchWorld('arena');
+      const cam = new THREE.PerspectiveCamera(50, c.width / c.height, 0.5, 700);
+      cam.position.set(46, 20, 26); cam.lookAt(0, 3, 0);
+      sun.position.set(0, 0, 0).addScaledVector(SUN_DIR, 80); sun.target.position.set(0, 0, 0);
+      renderer.render(scene, cam);
+      campaign.previewUrl = c.toDataURL('image/jpeg', 0.7);
+    } catch (e) { /* no preview */ }
+    switchWorld(back);
   }
-  return `url("${campaign.previewUrl}")`;
+  return campaign.previewUrl;
 }
+function stagePreview(st) { const u = stagePreviewUrl(st); return u ? `url("${u}")` : ''; }
 function stageState(i) {
   const st = STAGES[i], rec = campaign.save.stages[st.id];
   if (!stageUnlocked(i)) return 'locked';
@@ -114,6 +155,7 @@ const STATE_LABEL = { locked: 'LOCKED', dev: 'IN DEVELOPMENT', open: 'UNLOCKED',
 function showStageSelect() {
   game.state = 'menu';
   if (document.pointerLockElement) document.exitPointerLock();
+  refreshHubScreens();
   const grid = $('stageGrid');
   grid.textContent = '';
   STAGES.forEach((st, i) => {
@@ -169,6 +211,7 @@ function startStage(i) {
   if (campaign.stage && campaign.stage !== STAGES[i]) campaign.stage.unload();
   campaign.stage = STAGES[i];
   campaign.stage.load();
+  game.mode = 'stage';
   campaign.runT = 0;
   player.stats = { kills: 0, crits: 0, shots: 0, damage: 0 };
   startGame();
@@ -216,9 +259,9 @@ function fmtTime(t) { const m = Math.floor(t / 60), s = Math.floor(t % 60); retu
 
 $('btnContinue').addEventListener('click', continueGame);
 $('btnNew').addEventListener('click', newGame);
-$('btnStagesBack').addEventListener('click', showMainMenu);
+$('btnStagesBack').addEventListener('click', resumeHub);
 $('btnBriefBack').addEventListener('click', showStageSelect);
 $('btnBriefGo').addEventListener('click', () => startStage(campaign.stageIdx));
-$('btnResDone').addEventListener('click', showStageSelect);
-// keep mid-stage progress if the tab is closed or the phone locks
-document.addEventListener('visibilitychange', () => { if (document.hidden && campaign.save && campaign.save.player && campaign.stage && game.state !== 'menu') savePlayer(); });
+$('btnResDone').addEventListener('click', enterHub);
+// keep progress if the tab is closed or the phone locks
+document.addEventListener('visibilitychange', () => { if (document.hidden && campaign.save && campaign.save.player && game.mode !== 'menu') savePlayer(); });

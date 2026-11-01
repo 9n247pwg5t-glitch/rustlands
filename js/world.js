@@ -183,6 +183,8 @@ function addOutline(mesh, scale) {
 // ---------------------------------------------------------------------------
 // Terrain: a dusty basin ringed by cliffs.
 const ARENA_R = 84;          // playable radius
+// The active world (see "Worlds" below): its id, flat floor height (null = the arena's terrain) and bounds.
+const WORLD = { id: 'arena', flat: null, bounds: { r: ARENA_R } };
 const WORLD_SIZE = 300, SEG = 150;
 const CELL = WORLD_SIZE / SEG;
 function rawHeight(x, z) {
@@ -224,7 +226,9 @@ const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshToonMaterial({ vertexCo
 terrain.receiveShadow = true;
 scene.add(terrain);
 
-function groundAt(x, z) {
+// Ground height: the arena's terrain, or the active world's flat floor (see WORLD below).
+function groundAt(x, z) { return WORLD.flat != null ? WORLD.flat : terrainAt(x, z); }
+function terrainAt(x, z) {
   const fx = (x + WORLD_SIZE / 2) / CELL, fz = (z + WORLD_SIZE / 2) / CELL;
   const ix = clamp(Math.floor(fx), 0, SEG - 1), iz = clamp(Math.floor(fz), 0, SEG - 1);
   const tx = clamp(fx - ix, 0, 1), tz = clamp(fz - iz, 0, 1);
@@ -483,6 +487,44 @@ function buildVending(x, z, rot, kind) {
 })();
 
 // ---------------------------------------------------------------------------
+// Worlds. Each place the player can be (the arena, the hub room) owns its scene objects,
+// colliders, interactables, floor and bounds; switching swaps them in and out whole, so only the
+// current one is in the scene. While a world is active its colliders and interactables live in
+// boxCols / sphCols / interactables, which the rest of the game reads.
+const worlds = {
+  arena: {
+    objects: scene.children.filter((o) => o !== camera && !o.isLight && o !== sun.target),
+    box: [], sph: [], inter: [], flat: null, bounds: { r: ARENA_R },
+    fog: scene.fog, background: FOG_COLOR, light: { hemi: hemi.intensity, sun: sun.intensity },
+  },
+};
+// Build another world: `build(group)` adds its meshes to `group` and its colliders and
+// interactables through the usual helpers; the arena's stay untouched.
+function defineWorld(id, def, build) {
+  const keep = [boxCols.splice(0), sphCols.splice(0), interactables.splice(0)];
+  const group = new THREE.Group();
+  group.visible = false;
+  scene.add(group);
+  build(group);
+  worlds[id] = Object.assign({ objects: [group], box: boxCols.splice(0), sph: sphCols.splice(0), inter: interactables.splice(0) }, def);
+  boxCols.push(...keep[0]); sphCols.push(...keep[1]); interactables.push(...keep[2]);
+  return worlds[id];
+}
+function switchWorld(id) {
+  if (id === WORLD.id) return;
+  const cur = worlds[WORLD.id], next = worlds[id];
+  cur.box = boxCols.splice(0); cur.sph = sphCols.splice(0); cur.inter = interactables.splice(0);
+  for (const o of cur.objects) o.visible = false;
+  boxCols.push(...next.box); sphCols.push(...next.sph); interactables.push(...next.inter);
+  for (const o of next.objects) o.visible = true;
+  WORLD.id = id; WORLD.flat = next.flat; WORLD.bounds = next.bounds;
+  scene.fog = next.fog; scene.background = next.background;
+  hemi.intensity = next.light.hemi; sun.intensity = next.light.sun;
+}
+// A world's live box colliders, whether or not it's the active one (barrels respawn on a timer).
+const worldBoxCols = (id) => (WORLD.id === id ? boxCols : worlds[id].box);
+
+// ---------------------------------------------------------------------------
 // Ray tests. Directions are unit vectors; return distance or Infinity.
 function rayBox(ox, oy, oz, dx, dy, dz, c) {
   let tmin = 0, tmax = Infinity;
@@ -527,6 +569,11 @@ function rayTerrain(o, d, maxD) {
   }
   return Infinity;
 }
+function rayFlat(o, d, maxD) {
+  if (d.y >= 0) return Infinity;
+  const t = (WORLD.flat - o.y) / d.y;
+  return t >= 0 && t < maxD ? t : Infinity;
+}
 // returns {t, barrel}
 function rayWorld(o, d, maxD) {
   let best = maxD, barrel = null;
@@ -538,7 +585,7 @@ function rayWorld(o, d, maxD) {
     const t = raySphere(o.x, o.y, o.z, d.x, d.y, d.z, s.x, s.y, s.z, s.r);
     if (t < best) { best = t; barrel = null; }
   }
-  const tt = rayTerrain(o, d, best);
+  const tt = WORLD.flat != null ? rayFlat(o, d, best) : rayTerrain(o, d, best);
   if (tt < best) { best = tt; barrel = null; }
   return { t: best, barrel: barrel && barrel.alive ? barrel : null };
 }
@@ -585,8 +632,9 @@ function collideBody(p, radius, height, vy = 0) {
       p.x += dx * k; p.z += dz * k;
     }
   }
-  const r = Math.hypot(p.x, p.z);
-  if (r > ARENA_R) { p.x *= ARENA_R / r; p.z *= ARENA_R / r; }
+  const B = WORLD.bounds;
+  if (B.r) { const r = Math.hypot(p.x, p.z); if (r > B.r) { p.x *= B.r / r; p.z *= B.r / r; } }
+  else { p.x = clamp(p.x, B.minX, B.maxX); p.z = clamp(p.z, B.minZ, B.maxZ); }
   return ground;
 }
 

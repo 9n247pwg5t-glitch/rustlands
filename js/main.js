@@ -3,16 +3,18 @@
 // The campaign around it (menus, stage list, save file) is in stages.js.
 
 const game = {
-  state: 'menu', wave: 0, phase: 'intermission', interT: 0,
+  state: 'menu', mode: 'menu', wave: 0, phase: 'intermission', interT: 0,
   toSpawn: [], spawnT: 0, enemyLevel: 1, chest: null, shakeAmt: 0, hitstop: 0,
   waveStartKills: 0, waveTotal: 0, waveKilled: 0,
 
   waveLabel() {
+    if (this.mode === 'hub') return 'HUB';
     if (this.phase === 'complete') return 'STAGE CLEARED';
     const of = campaign.stage ? '/' + campaign.stage.waves : '';
     return this.wave === 0 ? 'GET READY' : (this.wave % 5 === 0 ? 'BOSS WAVE ' : 'WAVE ') + this.wave + of;
   },
   waveSub() {
+    if (this.mode === 'hub') return 'Use the console to pick a stage';
     if (this.phase === 'complete') return 'Extraction in ' + Math.ceil(campaign.extractT) + 's' + (IS_TOUCH ? ' · pause to leave now' : ' · N to leave now');
     if (this.phase === 'intermission') return 'Next wave in ' + Math.ceil(this.interT) + 's' + (IS_TOUCH ? '' : ' · N to start now');
     const left = this.waveTotal - this.waveKilled;
@@ -253,6 +255,7 @@ function updateInteraction(dt) {
   }
   for (const v of interactables) {
     if (v.pos.distanceTo(player.center()) < 2.6) {
+      if (v.kind === 'stages') { focus = { kind: 'stages' }; hud.showPrompt(`${USE_KEY}Stage select`); return; }
       const cost = v.kind === 'ammo' ? ammoRefillCost() : healCost();
       focus = { kind: v.kind, cost };
       const what = v.kind === 'ammo' ? 'Refill ammo' : 'Heal to full';
@@ -264,7 +267,7 @@ function updateInteraction(dt) {
 }
 const useBtn = $('useBtn');
 function updateUseButton() {
-  const label = !focus ? '' : focus.kind === 'drop' ? 'TAKE' : focus.kind === 'chest' ? 'OPEN' : focus.cost > 0 ? 'BUY' : '';
+  const label = !focus ? '' : focus.kind === 'drop' ? 'TAKE' : focus.kind === 'chest' ? 'OPEN' : focus.kind === 'stages' ? 'STAGES' : focus.cost > 0 ? 'BUY' : '';
   useBtn.hidden = !label;
   if (label && useBtn.textContent !== label) useBtn.textContent = label;
 }
@@ -272,6 +275,7 @@ function interact() {
   if (!focus || player.downed) return;
   if (focus.kind === 'drop') pickupItem(focus.d);
   else if (focus.kind === 'chest') openChest();
+  else if (focus.kind === 'stages') openStageSelect();
   else if (focus.kind === 'ammo' || focus.kind === 'health') {
     if (focus.cost <= 0) return;
     if (player.cash < focus.cost) { SFX.deny(); hud.log('Not enough cash', '#ff6a5a'); return; }
@@ -424,17 +428,22 @@ function clearStageWorld() {
   if (turret.active) { turret.active = false; scene.remove(turret.group); }
   if (game.chest) { scene.remove(game.chest.group); game.chest = null; }
 }
+// Put the player at a spot with full health and a fresh weapon state, keeping their gear.
+function readyPlayer(at) {
+  player.alive = true; player.downed = false; player.invuln = 1;
+  player.reloadT = 0; player.swapT = 0; player.fireCd = 0; player.burstLeft = 0; player.skillCd = 0;
+  player.hp = player.maxHp; player.shield = player.shieldMax();
+  respawnAt(at);
+  setViewmodel();
+  camera.fov = baseFov(); camera.updateProjectionMatrix();
+}
 // Start (or restart) the current stage with the player's current gear, at full health.
 function startGame() {
   SFX.init();
   clearStageWorld();
-  player.alive = true; player.downed = false; player.invuln = 1;
-  player.reloadT = 0; player.swapT = 0; player.fireCd = 0; player.burstLeft = 0; player.skillCd = 0;
-  player.hp = player.maxHp; player.shield = player.shieldMax();
-  respawnAt(new THREE.Vector3(0, 0, 12));
-  setViewmodel();
-  Object.assign(game, { wave: 0, phase: 'intermission', interT: 6, toSpawn: [], waveTotal: 0, waveKilled: 0, enemyLevel: 1 });
-  camera.fov = baseFov(); camera.updateProjectionMatrix();
+  readyPlayer(new THREE.Vector3(0, 0, 12));
+  hud.reset();
+  Object.assign(game, { mode: 'stage', wave: 0, phase: 'intermission', interT: 6, toSpawn: [], waveTotal: 0, waveKilled: 0, enemyLevel: 1 });
   game.state = 'play';
   show(null);
   lockPointer();
@@ -448,6 +457,10 @@ function pauseGame() {
   input.fire = false;
   if (IS_TOUCH) setAds(false); else input.ads = false;
   if (document.pointerLockElement) document.exitPointerLock(); // the menu needs the cursor
+  const hub = game.mode === 'hub';
+  $('btnRestart').hidden = $('btnLeave').hidden = hub;
+  $('btnMainMenu').hidden = !hub;
+  $('pauseNote').textContent = hub ? 'Your progress is saved.' : 'Leaving keeps your level, cash and gear.';
   show('pause');
 }
 function resumeGame() {
@@ -483,6 +496,7 @@ $('btnRestart').addEventListener('click', startGame);
 $('btnLeave').addEventListener('click', leaveStage);
 $('btnRespawn').addEventListener('click', respawn);
 $('btnLeave2').addEventListener('click', leaveStage);
+$('btnMainMenu').addEventListener('click', () => { savePlayer(); game.mode = 'menu'; showMainMenu(); });
 $('btnMute').addEventListener('click', () => { $('btnMute').textContent = SFX.toggleMute() ? 'Sound: off' : 'Sound: on'; });
 $('pauseBtn').addEventListener('click', pauseGame);
 
@@ -720,7 +734,9 @@ function update(dt) {
   if (input.keys.ArrowUp) input.lookDY -= 600 * dt;
   if (input.keys.ArrowDown) input.lookDY += 600 * dt;
   applyLook(dt);
-  navUpdate(player.pos, dt);
+  const hub = game.mode === 'hub';
+  if (hub) { input.fire = false; input.firePressed = false; } // no shooting in the hub
+  else navUpdate(player.pos, dt);
 
   const { moving, sprint } = updatePlayer(dt);
   if (game.state !== 'play') return;
@@ -737,8 +753,7 @@ function update(dt) {
   updateDrops(dt);
   updateFx(dt);
   updateRigCorpses(dt);
-  updateWaves(dt);
-  campaign.runT += dt;
+  if (!hub) { updateWaves(dt); campaign.runT += dt; }
   updateInteraction(dt);
   if (IS_TOUCH) { updateUseButton(); updateWheelButton(); }
   if (game.chest) {
@@ -753,6 +768,16 @@ function update(dt) {
 
 let menuT = 0;
 function updateMenu(dt) {
+  if (WORLD.id === 'hub') {
+    // the main menu looks over the hub; menus opened in the hub keep the player's view
+    if (!screens.menu.hidden) {
+      menuT += dt;
+      camera.position.set(3.2 + Math.sin(menuT * 0.2) * 0.6, 2.1, 3.6);
+      camera.lookAt(0, 1.5, -7);
+    }
+    updateFx(dt);
+    return;
+  }
   menuT += dt * 0.05;
   camera.position.set(Math.cos(menuT) * 48, 18, Math.sin(menuT) * 48);
   camera.lookAt(0, 4, 0);
@@ -776,11 +801,12 @@ function frame(now) {
 }
 
 // boot
+switchWorld('hub');
 showMainMenu();
 (function waitForRigs() {
   const btn = $('btnBriefGo');
   btn.disabled = true; btn.textContent = 'LOADING…';
-  const ready = () => { btn.disabled = false; btn.textContent = 'DEPLOY'; campaign.previewUrl = null; };
+  const ready = () => { btn.disabled = false; btn.textContent = 'DEPLOY'; };
   const fallback = setTimeout(ready, 15000);
   loadRigs().then(() => { clearTimeout(fallback); ready(); });
 })();

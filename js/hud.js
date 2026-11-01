@@ -74,6 +74,8 @@ const hud = (() => {
       el.card.hidden = false;
     },
     clearTarget() { target = null; },
+    // drop banners, log lines and prompts left over from the last place (entering a stage or the hub)
+    reset() { bannerT = 0; el.banner.hidden = true; logs.length = 0; el.log.textContent = ''; el.prompt.hidden = true; el.card.hidden = true; },
 
     update(dt) {
       // --- DOM

@@ -354,7 +354,7 @@
   <div class="panel wide">
     <h2>STAGE SELECT</h2>
     <div id="stageGrid" class="stage-grid"></div>
-    <div class="row"><button class="btn alt" id="btnStagesBack">MAIN MENU</button></div>
+    <div class="row"><button class="btn alt" id="btnStagesBack">BACK</button></div>
   </div>
 </div>
 
@@ -382,7 +382,7 @@
   <div class="panel">
     <h2 id="resTitle">STAGE COMPLETE</h2>
     <div id="resStats" class="res-stats"></div>
-    <div class="row"><button class="btn" id="btnResDone">STAGE SELECT</button></div>
+    <div class="row"><button class="btn" id="btnResDone">RETURN TO HUB</button></div>
   </div>
 </div>
 
@@ -393,9 +393,10 @@
       <button class="btn" id="btnResume">RESUME</button>
       <button class="btn alt" id="btnRestart">RESTART STAGE</button>
       <button class="btn alt" id="btnLeave">LEAVE STAGE</button>
+      <button class="btn alt" id="btnMainMenu" hidden>MAIN MENU</button>
       <button class="btn alt" id="btnMute">Sound: on</button>
     </div>
-    <div class="note">Leaving keeps your level, cash and gear.</div>
+    <div class="note" id="pauseNote">Leaving keeps your level, cash and gear.</div>
   </div>
 </div>
 
@@ -422,4 +423,5 @@
 <script src="js/player.js"></script>
 <script src="js/hud.js"></script>
 <script src="js/stages.js"></script>
+<script src="js/hub.js"></script>
 <script src="js/main.js"></script>
