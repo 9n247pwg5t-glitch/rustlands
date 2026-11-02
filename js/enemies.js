@@ -682,11 +682,12 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     const next = a.hits[Math.min(e.atkHit, a.hits.length - 1)];
     const toHit = e.atkHit < a.hits.length ? axeTimeTo(a, t, next) : -1;
     const sinceHit = e.atkHit > 0 ? (t - a.hits[e.atkHit - 1]) / RIG_ATK_TS : 9;
-    // stalk after a target that backs off during the wind-up, then a quick step into the blow just
-    // before it lands, planted after
-    if (toHit > 0 && toHit < 0.32) _want.copy(fwd).multiplyScalar(clamp((dist - 1.25) / Math.max(toHit, 0.1), 0, 9));
-    else if (toHit > 0 && dist > 2) _want.copy(fwd).multiplyScalar(Math.min(3, (dist - 2) * 3));
-    else _want.set(0, 0, 0);
+    // the attack clips keep their feet planted, so they don't travel during a swing: just a short
+    // step into the blow as it lands. A target that got away during the wind-up is chased on foot
+    // instead of swung at.
+    if (e.atkHit === 0 && toHit > 0.25 && dist > 3.6) { e.state = 'move'; e.chained = false; e.attackCd = 0.15; return false; }
+    if (toHit > 0 && toHit < 0.25 && e.rig.freezeT <= 0) _want.copy(fwd).multiplyScalar(clamp((dist - 1.25) / Math.max(toHit, 0.1), 0, 3));
+    else { _want.set(0, 0, 0); e.vel.x *= 0.5; e.vel.z *= 0.5; }
     // track the target while winding up, then commit to the swing (a sidestep can dodge it)
     e.faceLock = (toHit >= 0 && toHit < 0.16) || sinceHit < 0.3;
     while (e.atkHit < a.hits.length && t >= a.hits[e.atkHit]) {
@@ -754,8 +755,9 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     const curve = e.direct && dist > 5 && tv < 2.5 && e.slot == null ? 0.55 * e.orbitDir : 0;
     const zig = ai === 'suicide' && e.direct ? Math.sin(e.t * 2.3) * 0.45 : 0;
     _want.copy(_lead).addScaledVector(side, curve + zig).normalize().multiplyScalar(sp);
-    if (dist < (e.rig && ai === 'melee' ? 3.0 : 2.0) && e.attackCd <= 0) {
+    if (dist < (e.rig && ai === 'melee' ? 2.7 : 2.0) && e.attackCd <= 0) {
       e.state = 'swing'; e.stateT = 0.32; e.attackCd = 0.8;
+      e.vel.x *= 0.15; e.vel.z *= 0.15; // plant the feet for the swing
       if (e.rig && ai === 'melee') startRigAttack(e);
       else if (e.rig) e.state = 'move';
     } else if (e.rig && ai === 'melee' && e.direct && dist > 4 && dist < 10 && e.dashCd <= 0 && e.grounded) {
