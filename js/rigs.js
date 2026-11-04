@@ -43,12 +43,14 @@ const RIG_LOOKS = {
 
 // Weapon models (glTF as .json, vertex coloured; barrel or blade toward +Z, up +Y, metres). The
 // sockets are where the hand grips it and where shots leave. `size` scales the model in the fist.
-const GUN_FILES = { pistol: 'gun-pistol', rifle: 'gun-rifle', shotgun: 'gun-shotgun', axe: 'gun-axe' };
+const GUN_FILES = { pistol: 'gun-pistol', rifle: 'gun-rifle', shotgun: 'gun-shotgun', axe: 'gun-axe', ringmaster: 'player-ar' };
 const GUN_SOCKETS = {
   pistol: { grip: [0, -0.035, -0.052], muzzle: [0, 0.034, 0.282], size: 0.9 },
   rifle: { grip: [0, -0.03, -0.042], muzzle: [0, 0.046, 0.66], size: 0.8 },
   shotgun: { grip: [0, -0.01, -0.03], muzzle: [0.004, 0.045, 0.668], size: 0.8 },
   axe: { grip: [0, 0, 0], size: 0.85, edge: [0, 0.571, 0.246], inner: [0, 0.16, 0.02] },
+  // the player's assault rifle; `optic` is the eye point behind its sight
+  ringmaster: { grip: [0, -0.034, -0.038], muzzle: [0, 0.06, 0.618], optic: [0, 0.113, -0.06], size: 1 },
 };
 // Paint variations: hue turns (radians) applied to the painted parts only (greys, whites and metal stay)
 const GUN_HUES = [0, 0, 0.7, 2.2, 3.4, 4.3, 5.2];
@@ -517,6 +519,32 @@ function rigGun(kind, left = false) {
     w.position.set(-0.07 * sx, -0.05, 0);
   }
   return { group: g, inner: w, muzzle, blade };
+}
+// A weapon model for the player (in first person or dropped in the world), in buildGunModel's
+// frame: barrel down -Z, grip at the origin. userData.optic is the sight's eye point (for aiming
+// down the sights) and userData.mag the magazine (animated on reloads). Null until it's loaded.
+const _modelOutlines = new Map();
+function buildModelGun(kind, ol) {
+  const src = RIG.guns[kind], sock = GUN_SOCKETS[kind];
+  if (!src || !sock) return null;
+  let outline = _modelOutlines.get(ol);
+  if (!outline) { outline = rigOutlineMaterial(ol); outline.skinning = false; _modelOutlines.set(ol, outline); }
+  const gun = src.clone();
+  const meshes = [];
+  gun.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  for (const o of meshes) {
+    if (o.material.transparent || o.material.opacity < 1) { o.material = new THREE.MeshBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.16, depthWrite: false }); continue; }
+    o.material = gunMaterial(o.material, 0);
+    o.castShadow = true;
+    o.add(new THREE.Mesh(o.geometry, outline));
+  }
+  const g = new THREE.Group(), w = new THREE.Group();
+  g.add(w); w.add(gun);
+  w.rotation.y = Math.PI; // the model's barrel points +Z
+  gun.position.fromArray(sock.grip).multiplyScalar(-1);
+  if (sock.optic) { const e = new THREE.Object3D(); e.position.fromArray(sock.optic); gun.add(e); g.userData.optic = e; }
+  g.userData.mag = gun.getObjectByName('Magazine') || null;
+  return g;
 }
 function rigArmor() {
   const g = new THREE.Group();

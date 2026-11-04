@@ -72,6 +72,8 @@ const LEGENDARY = {
 const levelScale = (lvl) => Math.pow(1.13, lvl - 1);
 
 let _itemId = 1;
+// The starting assault rifle uses the uploaded Ringmaster HA15 model (the name comes with the model).
+const STARTER_AR = { model: 'ringmaster', name: 'Ringmaster HA15' };
 function genGun(level, opts = {}) {
   const type = opts.type || weighted([['pistol', 24], ['smg', 18], ['ar', 20], ['shotgun', 16], ['sniper', 12], ['launcher', 6]]);
   const mfrKey = opts.mfr || pick(Object.keys(MFR).filter((k) => MFR[k].types.includes(type)));
@@ -162,6 +164,7 @@ function genShield(level, opts = {}) {
 // ---------------------------------------------------------------------------
 // 3D gun model. Barrel points down -Z, grip at origin.
 function buildGunModel(g, ol = 0.012) {
+  if (g.model) { const m = buildModelGun(g.model, ol); if (m) return m; } // a real model when it has one
   const M = MFR[g.mfr];
   const main = M.colors[0], acc = M.colors[1];
   const root = new THREE.Group();

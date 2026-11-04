@@ -14,6 +14,8 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
   - Weapon model nicknames: Honkmaker, Calliope, Sad Sack, Punchline (README; the model files'
     own node names).
   - Legendary weapon names and flavour text (`LEGENDARY` in `js/loot.js`).
+  - The starting assault rifle is named "Ringmaster HA15", the name its uploaded model came with
+    (`STARTER_AR` in `js/loot.js`).
 - **Borderlands-owned names.** Must be replaced before any public release (bible: take structure
   and feel, not protected names):
   - Gun manufacturers Jakobs, Maliwan, Torgue, Vladof, Tediore, Hyperion, Dahl and their signature

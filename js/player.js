@@ -107,6 +107,7 @@ function resetPlayer() {
   });
   player.weapons[0] = genGun(1, { type: 'pistol', mfr: 'dahl', rarity: 0 });
   player.weapons[1] = genGun(1, { type: 'ar', mfr: 'vladof', rarity: 0, element: 'none' });
+  Object.assign(player.weapons[1], STARTER_AR);
   player.shieldItem = genShield(1, { rarity: 0, kind: 'standard' });
   player.recomputeMaxHp();
   player.hp = player.maxHp;

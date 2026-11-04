@@ -51,6 +51,8 @@ function restorePlayer(p) {
   player.weapons = [0, 1, 2, 3].map((i) => (p.weapons && p.weapons[i]) || null);
   if (!player.gun()) player.cur = player.weapons.findIndex(Boolean);
   player.shieldItem = p.shieldItem || player.shieldItem;
+  // saves from before the starter rifle had its model: the plain level-1 Vladof rifle gets it
+  for (const w of player.weapons) if (w && !w.model && w.type === 'ar' && w.mfr === 'vladof' && w.rarity === 0 && w.level === 1) Object.assign(w, STARTER_AR);
   Object.assign(player.ammo, p.ammo);
   // new items must not reuse the ids of saved ones
   for (const it of [...player.weapons, player.shieldItem]) if (it && it.id >= _itemId) _itemId = it.id + 1;

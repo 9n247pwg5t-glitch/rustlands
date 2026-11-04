@@ -23,9 +23,6 @@ function buildFpArms() {
   const bone = (n) => model.getObjectByName('mixamorig' + n);
   FP.hand = bone('RightHand');
   FP.head = bone('Head');
-  // the gun mount sits in the right fist (pinned in the bind pose, like the enemies' guns)
-  FP.mount = new THREE.Group();
-  pinToBone(FP.hand, FP.mount, 1, handAlign(FP.hand));
   FP.holder = new THREE.Group();
   FP.holder.add(model);
   FP.pivot = new THREE.Group(); // at the eye: sway, recoil and the tilt turn the rig around it
@@ -37,6 +34,21 @@ function buildFpArms() {
   vmScene.add(FP.pivot);
   fpPlay('Rifle Aiming Idle', 1, 0);
   FP.mixer.update(0);
+  // The gun mount, set up in the aiming pose itself: grip in the fist, barrel along the body's
+  // forward and its top up; every other clip then carries it with the hand.
+  FP.pivot.updateMatrixWorld(true);
+  const hq = FP.hand.getWorldQuaternion(new THREE.Quaternion());
+  const hs = FP.hand.getWorldScale(new THREE.Vector3()).x;
+  const want = model.getWorldQuaternion(new THREE.Quaternion()).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)); // gun -Z to the body's +Z
+  FP.mount = new THREE.Group();
+  FP.mount.quaternion.copy(hq.clone().invert().multiply(want));
+  const finger = FP.hand.children.find((c) => c.isBone && /Middle1/.test(c.name)) || FP.hand.children.find((c) => c.isBone);
+  const hp = FP.hand.getWorldPosition(new THREE.Vector3());
+  const grip = finger ? finger.getWorldPosition(new THREE.Vector3()).sub(hp).multiplyScalar(0.55) : new THREE.Vector3();
+  grip.y -= 0.03; // the grip sits in the curl of the fingers, a little below the knuckles
+  FP.mount.position.copy(grip.applyQuaternion(hq.clone().invert()).divideScalar(hs));
+  FP.mount.scale.setScalar(1 / hs);
+  FP.hand.add(FP.mount);
   // the player doesn't see their own head: it's shrunk to nothing (the clips only rotate bones)
   FP.head.scale.setScalar(0.001);
   FP.ready = true;
@@ -46,12 +58,14 @@ function buildFpArms() {
 // Where the eyes are in the holder's frame for the current pose: the head bone's position plus a
 // fixed offset (up and forward in the body's frame, not the head's, so the view doesn't wobble).
 const _fe = new THREE.Vector3(), _fq = new THREE.Quaternion();
+// (in the pivot's frame, which is what the holder is positioned in)
 function fpEye(out) {
   FP.holder.position.set(0, 0, 0); FP.holder.rotation.set(0, 0, 0);
-  FP.holder.updateMatrixWorld(true);
+  FP.pivot.updateMatrixWorld(true);
   FP.head.getWorldPosition(out);
   FP.model.getWorldQuaternion(_fq);
-  return out.add(_fe.copy(FP_EYE).applyQuaternion(_fq));
+  FP.pivot.worldToLocal(out.add(_fe.copy(FP_EYE).applyQuaternion(_fq)));
+  return out;
 }
 
 // Crossfade to a clip: looping, or once over `dur` seconds from clip time t0 to t1.
@@ -78,10 +92,11 @@ function fpSetGun(g) {
   const m = buildGunModel(g, 0.006);
   m.scale.setScalar(0.85);
   w.add(m);
-  w.rotation.y = Math.PI / 2;
-  w.position.set(-0.07, -0.035, 0);
   FP.mount.add(w);
   FP.muzzleRef = m;
+  FP.optic = m.userData.optic || null;
+  FP.mag = m.userData.mag || null;
+  if (FP.mag) FP.magY = FP.mag.position.y;
 }
 
 // Per frame: pick the clip for what the player is doing, then lay the procedural motion on top.
@@ -96,10 +111,18 @@ function fpUpdate(dt, o) {
   FP.mixer.update(dt);
   // the camera rides the head: keep the eyes on the viewmodel camera however the body leans
   const eye = fpEye(FP.eyeNow || (FP.eyeNow = new THREE.Vector3()));
-  // aiming down the sights: slide the rig so the gun sits on the centre line
+  // aiming down the sights: slide the rig so the gun sits on the centre line (a gun with an optic:
+  // its sight's eye point a little in front of the eye)
   if (player.adsK > 0 && FP.mount.children.length) {
-    FP.mount.getWorldPosition(_fe).sub(eye);
-    FP.adsOff.set(-_fe.x, -_fe.y - 0.075, -0.14); // and out from the eye a little, so it doesn't fill the view
+    if (FP.optic) { FP.pivot.worldToLocal(FP.optic.getWorldPosition(_fe)).sub(eye); FP.adsOff.set(-_fe.x, -_fe.y, -0.13 - _fe.z); }
+    else { FP.pivot.worldToLocal(FP.mount.getWorldPosition(_fe)).sub(eye); FP.adsOff.set(-_fe.x, -_fe.y - 0.075, -0.14); } // and out from the eye a little, so it doesn't fill the view
+  }
+  // reloading a gun with a magazine: it drops out, a fresh one comes up
+  if (FP.mag) {
+    const r = player.reloadT > 0 ? 1 - player.reloadT / player.reloadDur : 1;
+    const d = r < 0.2 ? r / 0.2 : r < 0.55 ? 1 : r < 0.8 ? 1 - (r - 0.55) / 0.25 : 0;
+    FP.mag.position.y = FP.magY - d * 0.3;
+    FP.mag.visible = d < 0.99;
   }
   FP.holder.position.copy(eye).negate().addScaledVector(FP.adsOff, player.adsK);
   FP.pivot.position.set(o.x, o.y, o.z);
