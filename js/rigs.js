@@ -50,7 +50,7 @@ const GUN_SOCKETS = {
   shotgun: { grip: [0, -0.01, -0.03], muzzle: [0.004, 0.045, 0.668], size: 0.8 },
   axe: { grip: [0, 0, 0], size: 0.85, edge: [0, 0.571, 0.246], inner: [0, 0.16, 0.02] },
   // the player's assault rifle; `optic` is the eye point behind its sight
-  ringmaster: { grip: [0, -0.034, -0.038], muzzle: [0, 0.06, 0.618], optic: [0, 0.113, -0.06], size: 1 },
+  ringmaster: { grip: [0, -0.034, -0.038], foregrip: [0, -0.01, 0.312], muzzle: [0, 0.06, 0.618], optic: [0, 0.113, -0.06], size: 1 },
 };
 // Paint variations: hue turns (radians) applied to the painted parts only (greys, whites and metal stay)
 const GUN_HUES = [0, 0, 0.7, 2.2, 3.4, 4.3, 5.2];
