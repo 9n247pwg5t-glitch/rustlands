@@ -129,6 +129,7 @@ function setViewmodel() {
   if (vm.gun) vm.root.remove(vm.gun);
   vm.gun = null;
   const g = player.gun();
+  if (FP.ready) { fpSetGun(g); player.swapT = g ? 0.35 : 0; return; } // the gun goes in the first-person arms
   if (!g) return;
   vm.gun = buildGunModel(g, 0.008);
   // a gloved hand on the grip
@@ -149,8 +150,9 @@ function muzzleWorld() {
   return camera.position.clone().addScaledVector(_fwd, 0.75).addScaledVector(_right, 0.2 * (1 - k)).addScaledVector(_up, -0.16 + k * 0.06);
 }
 
-function updateViewmodel(dt, moving) {
+function updateViewmodel(dt, moving, sprint) {
   const g = player.gun();
+  if (FP.ready) { updateFpView(dt, moving, sprint, g); return; }
   if (!vm.gun || !g) return;
   const k = player.adsK;
   const sniperScope = g.type === 'sniper' && k > 0.85;
@@ -179,6 +181,25 @@ function updateViewmodel(dt, moving) {
   if (player.downed) { y -= 0.04; rz -= 0.25; }
   vm.root.position.set(x, y, z);
   vm.root.rotation.set(rx, ry, rz);
+}
+// The first-person arms get the same bob, look sway, recoil, weapon-swap dip and melee jab as the
+// floating gun did, as offsets around the eye; reloading, sprinting and throwing are animated.
+function updateFpView(dt, moving, sprint, g) {
+  const k = player.adsK;
+  const sniperScope = g && g.type === 'sniper' && k > 0.85;
+  FP.holder.visible = !sniperScope;
+  vmScope.hidden = !sniperScope;
+  const bobAmt = moving && player.grounded && !sprint ? 1 : 0;
+  const o = { x: Math.sin(player.bob) * 0.01 * bobAmt * (1 - k * 0.8), y: -Math.abs(Math.cos(player.bob)) * 0.01 * bobAmt * (1 - k * 0.8), z: 0, rx: 0, ry: 0, rz: 0, moving, sprint };
+  o.ry += clamp(input.lookDX * 0.0012, -0.06, 0.06);
+  o.rx += clamp(input.lookDY * 0.0012, -0.06, 0.06);
+  o.z += player.vmKick * 0.05; o.rx += player.vmKick * 0.06;
+  player.vmKick = Math.max(0, player.vmKick - dt * 8);
+  if (player.reloadT > 0 && g && g.tediore) { const p = 1 - player.reloadT / player.reloadDur; o.y -= p < 0.5 ? 0.4 : (1 - p) * 0.8; }
+  if (player.swapT > 0) o.y -= player.swapT * 0.8;
+  if (player.meleeT > 0) { const s = Math.sin((1 - player.meleeT / 0.35) * Math.PI); o.z -= s * 0.2; o.ry += s * 0.35; }
+  if (player.downed) { o.y -= 0.05; o.rz -= 0.25; }
+  fpUpdate(dt, o);
 }
 
 // ---------------------------------------------------------------------------
@@ -378,6 +399,7 @@ function throwTediore(g) {
 
 function throwGrenade() {
   if (game.mode === 'hub') return; // no fighting in the hub
+  if (FP.ready && player.grenades > 0) FP.throwT = 0.75;
   if (player.grenades <= 0 || !player.alive || player.downed) { if (player.grenades <= 0) hud.log('No grenades', '#ff6a5a'); return; }
   player.grenades--;
   camBasis();

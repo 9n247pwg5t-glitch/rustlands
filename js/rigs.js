@@ -28,6 +28,7 @@ const RIG_FILES = {
   heavy: 'male-psychosis-top-heavy',
   gangster: 'gangster-clown',
   brute: 'brute',
+  fp: 'fp-arms', // the player's own first-person arms (js/fparms.js), not an enemy body
 };
 // Per enemy type: which bodies, and the gear pinned to the bones. The characters are shown as
 // authored; `cloth` (optional) would dye the dark parts of their clothes.
@@ -126,7 +127,7 @@ function loadRigs() {
       try { RIG.base[names[i]] = prepareRigBase(r.value); } catch (e) { console.warn('Enemy model unusable:', RIG_FILES[names[i]], e); }
     });
     // a type whose bodies all failed falls back to any loaded body
-    const loaded = Object.keys(RIG.base);
+    const loaded = Object.keys(RIG.base).filter((n) => n !== 'fp');
     for (const look of Object.values(RIG_LOOKS)) {
       look.bases = look.bases.filter((b) => RIG.base[b]);
       if (!look.bases.length) look.bases = loaded.slice();

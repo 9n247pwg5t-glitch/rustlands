@@ -30,6 +30,7 @@ It also works on GitHub Pages: turn Pages on for the `main` branch.
 - **Shields.** Equippable shields come in Standard, Tortoise, Nova and Snapback types.
 - **Item cards.** Each item shows its stats compared with what you have equipped.
 - **Enemies.** There are Bandits, Marauders (with shields), Psychos, Suicide Psychos and Badass Nomads. Every 5th wave adds a boss, **Krag the Scrapjaw**, who has ground slams, rocket barrages and charges.
+- **First-person arms.** You see your own arms (an uploaded Mixamo character in a hoodie, head hidden, camera riding its head) holding the current gun: an aiming idle that breathes, the rifle run when sprinting, a two-handed reload, the grenade throw, plus bob, look sway, recoil and aiming down the sights.
 - **Combat feedback.** Every enemy shot flashes a comic-book starburst at the muzzle (camera-facing, gone in 70 ms). Damage numbers pop off enemies, headshots score critical hits, and enemies fall apart when they die.
 - **Fight For Your Life.** When your health hits zero you go down. Kill an enemy before the timer runs out to get a Second Wind.
 - **Action skill.** You can deploy a turret. You also have grenades, a melee attack and explosive barrels.
@@ -73,6 +74,7 @@ models/        character models (glTF as .json + WebP textures) and enemy-anims.
 tools/         scripts that convert Mixamo FBX characters and animations into models/
 vendor/        three.js GLTFLoader and SkeletonUtils (r128)
 js/player.js   movement, weapons, viewmodel, projectiles, turret
+js/fparms.js   first-person arms: the player's Mixamo body seen from its eyes, playing the shared clips
 js/hud.js      HUD and overlay canvas (damage numbers, compass, hit markers)
 js/stages.js   campaign: stage list, save file, main menu, stage select, briefing, results
 js/hub.js      the hub room between stages: TV wall showing the stages, console that opens stage select

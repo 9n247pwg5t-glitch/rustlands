@@ -742,7 +742,7 @@ function update(dt) {
   if (game.state !== 'play') return;
   updateCamera(dt, moving, sprint);
   updateWeapon(dt);
-  updateViewmodel(dt, moving);
+  updateViewmodel(dt, moving, sprint);
   updateTurret(dt);
   tacticsFrame(dt);
   for (const e of enemies) if (e.alive) updateEnemy(e, dt);
@@ -808,7 +808,7 @@ showMainMenu();
   btn.disabled = true; btn.textContent = 'LOADING…';
   const ready = () => { btn.disabled = false; btn.textContent = 'DEPLOY'; };
   const fallback = setTimeout(ready, 15000);
-  loadRigs().then(() => { clearTimeout(fallback); ready(); });
+  loadRigs().then(() => { clearTimeout(fallback); buildFpArms(); ready(); });
 })();
 $('ctlDesktop').hidden = IS_TOUCH;
 $('ctlTouch').hidden = !IS_TOUCH;
