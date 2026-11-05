@@ -1,6 +1,13 @@
 'use strict';
 // Enemies: models, AI, damage, death and explosions.
 
+// Difficulty knobs (2026-11-05: the game should be more challenging). Applied to every enemy and wave.
+const DIFFICULTY = {
+  hp: 1.25, dmg: 1.35, // enemy health and damage
+  waveSize: 1.25, levelPerWave: 1.0, maxAlive: 2, // bigger waves, faster-rising enemy levels, more at once
+  healthDrop: 0.055, healCost: 1.4, // fewer health drops, dearer healing
+};
+
 const ENEMY_DEFS = {
   bandit: { name: 'Bandit', body: 'human', hp: 52, shield: 0, hpType: 'flesh', speed: 4.4, xp: 10, ai: 'ranged', dmg: 6, burst: 4, burstGap: 0.14, cd: [0.9, 1.7], projSpeed: 80, spread: 0.05, range: [9, 24], scale: 1, look: { shirt: 0xb3753a, pants: 0x4a3b2e, skin: 0xe0a77a, mask: 0xe8e2d0, weapon: 'gun' } },
   marauder: { name: 'Marauder', body: 'human', hp: 58, shield: 45, hpType: 'flesh', speed: 4.2, xp: 16, ai: 'ranged', dmg: 7, burst: 5, burstGap: 0.11, cd: [1.0, 1.8], projSpeed: 88, spread: 0.045, range: [10, 26], scale: 1.05, look: { shirt: 0x3f5b7a, pants: 0x2e2e33, skin: 0xd09a72, mask: 0x30302c, weapon: 'gun', goggles: true } },
@@ -93,10 +100,10 @@ function spawnEnemy(key, level, pos) {
     dodgeCd: rand(2, 4), dashCd: rand(1, 3), tauntCd: rand(4, 8), dashDir: new THREE.Vector3(), dashSpeed: 0,
     pos: pos.clone(), vel: new THREE.Vector3(), vy: 0, grounded: true,
     yaw: Math.atan2(-pos.x, -pos.z),
-    maxHp: def.hp * sc, maxShield: def.shield * sc,
+    maxHp: def.hp * sc * DIFFICULTY.hp, maxShield: def.shield * sc * DIFFICULTY.hp,
     hpType: def.hpType, alive: true,
     radius: 0.42 * def.scale, height: 1.85 * def.scale,
-    dmgScale: Math.pow(1.11, level - 1),
+    dmgScale: Math.pow(1.11, level - 1) * DIFFICULTY.dmg,
     t: rand(0, 10), fireCd: rand(1, 2.5), burstLeft: 0, burstT: 0, attackCd: 0.5,
     strafeDir: Math.random() < 0.5 ? -1 : 1, strafeT: 0, state: 'move', stateT: 0,
     dots: [], dotTick: 0, sinceHit: 99, lastSeenPlayer: 0, flash: 0, yellT: rand(2, 6),

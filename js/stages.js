@@ -22,12 +22,23 @@ const STAGES = [
 
 // ---------------------------------------------------------------------------
 // Save file (this browser's localStorage; reading or writing can fail, e.g. in private browsing)
-const SAVE_KEY = 'rustlands.save.v1';
+// v2: the arsenal (rifle, pistol, axe) with mods and skills. A v1 save (gun loot) is migrated:
+// level, XP, cash, grenades and stage records carry over, with a skill point for every level gained.
+const SAVE_KEY = 'rustlands.save.v2', OLD_SAVE_KEY = 'rustlands.save.v1';
 const campaign = { save: null, stage: null, stageIdx: -1, runT: 0, extractT: 0, previewUrl: null, newGameArmed: 0 };
 
-function freshSave() { return { v: 1, player: null, stages: {} }; }
+function freshSave() { return { v: 2, player: null, stages: {} }; }
 function readSave() {
-  try { const d = JSON.parse(localStorage.getItem(SAVE_KEY)); return d && d.v === 1 ? d : null; } catch (e) { return null; }
+  try {
+    const d = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (d && d.v === 2) return d;
+    const o = JSON.parse(localStorage.getItem(OLD_SAVE_KEY));
+    if (o && o.v === 1) {
+      const p = o.player;
+      return { v: 2, stages: o.stages || {}, player: p && { level: p.level, xp: p.xp, cash: p.cash, grenades: p.grenades, cur: 0, ammo: {}, mods: { ar: {}, melee: {} }, skills: {}, skillPoints: Math.max(0, p.level - 1) } };
+    }
+  } catch (e) { /* storage unavailable */ }
+  return null;
 }
 function writeSave() {
   if (!campaign.save) return false;
@@ -36,26 +47,27 @@ function writeSave() {
 const stageRecord = (id) => campaign.save.stages[id] || (campaign.save.stages[id] = { completed: false, clears: 0, bestWave: 0 });
 const stageUnlocked = (i) => i === 0 || !!(campaign.save.stages[STAGES[i - 1].id] || {}).completed;
 
-// The player's persistent state: progression, gear and supplies (all plain data).
+// The player's persistent state: progression, mods, skills and supplies (all plain data).
 function snapshotPlayer() {
   return {
-    level: player.level, xp: player.xp, cash: player.cash, cur: player.cur, grenades: player.grenades,
-    weapons: player.weapons, shieldItem: player.shieldItem, ammo: player.ammo,
+    level: player.level, xp: player.xp, cash: player.cash, cur: player.cur, grenades: player.grenades, ammo: player.ammo,
+    mods: player.mods, skills: player.skills, skillPoints: player.skillPoints,
+    mags: player.weapons.map((w) => w.inMag),
   };
 }
 function savePlayer() { campaign.save.player = JSON.parse(JSON.stringify(snapshotPlayer())); return writeSave(); }
 function restorePlayer(p) {
   resetPlayer();
   if (!p) return;
-  Object.assign(player, { level: p.level, xp: p.xp, cash: p.cash, cur: p.cur || 0, grenades: p.grenades });
-  player.weapons = [0, 1, 2, 3].map((i) => (p.weapons && p.weapons[i]) || null);
-  if (!player.gun()) player.cur = player.weapons.findIndex(Boolean);
-  player.shieldItem = p.shieldItem || player.shieldItem;
-  // saves from before the starter rifle had its model: the plain level-1 Vladof rifle gets it
-  for (const w of player.weapons) if (w && !w.model && w.type === 'ar' && w.mfr === 'vladof' && w.rarity === 0 && w.level === 1) Object.assign(w, STARTER_AR);
+  Object.assign(player, { level: p.level, xp: p.xp, cash: p.cash, cur: p.cur || 0, grenades: p.grenades, skillPoints: p.skillPoints || 0 });
+  player.mods = { ar: Object.assign({}, p.mods && p.mods.ar), melee: Object.assign({}, p.mods && p.mods.melee) };
+  player.skills = Object.assign({}, p.skills);
   Object.assign(player.ammo, p.ammo);
   // new items must not reuse the ids of saved ones
-  for (const it of [...player.weapons, player.shieldItem]) if (it && it.id >= _itemId) _itemId = it.id + 1;
+  for (const m of [...Object.values(player.mods.ar), ...Object.values(player.mods.melee)]) if (m && m.id >= _itemId) _itemId = m.id + 1;
+  player.shieldItem = levelShield();
+  buildWeapons();
+  if (p.mags) player.weapons.forEach((w, i) => { if (p.mags[i] != null && !w.melee) w.inMag = Math.min(p.mags[i], w.mag); });
   player.recomputeMaxHp();
   player.hp = player.maxHp;
   player.shield = player.shieldMax();

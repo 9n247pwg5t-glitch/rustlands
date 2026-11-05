@@ -45,15 +45,19 @@ const player = {
     while (this.xp >= this.xpNeeded()) {
       this.xp -= this.xpNeeded();
       this.level++;
+      this.skillPoints++;
+      this.shieldItem = levelShield();
+      buildWeapons();
       this.recomputeMaxHp();
       this.hp = this.maxHp; this.shield = this.shieldMax();
-      hud.banner('LEVEL UP!', 'Level ' + this.level + ' · Max health ' + this.maxHp);
+      hud.banner('LEVEL UP!', 'Level ' + this.level + ' · +1 skill point · ' + (IS_TOUCH ? 'tap ★' : 'K') + ' to spend it');
       SFX.levelUp();
       burst(this.center(), 0xffd23a, 30, 6, 0.12, 1, -0.2, true);
     }
   },
   hurt(amount, srcPos, elem) {
     if (!this.alive || this.invuln > 0 || game.state !== 'play') return;
+    amount *= damageTakenScale();
     if (srcPos) hud.hurtFrom(srcPos);
     if (this.downed) return;
     let rem = amount;
@@ -99,16 +103,16 @@ const player = {
 function resetPlayer() {
   Object.assign(player, {
     level: 1, xp: 0, cash: 0, hp: 100, maxHp: 100, shield: 0, shieldDelayT: 0,
-    weapons: [null, null, null, null], cur: 0,
-    ammo: { pistol: 120, smg: 60, ar: 180, shotgun: 16, sniper: 6, rocket: 0 },
+    weapons: [], cur: 0,
+    ammo: { ar: 180, pistol: 72 },
     grenades: 3, alive: true, downed: false, downT: 0, invuln: 1,
-    reloadT: 0, swapT: 0, fireCd: 0, burstLeft: 0, skillCd: 0, hyperSpin: 0,
+    reloadT: 0, swapT: 0, fireCd: 0, burstLeft: 0, skillCd: 0, hyperSpin: 0, meleeT: 0, meleeCd: 0,
     stats: { kills: 0, crits: 0, shots: 0, damage: 0 },
+    // the arsenal (js/arsenal.js): rifle, pistol and axe, built from level, mods and skills
+    mods: { ar: {}, melee: {} }, skills: {}, skillPoints: 0, buffs: {},
   });
-  player.weapons[0] = genGun(1, { type: 'pistol', mfr: 'dahl', rarity: 0 });
-  player.weapons[1] = genGun(1, { type: 'ar', mfr: 'vladof', rarity: 0, element: 'none' });
-  Object.assign(player.weapons[1], STARTER_AR);
-  player.shieldItem = genShield(1, { rarity: 0, kind: 'standard' });
+  buildWeapons();
+  player.shieldItem = levelShield();
   player.recomputeMaxHp();
   player.hp = player.maxHp;
   player.shield = player.shieldMax();
@@ -178,7 +182,7 @@ function updateViewmodel(dt, moving, sprint) {
     else { y -= s * 0.12; rx -= s * 0.6; rz += s * 0.5; }
   }
   if (player.swapT > 0) y -= player.swapT * 1.0;
-  if (player.meleeT > 0) { const s = Math.sin((1 - player.meleeT / 0.35) * Math.PI); z -= s * 0.25; x -= s * 0.12; ry += s * 0.6; }
+  if (player.meleeT > 0) { const s = Math.sin((1 - player.meleeT / (player.meleeDur || 0.35)) * Math.PI); z -= s * 0.25; x -= s * 0.12; ry += s * 0.6; }
   if (player.downed) { y -= 0.04; rz -= 0.25; }
   vm.root.position.set(x, y, z);
   vm.root.rotation.set(rx, ry, rz);
@@ -198,7 +202,7 @@ function updateFpView(dt, moving, sprint, g) {
   player.vmKick = Math.max(0, player.vmKick - dt * 8);
   if (player.reloadT > 0 && g && g.tediore) { const p = 1 - player.reloadT / player.reloadDur; o.y -= p < 0.5 ? 0.4 : (1 - p) * 0.8; }
   if (player.swapT > 0) o.y -= player.swapT * 0.8;
-  if (player.meleeT > 0) { const s = Math.sin((1 - player.meleeT / 0.35) * Math.PI); o.z -= s * 0.2; o.ry += s * 0.35; }
+  if (player.meleeT > 0 && !(g && g.melee)) { const s = Math.sin((1 - player.meleeT / (player.meleeDur || 0.35)) * Math.PI); o.z -= s * 0.2; o.ry += s * 0.35; } // a gun-butt jab; the axe swing is animated
   if (player.downed) { o.y -= 0.05; o.rz -= 0.25; }
   fpUpdate(dt, o);
 }
@@ -207,7 +211,7 @@ function updateFpView(dt, moving, sprint, g) {
 // Weapons
 function spreadFor(g) {
   let s = g.spread;
-  s *= lerp(1, 0.4, player.adsK);
+  s *= lerp(1, 0.4 / (g.adsAcc || 1), player.adsK);
   const sp = Math.hypot(player.vel.x, player.vel.z);
   if (sp > 1) s *= 1 + sp / 14;
   if (!player.grounded) s *= 1.6;
@@ -222,7 +226,7 @@ function randomCone(fwd, deg) {
 
 function startReload() {
   const g = player.gun();
-  if (!g || player.reloadT > 0 || player.swapT > 0 || g.special === 'infinite') return;
+  if (!g || g.melee || player.reloadT > 0 || player.swapT > 0 || g.special === 'infinite') return;
   if (g.inMag >= g.mag) return;
   if (player.ammo[g.ammo] <= 0) { hud.log('Out of ' + AMMO_LABEL[g.ammo] + ' ammo', '#ff6a5a'); SFX.empty(); return; }
   player.burstLeft = 0;
@@ -245,8 +249,9 @@ function switchWeapon(i) {
   setViewmodel();
 }
 function cycleWeapon(dir) {
-  for (let k = 1; k <= 4; k++) {
-    const i = (player.cur + dir * k + 8) % 4;
+  const n = player.weapons.length;
+  for (let k = 1; k <= n; k++) {
+    const i = (player.cur + dir * k + n * 2) % n;
     if (player.weapons[i]) { switchWeapon(i); return; }
   }
 }
@@ -293,6 +298,7 @@ function fireOnce(g) {
   for (const [e, h] of hits) {
     const wasShield = e.shield > 0;
     const dealt = damageEnemy(e, h.dmg, g.element, { crit: h.crit, fromPlayer: true, lifesteal: g.special === 'lifesteal', dir: fwd });
+    if (!e.alive) onPlayerKill(g.id);
     player.stats.damage += dealt;
     if (h.crit) player.stats.crits++;
     if (h.procs && e.alive) applyDot(e, g.element, g.elemDps);
@@ -317,6 +323,9 @@ function updateWeapon(dt) {
   const g = player.gun();
   player.fireCd -= dt;
   player.meleeCd -= dt; player.meleeT -= dt;
+  updateBuffs(dt);
+  // an axe swing lands a beat after it starts
+  if (player.meleeT > 0 && !player.meleeHit && player.meleeDur - player.meleeT >= player.meleeHitT) { player.meleeHit = true; resolveMeleeHit(); }
   if (player.swapT > 0) player.swapT -= dt;
   if (player.reloadT > 0) { player.reloadT -= dt; if (player.reloadT <= 0) finishReload(); }
   vmFlash.intensity = Math.max(0, vmFlash.intensity - dt * 30);
@@ -329,6 +338,7 @@ function updateWeapon(dt) {
     if (g.regenT > 0.35) { g.regenT = 0; if (g.inMag < g.mag) g.inMag++; }
   }
   if (player.reloadT > 0 || player.swapT > 0 || player.meleeT > 0) return;
+  if (g.melee) { if (input.fire || player.triggerQueue > 0) { player.triggerQueue = 0; meleeSwing(); } return; }
   if (g.inMag <= 0 && g.special !== 'infinite' && player.ammo[g.ammo] > 0 && !input.fire) { startReload(); return; }
   if (player.fireCd > 0) return;
   const dahlBurst = g.burstAds && player.adsK > 0.6;
@@ -347,32 +357,8 @@ function updateWeapon(dt) {
   } else player.fireCd = 1 / g.rate;
 }
 
-function doMelee() {
-  if (game.mode === 'hub') return; // no fighting in the hub
-  if (player.meleeCd > 0 || !player.alive || player.downed) return;
-  player.meleeCd = 0.8; player.meleeT = 0.35;
-  SFX.swing();
-  camBasis();
-  const dmg = 45 * levelScale(player.level);
-  const c = new THREE.Vector3();
-  setTimeout(() => {
-    for (const e of enemies) {
-      if (!e.alive) continue;
-      enemyCenter(e, c);
-      const d = c.clone().sub(camera.position);
-      const dist = d.length();
-      if (dist > 2.6 + e.radius) continue;
-      d.normalize();
-      if (d.dot(_fwd) < 0.45) continue;
-      damageEnemy(e, dmg, 'none', { fromPlayer: true, dir: _fwd.clone() });
-      e.vel.addScaledVector(_fwd, 9);
-      hud.hitMarker(false, !e.alive);
-      SFX.hit(false);
-      game.shake(0.15);
-    }
-  }, 90);
-}
-
+// Quick melee from any weapon: an axe swing.
+function doMelee() { meleeSwing(); }
 // ---------------------------------------------------------------------------
 // Player projectiles: gyrojets, rockets, grenades, thrown Tediore guns, bomblets
 const playerProj = [];

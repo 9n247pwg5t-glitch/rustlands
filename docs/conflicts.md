@@ -18,8 +18,9 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
     (`STARTER_AR` in `js/loot.js`).
 - **Borderlands-owned names.** Must be replaced before any public release (bible: take structure
   and feel, not protected names):
-  - Gun manufacturers Jakobs, Maliwan, Torgue, Vladof, Tediore, Hyperion, Dahl and their signature
-    mechanics as described (`MFR` in `js/loot.js`, README).
+  - Gun manufacturers Jakobs, Maliwan, Torgue, Vladof, Tediore, Hyperion, Dahl remain in the code
+    (`MFR` in `js/loot.js`) only to colour the fallback block-built gun models; players no longer
+    see them. The gun-loot code that used them (`genGun`, legendary guns) is unused.
   - Enemy terms "Psycho", "Badass", "Marauder", "Nomad"; the downed-state banner "Fight For Your
     Life" / "Second Wind" (`js/player.js`, README).
 
@@ -56,10 +57,14 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
 
 ## Gameplay items the bible lists as OPEN but the build already fixes (§6)
 
-These exist in the prototype; they need confirming or replacing, not silently keeping:
-- Weapon types (pistol, SMG, assault rifle, shotgun, sniper, rocket launcher), rarity tiers
-  (Common → Legendary), elements (fire, shock, corrosive), shields.
-- XP curve and levelling, the deployable-turret action skill, grenades, melee.
+The arsenal and loot model are now decided (decisions.md, 2026-11-05). Still open or placeholder:
+- Mod slots (rifle: barrel, magazine, optic, stock; axe: head, handle, charm), mod stat ranges,
+  rarity tiers (Common → Legendary) and elements (fire, shock, corrosive) are first-pass choices.
+- Skill names (Hollow Points, Steady Hands, Deep Pockets, Fast Hands, Trigger Happy, Headhunter,
+  Overdrive; Heavy Swings, Bloodthirst, Quick Swings, Thick Skin, Executioner, Cleave, Berserk),
+  their effects, tiers (levels 5 and 10) and every number are placeholders (`js/arsenal.js`).
+- Difficulty values (`DIFFICULTY` in `js/enemies.js`), the XP curve, the shield scaling with level.
+- The deployable-turret action skill and grenades are still in, outside the two skill trees.
 - Weapon switching UI (the touch weapon wheel).
 
 ## Controls (§10)

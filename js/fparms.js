@@ -115,6 +115,7 @@ function fpSetGun(g) {
   m.scale.setScalar(FP_GUN_SCALE);
   FP.mount.add(m);
   FP.muzzleRef = m;
+  FP.axe = !!g.melee;
   FP.optic = m.userData.optic || null;
   FP.mag = m.userData.mag || null;
   if (FP.mag) FP.magY = FP.mag.position.y;
@@ -123,6 +124,28 @@ function fpSetGun(g) {
   FP.foreZ = sock && sock.foregrip ? -(sock.foregrip[2] - sock.grip[2]) * FP_GUN_SCALE : (FP_FOREGRIP[g.type] || -0.28) * FP_GUN_SCALE;
   // the sight line for aiming: the optic's eye point, or just over the top of the gun
   FP.sight = FP.optic ? null : new THREE.Vector3(0, 0.1 * FP_GUN_SCALE, -0.05);
+}
+
+// The axe: held up and forward at rest; a swing winds up and back, strikes down and across, recovers.
+const AXE_REST = [0.2, -0.3, -0.42, -0.45, 0.25, -0.15]; // x, y, z, pitch, yaw, roll
+const AXE_KEYS = [
+  [0, AXE_REST],
+  [0.35, [0.24, -0.16, -0.36, 0.55, 0.35, -0.45]], // wound up: raised and cocked back
+  [0.58, [-0.06, -0.4, -0.55, -1.5, 0.05, 0.85]], // through the strike, down and across
+  [1, AXE_REST],
+];
+function fpAxePose(p, e) {
+  let v = AXE_REST;
+  if (player.meleeT > 0) {
+    const t = 1 - player.meleeT / player.meleeDur;
+    let i = 0; while (i < AXE_KEYS.length - 2 && t > AXE_KEYS[i + 1][0]) i++;
+    const [t0, a] = AXE_KEYS[i], [t1, b] = AXE_KEYS[i + 1];
+    let u = clamp((t - t0) / (t1 - t0), 0, 1);
+    u = i === 1 ? u * u : u * u * (3 - 2 * u); // the strike accelerates
+    v = a.map((x, j) => x + (b[j] - x) * u);
+  }
+  p.set(v[0], v[1], v[2]);
+  e.set(v[3], v[4], v[5]);
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +257,8 @@ function fpUpdate(dt, o) {
   // reload: the gun tips over towards the player, magazine side out
   _gp.copy(FP_HIP).add(_ads.set(0.03, -0.03, 0.04).multiplyScalar(FP.sprintK)).add(_ads.set(0.04, -0.45, 0.1).multiplyScalar(FP.throwK)).add(_ads.set(-0.04, 0.03, 0.04).multiplyScalar(FP.reloadK));
   _ge.set(-0.22 * FP.sprintK - 0.5 * FP.throwK + 0.18 * FP.reloadK, FP_TOE + 0.12 * FP.sprintK, 0.22 * FP.sprintK + 0.55 * FP.reloadK);
-  if (k > 0 && FP.mount.children.length) {
+  if (FP.axe) fpAxePose(_gp, _ge);
+  else if (k > 0 && FP.mount.children.length) {
     // the optic's eye point (or the sight line) a hand's width in front of the eye
     if (FP.optic) { FP.mount.updateMatrixWorld(true); _ads.copy(FP.optic.getWorldPosition(_ads)); FP.mount.worldToLocal(_ads); }
     else _ads.copy(FP.sight);
@@ -259,6 +283,12 @@ function fpUpdate(dt, o) {
   _m4.multiplyMatrices(gun, FP.relR);
   _m4.decompose(_T, _gq, _ads);
   fpReach(FP.arm.Right, _T.clone(), _gq.clone(), FP.ikR, _poleR);
+  if (FP.axe) {
+    // the free hand hangs down out of view
+    FP.arm.Left.hand.getWorldQuaternion(_gq);
+    fpReach(FP.arm.Left, new THREE.Vector3(-0.3, -0.75, 0.0), _gq.clone(), 1, _poleL);
+    return;
+  }
   fpGripLeft(gun);
   // reloading: the left hand goes down to the magazine, pulls it out and pushes a fresh one in
   if (FP.reloadK > 0.01) {

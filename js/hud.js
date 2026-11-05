@@ -29,7 +29,7 @@ const hud = (() => {
   const el = {
     wave: $('waveLabel'), waveSub: $('waveSub'), cash: $('cash'),
     shieldFill: $('shieldFill'), shieldTxt: $('shieldTxt'), hpFill: $('hpFill'), hpTxt: $('hpTxt'),
-    xpFill: $('xpFill'), lvl: $('lvl'),
+    xpFill: $('xpFill'), lvl: $('lvl'), sp: $('skillBtn'),
     gunName: $('gunName'), gunSub: $('gunSub'), mag: $('ammoMag'), pool: $('ammoPool'), slots: $('slots'), gren: $('grenCount'),
     skill: $('skill'), skillFill: $('skillFill'), skillTxt: $('skillTxt'),
     target: $('target'), tName: $('tName'), tShield: $('tShield'), tHp: $('tHp'),
@@ -87,20 +87,23 @@ const hud = (() => {
       el.hpTxt.textContent = Math.ceil(Math.max(0, p.hp)) + ' / ' + p.maxHp;
       el.xpFill.style.transform = `scaleX(${clamp(p.xp / p.xpNeeded(), 0, 1)})`;
       el.lvl.textContent = p.level;
+      // unspent skill points: a star on the level badge and the skills button
+      const pts = p.skillPoints || 0;
+      if (el.sp.dataset.v !== String(pts)) { el.sp.dataset.v = String(pts); el.sp.textContent = pts ? '★' + pts : '★'; el.sp.classList.toggle('has', pts > 0); }
       el.cash.textContent = '$' + Math.floor(p.cash).toLocaleString();
       const g = p.gun();
       if (g) {
         el.gunName.textContent = g.name;
         el.gunName.style.color = RARITY[g.rarity].css;
-        el.gunSub.innerHTML = `${MFR[g.mfr].name} ${TYPES[g.type].label}${g.element !== 'none' ? ` · <span style="color:${ELEM[g.element].css}">${ELEM[g.element].label}</span>` : ''}`;
-        el.mag.textContent = g.special === 'infinite' ? '∞' : (p.reloadT > 0 ? '··' : g.inMag);
-        el.mag.classList.toggle('empty', g.special !== 'infinite' && g.inMag <= Math.ceil(g.mag * 0.2));
-        el.pool.textContent = p.ammo[g.ammo];
+        el.gunSub.innerHTML = g.element !== 'none' ? `${g.sub.split(' · ')[0]} · <span style="color:${ELEM[g.element].css}">${ELEM[g.element].label}</span>` : g.sub;
+        el.mag.textContent = g.melee ? '⚔' : (p.reloadT > 0 ? '··' : g.inMag);
+        el.mag.classList.toggle('empty', !g.melee && g.inMag <= Math.ceil(g.mag * 0.2));
+        el.pool.textContent = g.melee ? '' : p.ammo[g.ammo];
       }
       let sh = '';
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < p.weapons.length; i++) {
         const w = p.weapons[i];
-        sh += `<div class="slot${i === p.cur ? ' on' : ''}" data-i="${i}" style="${w ? 'border-color:' + RARITY[w.rarity].css : ''}"><span>${i + 1}</span>${w ? TYPES[w.type].label.split(' ')[0] : '—'}</div>`;
+        sh += `<div class="slot${i === p.cur ? ' on' : ''}" data-i="${i}" style="border-color:${RARITY[w.rarity].css}"><span>${i + 1}</span>${w.label}</div>`;
       }
       if (el.slots.dataset.v !== sh) { el.slots.innerHTML = sh; el.slots.dataset.v = sh; }
       el.gren.textContent = p.grenades;
@@ -127,7 +130,7 @@ const hud = (() => {
       } else el.target.hidden = true;
       el.cross.classList.toggle('on-enemy', !!hit);
       if (g) {
-        const px = Math.tan(spreadFor(g) * Math.PI / 180) / Math.tan(camera.fov * Math.PI / 360) * window.innerHeight / 2;
+        const px = Math.tan((g.melee ? 0.6 : spreadFor(g)) * Math.PI / 180) / Math.tan(camera.fov * Math.PI / 360) * window.innerHeight / 2;
         crossKick = Math.max(0, crossKick - dt * 40);
         el.cross.style.setProperty('--gap', (clamp(px, 3, 70) + crossKick) + 'px');
         el.cross.style.opacity = player.adsK > 0.85 && g.type === 'sniper' ? 0 : 1;

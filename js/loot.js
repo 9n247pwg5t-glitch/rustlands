@@ -241,6 +241,22 @@ function buildShieldModel(s) {
   return g;
 }
 
+// A weapon mod on the ground: a small part shaped by its slot, in its rarity colour.
+function buildModModel(it) {
+  const g = new THREE.Group(), c = RARITY[it.rarity].hex, dark = 0x2a2a2e;
+  const shapes = {
+    barrel: () => { cyl(0.05, 0.05, 0.5, dark, 0, 0, 0, g, 0.015, 10).rotation.z = Math.PI / 2; cyl(0.065, 0.065, 0.1, c, 0.2, 0, 0, g, 0.01, 10).rotation.z = Math.PI / 2; },
+    mag: () => { box(0.1, 0.32, 0.18, dark, 0, 0, 0, g, 0.015).rotation.z = 0.15; box(0.11, 0.06, 0.19, c, 0, 0.14, 0, g, 0); },
+    optic: () => { cyl(0.07, 0.07, 0.24, dark, 0, 0, 0, g, 0.015, 12).rotation.z = Math.PI / 2; cyl(0.06, 0.06, 0.02, c, 0.125, 0, 0, g, 0, 12, glow(c)).rotation.z = Math.PI / 2; },
+    stock: () => { box(0.36, 0.14, 0.08, dark, 0, 0, 0, g, 0.015); box(0.08, 0.2, 0.09, c, 0.17, -0.03, 0, g, 0.01); },
+    head: () => { box(0.32, 0.26, 0.05, 0xb8bcc0, 0, 0, 0, g, 0.015); box(0.33, 0.06, 0.06, c, 0, 0.12, 0, g, 0); },
+    handle: () => { cyl(0.035, 0.035, 0.6, 0x6a4a2e, 0, 0, 0, g, 0.012, 8); cyl(0.045, 0.045, 0.16, c, 0, -0.18, 0, g, 0.01, 8); },
+    charm: () => { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.12, 1), glow(c)); addOutline(m, 1.12); g.add(m); },
+  };
+  shapes[it.slot]();
+  return g;
+}
+
 // ---------------------------------------------------------------------------
 // Item cards (HTML)
 function statRow(label, val, cmp, higherBetter = true, fmt = (x) => x) {
@@ -255,6 +271,16 @@ const accuracyOf = (g) => clamp(Math.round(100 - g.spread * 14), 5, 99);
 function itemCardHTML(it, cmp) {
   const R = RARITY[it.rarity];
   let h = `<div class="card-name" style="color:${R.css}">${it.name}</div>`;
+  if (it.kind === 'mod') {
+    const W = it.weapon === 'ar' ? 'Assault rifle' : 'Axe';
+    h += `<div class="card-sub">${W} mod · ${MOD_SLOTS[it.weapon][it.slot].label} · <span style="color:${R.css}">${R.name}</span></div>`;
+    const c = cmp && cmp.kind === 'mod' ? cmp : null;
+    for (const [k, v] of Object.entries(it.stats)) h += statRow(MOD_STATS[k].label, v, c ? c.stats[k] || 0 : null, true, (x) => (k === 'leech' ? '+' + (x * 100).toFixed(1) + '%' : '+' + Math.round(x * 100) + '%'));
+    if (c) for (const k of Object.keys(c.stats)) if (!(k in it.stats)) h += statRow(MOD_STATS[k].label, 0, c.stats[k], true, () => '—');
+    if (it.element !== 'none') { const E = ELEM[it.element]; h += `<div class="card-elem" style="color:${E.css}">◆ ${E.label} · ${Math.round(it.elemChance * 100)}% chance</div>`; }
+    h += `<div class="card-perk">${c ? 'Replaces ' + c.name : 'Fills the empty ' + MOD_SLOTS[it.weapon][it.slot].label.toLowerCase() + ' slot'}</div>`;
+    return h;
+  }
   if (it.kind === 'gun') {
     const c = cmp && cmp.kind === 'gun' ? cmp : null;
     h += `<div class="card-sub">${MFR[it.mfr].name} ${TYPES[it.type].label} · Lv ${it.level} · <span style="color:${R.css}">${R.name}</span></div>`;
@@ -292,7 +318,7 @@ function spawnDrop(kind, pos, data = {}) {
   let color = 0xffffff, beamH = 0;
   if (kind === 'item') {
     const it = d.item;
-    const m = it.kind === 'gun' ? buildGunModel(it, 0.018) : buildShieldModel(it);
+    const m = it.kind === 'gun' ? buildGunModel(it, 0.018) : it.kind === 'mod' ? buildModModel(it) : buildShieldModel(it);
     m.scale.setScalar(it.kind === 'gun' ? 1.5 : 1.2);
     g.add(m); d.model = m;
     color = RARITY[it.rarity].hex; beamH = 2 + it.rarity * 1.4;

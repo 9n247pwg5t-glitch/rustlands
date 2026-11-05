@@ -159,6 +159,25 @@
   .controls b { color: var(--hazard); font-family: var(--display); font-weight: 400; letter-spacing: 0.05em; margin-right: 6px; }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; font: 700 14px/1 var(--body); letter-spacing: 0.06em; text-transform: uppercase; text-shadow: 1px 1px 0 var(--ink); }
   .legend span::before { content: "◆ "; }
+  /* Level bar and skills */
+  #skillBtn { pointer-events: auto; margin-left: 4px; min-width: 34px; height: 30px; padding: 0 6px; font: 18px/1 var(--display); color: var(--paper); background: var(--panel); border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); cursor: pointer; }
+  #skillBtn.has { color: var(--ink); background: var(--hazard); animation: skPulse 1.2s ease-in-out infinite; }
+  @keyframes skPulse { 50% { transform: scale(1.12); } }
+  #skills { background: rgba(28, 17, 10, 0.88); }
+  .trees { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 16px; width: 100%; }
+  .tree { display: grid; gap: 8px; padding: 12px; background: var(--panel); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); text-align: left; }
+  .tree-title { font: 28px/1 var(--display); color: var(--hazard); letter-spacing: 0.05em; text-shadow: 2px 2px 0 var(--ink); }
+  .tier { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; position: relative; padding-top: 6px; border-top: 2px dashed rgba(255, 243, 220, 0.2); }
+  .tier[data-label]:not([data-label=""])::before { content: "Opens at " attr(data-label); position: absolute; right: 0; top: -9px; font: 700 12px/1 var(--body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--hazard); background: var(--ink); padding: 2px 6px; }
+  .skill { pointer-events: auto; display: grid; gap: 3px; text-align: left; padding: 8px 10px; min-height: 44px; color: var(--paper); font: inherit; background: rgba(28, 17, 10, 0.6); border: 2px solid rgba(255, 243, 220, 0.25); cursor: pointer; }
+  .skill.has { border-color: var(--hazard); }
+  .skill.can { border-color: var(--hazard); background: rgba(255, 210, 58, 0.16); }
+  .skill.can:active { transform: translate(2px, 2px); }
+  .skill.locked { opacity: 0.45; }
+  .skill:disabled { cursor: default; }
+  .sk-name { font: 18px/1 var(--display); letter-spacing: 0.05em; color: var(--hazard); }
+  .sk-rank { font: 700 13px/1 var(--body); opacity: 0.85; }
+  .sk-desc { font: 600 14px/1.25 var(--body); opacity: 0.9; }
   #saveLine, .note { font: 600 16px/1.2 var(--body); letter-spacing: 0.06em; opacity: 0.9; text-shadow: 1px 1px 0 var(--ink); }
   .btn:disabled { opacity: 0.6; cursor: default; }
   /* Stage select and briefing */
@@ -239,7 +258,7 @@
     .slot { padding: 10px 12px; font-size: 16px; }
     .br .kit { display: none; }
     .bl { transform: scale(0.85); transform-origin: bottom left; bottom: calc(10px + var(--sab)); }
-    .bc { display: none; }
+    .bc { width: min(320px, 34vw); bottom: calc(6px + var(--sab)); }
     #card { left: calc(12px + var(--sal)); top: 50%; transform: translateY(-50%) scale(0.78); transform-origin: left center; }
     #prompt { top: 56%; }
   }
@@ -299,7 +318,7 @@
     <div class="bar"><div class="fill" id="shieldFill"></div><div class="txt"><i>SHIELD</i><span id="shieldTxt"></span></div></div>
     <div class="bar hp"><div class="fill" id="hpFill"></div><div class="txt"><i>HEALTH</i><span id="hpTxt"></span></div></div>
   </div>
-  <div class="bc"><div id="lvl">1</div><div class="xpbar"><div id="xpFill"></div></div></div>
+  <div class="bc"><div id="lvl">1</div><div class="xpbar"><div id="xpFill"></div></div><button id="skillBtn" aria-label="Skills">★</button></div>
   <div id="xpPop" hidden></div>
   <div class="br">
     <div class="kit">
@@ -386,6 +405,15 @@
   </div>
 </div>
 
+<div id="skills" class="screen" hidden>
+  <div class="panel wide">
+    <h2>SKILLS</h2>
+    <div id="skillPts" class="note"></div>
+    <div id="skillTrees" class="trees"></div>
+    <div class="row"><button class="btn" id="btnSkillsDone">DONE</button></div>
+  </div>
+</div>
+
 <div id="pause" class="screen" hidden>
   <div class="panel">
     <h2>PAUSED</h2>
@@ -393,6 +421,7 @@
       <button class="btn" id="btnResume">RESUME</button>
       <button class="btn alt" id="btnRestart">RESTART STAGE</button>
       <button class="btn alt" id="btnLeave">LEAVE STAGE</button>
+      <button class="btn alt" id="btnPauseSkills">SKILLS</button>
       <button class="btn alt" id="btnMainMenu" hidden>MAIN MENU</button>
       <button class="btn alt" id="btnMute">Sound: on</button>
     </div>
@@ -418,6 +447,7 @@
 <script src="js/util.js"></script>
 <script src="js/world.js"></script>
 <script src="js/loot.js"></script>
+<script src="js/arsenal.js"></script>
 <script src="js/rigs.js"></script>
 <script src="js/enemies.js"></script>
 <script src="js/player.js"></script>

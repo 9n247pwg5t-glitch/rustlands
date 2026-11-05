@@ -39,7 +39,7 @@ const game = {
 function buildWave(w) {
   const list = [];
   const boss = w % 5 === 0;
-  const n = Math.min(6 + Math.floor(w * 2.2), 34);
+  const n = Math.min(Math.round((6 + Math.floor(w * 2.2)) * DIFFICULTY.waveSize), 40);
   const pool = [['bandit', 10], ['psycho', 7], ['marauder', w >= 3 ? 5 : 0], ['suicide', w >= 4 ? 3 : 0]].filter((p) => p[1] > 0);
   for (let i = 0; i < (boss ? Math.floor(n * 0.5) : n); i++) list.push(weighted(pool));
   const badass = w >= 3 ? 1 + Math.floor((w - 3) / 3) : 0;
@@ -50,7 +50,7 @@ function buildWave(w) {
 function startWave() {
   game.wave++;
   game.phase = 'combat';
-  game.enemyLevel = 1 + Math.floor((game.wave - 1) * 0.8);
+  game.enemyLevel = 1 + Math.floor((game.wave - 1) * DIFFICULTY.levelPerWave);
   game.toSpawn = buildWave(game.wave);
   game.waveTotal = game.toSpawn.length; game.waveKilled = 0;
   game.spawnT = 1;
@@ -79,7 +79,7 @@ function updateWaves(dt) {
   }
   const alive = enemies.filter((e) => e.alive).length;
   game.spawnT -= dt;
-  const maxAlive = Math.min(7 + game.wave, 16);
+  const maxAlive = Math.min(7 + game.wave + DIFFICULTY.maxAlive, 18);
   if (game.toSpawn.length && game.spawnT <= 0 && alive < maxAlive) {
     game.spawnT = rand(0.4, 1.0);
     const key = game.toSpawn.shift();
@@ -101,20 +101,20 @@ function dropLoot(e) {
   const p = enemyCenter(e, new THREE.Vector3());
   const lvl = e.level;
   const luck = (e.def.badass ? 0.8 : 0) + game.wave * 0.03;
+  // loot is rifle and axe mods (js/arsenal.js)
   if (e.def.boss) {
-    spawnDrop('item', p, { item: genGun(lvl, { rarity: Math.random() < 0.45 ? 4 : 3 }) });
-    spawnDrop('item', p, { item: genGun(lvl, { luck: 2 }) });
-    spawnDrop('item', p, { item: genShield(lvl, { luck: 2 }) });
+    spawnDrop('item', p, { item: genMod(lvl, { rarity: Math.random() < 0.45 ? 4 : 3 }) });
+    spawnDrop('item', p, { item: genMod(lvl, { luck: 2 }) });
+    spawnDrop('item', p, { item: genMod(lvl, { luck: 2 }) });
     for (let i = 0; i < 6; i++) spawnDrop('cash', p, { amount: Math.round(rand(10, 20) * levelScale(lvl)) });
     for (let i = 0; i < 3; i++) spawnDrop('ammo', p);
     spawnDrop('health', p);
     return;
   }
-  if (Math.random() < (e.def.badass ? 0.75 : 0.15)) spawnDrop('item', p, { item: genGun(lvl, { luck }) });
-  if (Math.random() < (e.def.badass ? 0.3 : 0.035)) spawnDrop('item', p, { item: genShield(lvl, { luck }) });
+  if (Math.random() < (e.def.badass ? 0.8 : 0.1)) spawnDrop('item', p, { item: genMod(lvl, { luck }) });
   if (Math.random() < 0.55) spawnDrop('cash', p, { amount: Math.round(rand(3, 8) * levelScale(lvl) * (e.def.badass ? 4 : 1)) });
   if (Math.random() < 0.38) spawnDrop('ammo', p);
-  if (Math.random() < 0.09) spawnDrop('health', p);
+  if (Math.random() < DIFFICULTY.healthDrop) spawnDrop('health', p);
   if (Math.random() < 0.06) spawnDrop('grenade', p);
 }
 
@@ -149,9 +149,8 @@ function openChest() {
   const p = c.pos.clone(); p.y += 1.2;
   const lvl = Math.max(game.enemyLevel, player.level);
   const luck = c.boss ? 2.5 : 0.4 + game.wave * 0.06;
-  spawnDrop('item', p, { item: genGun(lvl, { luck, rarity: c.boss ? (Math.random() < 0.3 ? 4 : 3) : undefined }) });
-  spawnDrop('item', p, { item: genGun(lvl, { luck }) });
-  if (Math.random() < 0.45) spawnDrop('item', p, { item: genShield(lvl, { luck }) });
+  spawnDrop('item', p, { item: genMod(lvl, { luck, rarity: c.boss ? (Math.random() < 0.3 ? 4 : 3) : undefined }) });
+  spawnDrop('item', p, { item: genMod(lvl, { luck }) });
   for (let i = 0; i < 3; i++) spawnDrop('cash', p, { amount: Math.round(rand(6, 12) * levelScale(lvl)) });
   spawnDrop('ammo', p); spawnDrop('ammo', p); spawnDrop('grenade', p);
 }
@@ -167,7 +166,7 @@ function ammoRefillCost() {
   }
   return Math.ceil(c * levelScale(player.level));
 }
-function healCost() { return Math.ceil((1 - player.hp / player.maxHp) * 45 * levelScale(player.level)); }
+function healCost() { return Math.ceil((1 - player.hp / player.maxHp) * 45 * DIFFICULTY.healCost * levelScale(player.level)); }
 
 function tryAutoPickup(d) {
   if (d.kind === 'cash') { player.cash += d.amount; SFX.cash(); hud.log('+$' + d.amount, '#9fff6a'); return true; }
@@ -189,7 +188,10 @@ function tryAutoPickup(d) {
 
 function pickupItem(d) {
   const it = d.item;
-  if (it.kind === 'gun') {
+  if (it.kind === 'mod') {
+    const old = equipMod(it);
+    if (old) spawnDrop('item', player.pos.clone().setY(player.pos.y + 1), { item: old }).vel.set(0, 3, 0);
+  } else if (it.kind === 'gun') {
     const empty = player.weapons.indexOf(null);
     if (empty >= 0) { player.weapons[empty] = it; if (!player.gun()) { player.cur = empty; setViewmodel(); } }
     else {
@@ -240,11 +242,11 @@ function updateInteraction(dt) {
   }
   if (best) {
     const it = best.item;
-    const cmp = it.kind === 'gun' ? player.gun() : player.shieldItem;
+    const cmp = it.kind === 'mod' ? player.mods[it.weapon][it.slot] : it.kind === 'gun' ? player.gun() : player.shieldItem;
     const full = it.kind === 'gun' && player.weapons.indexOf(null) < 0;
     focus = { kind: 'drop', d: best };
     hud.showCard(it, cmp);
-    hud.showPrompt(`${USE_KEY}${it.kind === 'shield' ? 'Equip shield' : full ? 'Swap for ' + cmp.name : 'Pick up'}`);
+    hud.showPrompt(`${USE_KEY}${it.kind === 'mod' ? (cmp ? 'Swap in this mod' : 'Fit this mod') : it.kind === 'shield' ? 'Equip shield' : full ? 'Swap for ' + cmp.name : 'Pick up'}`);
     return;
   }
   hud.showCard(null);
@@ -411,7 +413,7 @@ function applyLook(dt) {
 
 // ---------------------------------------------------------------------------
 // Screens
-const screens = { menu: $('menu'), stages: $('stages'), brief: $('brief'), results: $('results'), pause: $('pause'), dead: $('dead') };
+const screens = { menu: $('menu'), stages: $('stages'), brief: $('brief'), results: $('results'), pause: $('pause'), dead: $('dead'), skills: $('skills') };
 const MENU_SCREENS = ['menu', 'stages', 'brief', 'results'];
 function show(name) {
   for (const k in screens) screens[k].hidden = k !== name;
@@ -496,6 +498,9 @@ $('btnRestart').addEventListener('click', startGame);
 $('btnLeave').addEventListener('click', leaveStage);
 $('btnRespawn').addEventListener('click', respawn);
 $('btnLeave2').addEventListener('click', leaveStage);
+$('skillBtn').addEventListener('click', openSkills);
+$('btnPauseSkills').addEventListener('click', openSkills);
+$('btnSkillsDone').addEventListener('click', closeSkills);
 $('btnMainMenu').addEventListener('click', () => { savePlayer(); game.mode = 'menu'; showMainMenu(); });
 $('btnMute').addEventListener('click', () => { $('btnMute').textContent = SFX.toggleMute() ? 'Sound: off' : 'Sound: on'; });
 $('pauseBtn').addEventListener('click', pauseGame);
@@ -545,7 +550,7 @@ window.addEventListener('keydown', (e) => {
     case 'Digit1': switchWeapon(0); break;
     case 'Digit2': switchWeapon(1); break;
     case 'Digit3': switchWeapon(2); break;
-    case 'Digit4': switchWeapon(3); break;
+    case 'KeyK': openSkills(); break;
     case 'KeyN': if (game.phase === 'intermission') game.interT = 0; else if (game.phase === 'complete') finishStage(true); break;
     case 'KeyM': $('btnMute').textContent = SFX.toggleMute() ? 'Sound: off' : 'Sound: on'; break;
     case 'KeyP': case 'Escape': pauseGame(); break;
@@ -578,9 +583,9 @@ function fireStart(p) { if (p.decided) return; p.decided = 'fire'; input.fire = 
 // ----- weapon wheel
 function wheelEntries() {
   const out = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < player.weapons.length; i++) {
     const w = player.weapons[i];
-    out.push({ act: 'gun', i, label: w ? TYPES[w.type].label.split(' ')[0] : '—', sub: w ? (w.special === 'infinite' ? '∞' : w.inMag + '/' + player.ammo[w.ammo]) : 'empty', color: w ? RARITY[w.rarity].css : null, off: !w, cur: i === player.cur });
+    out.push({ act: 'gun', i, label: w.label.toUpperCase(), sub: w.melee ? 'melee' : w.inMag + '/' + player.ammo[w.ammo], color: RARITY[w.rarity].css, off: false, cur: i === player.cur });
   }
   out.push({ act: 'gren', label: 'GREN', sub: player.grenades + ' left', off: player.grenades <= 0 });
   const cd = turret.active ? Math.ceil(turret.t) + 's on' : player.skillCd > 0 ? Math.ceil(player.skillCd) + 's' : 'ready';
@@ -628,10 +633,10 @@ function updateWheelButton() {
   if (!g) return;
   $('wbName').textContent = g.name;
   $('wbName').style.color = RARITY[g.rarity].css;
-  $('wbAmmo').textContent = g.special === 'infinite' ? '∞' : player.reloadT > 0 ? '··' : g.inMag;
-  $('wbPool').textContent = player.ammo[g.ammo];
+  $('wbAmmo').textContent = g.melee ? '⚔' : player.reloadT > 0 ? '··' : g.inMag;
+  $('wbPool').textContent = g.melee ? 'melee' : player.ammo[g.ammo];
   wheelBtn.style.borderColor = RARITY[g.rarity].css;
-  wheelBtn.classList.toggle('empty', g.special !== 'infinite' && g.inMag <= Math.ceil(g.mag * 0.2));
+  wheelBtn.classList.toggle('empty', !g.melee && g.inMag <= Math.ceil(g.mag * 0.2));
 }
 
 function touchAct(act, btn) {
