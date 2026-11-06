@@ -19,6 +19,8 @@ const RIG_ATTACKS = [
   { clip: 'Mma Kick 1', w: 0.8, start: 0.3, hits: [0.73], end: 1.2, dmg: [1.2] },
   { clip: 'Roundhouse Kick', w: 0.8, start: 0.45, hits: [1.0], end: 1.5, dmg: [1.4] },
 ];
+// The leap slam (js/enemies.js): the overhead chop, timed so the blow lands as the jump does.
+const RIG_LEAP = { clip: 'Standing Melee Attack Downward', axe: true, start: 0.3, hits: [0.84], end: 1.6, dmg: [1.6], trail: [[0.55, 1.0]] };
 
 // The uploaded characters: game name -> model file.
 const RIG_FILES = {
@@ -795,7 +797,7 @@ function startRigAttack(e, axeOnly = false) {
 // Axe swings are made heavier than the stock clips: the clip's clock is warped around each impact
 // (a slower, longer wind-up and a fast strike), the chest and swinging arm are over-rotated through
 // the strike, and the swing freezes for a moment when it connects.
-const AXE_WINDUP = 0.8, AXE_STRIKE = 1.75, AXE_STRIKE_T = 0.32; // speed before / within this long of an impact
+const AXE_WINDUP = 0.7, AXE_STRIKE = 2.05, AXE_STRIKE_T = 0.3; // speed before / within this long of an impact
 function axeSpeed(atk, t) {
   for (const h of atk.hits) { const d = h - t; if (d > -0.1 && d <= AXE_STRIKE_T) return AXE_STRIKE; if (d > AXE_STRIKE_T) return AXE_WINDUP; }
   return 1;
@@ -806,7 +808,7 @@ function axeTimeTo(atk, t, h) {
   const s = Math.max(0, h - t - AXE_STRIKE_T);
   return (s / AXE_WINDUP + Math.min(h - t, AXE_STRIKE_T) / AXE_STRIKE) / RIG_ATK_TS;
 }
-const AXE_AMP = { Spine: 1.3, Spine1: 1.4, Spine2: 1.4, RightShoulder: 1.3, RightArm: 1.3, RightForeArm: 1.15 };
+const AXE_AMP = { Hips: 1.2, Spine: 1.45, Spine1: 1.55, Spine2: 1.55, Neck: 1.3, RightShoulder: 1.45, RightArm: 1.5, RightForeArm: 1.25, LeftArm: 1.3 };
 const _axeRef = new Map();
 // The bones' rotations at the attack's first frame: the over-rotation pushes away from these.
 function axeRefPose(clip, t) {
@@ -828,7 +830,7 @@ const _aq = new THREE.Quaternion();
 function axeExaggerate(e, R) {
   const a = e.atk, t = rigTime(R);
   let w = 0;
-  for (const h of a.hits) w = Math.max(w, clamp(1 - Math.abs(t - (h - 0.08)) / 0.42, 0, 1));
+  for (const h of a.hits) w = Math.max(w, clamp(1 - Math.abs(t - (h - 0.1)) / 0.5, 0, 1));
   if (w <= 0) return;
   w = w * w * (3 - 2 * w);
   const ref = axeRefPose(R.clips[a.clip], a.start);
@@ -842,7 +844,7 @@ function axeExaggerate(e, R) {
 }
 
 // Axe trail: a fading ribbon swept between the blade's edge and the haft during a swing.
-const TRAIL_N = 16;
+const TRAIL_N = 22;
 const rigTrails = [];
 let _trailIdx = null;
 function rigTrail(R) {
@@ -857,10 +859,10 @@ function rigTrail(R) {
   geo.setAttribute('fade', new THREE.BufferAttribute(new Float32Array(TRAIL_N * 2), 1).setUsage(THREE.DynamicDrawUsage));
   geo.setIndex(_trailIdx);
   const mat = new THREE.ShaderMaterial({
-    uniforms: { color: { value: new THREE.Color(0xfff1d6) } },
+    uniforms: { color: { value: new THREE.Color(0xffe0a0) } },
     vertexShader: 'attribute float fade; varying float vF; void main() { vF = fade; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: 'uniform vec3 color; varying float vF; void main() { gl_FragColor = vec4(color, vF * 0.85); }',
-    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    fragmentShader: 'uniform vec3 color; varying float vF; void main() { gl_FragColor = vec4(mix(color, vec3(1.0), vF * vF) * (0.5 + vF), vF); }',
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.frustumCulled = false;
@@ -869,9 +871,9 @@ function rigTrail(R) {
   rigTrails.push(R.trail);
   return R.trail;
 }
-const _te = new THREE.Vector3(), _ti = new THREE.Vector3();
+const _te = new THREE.Vector3(), _ti = new THREE.Vector3(), _tm = new THREE.Vector3();
 function updateRigTrail(e, R) {
-  const a = e.state === 'swing' && R.one && e.atk && e.atk.trail;
+  const a = (e.state === 'swing' || e.state === 'leap') && R.one && e.atk && e.atk.trail;
   const t = a ? rigTime(R) : 0;
   const on = a && R.blade && e.atk.trail.some(([t0, t1]) => t >= t0 && t <= t1);
   if (!on && !R.trail) return;
@@ -879,6 +881,7 @@ function updateRigTrail(e, R) {
   if (on) {
     R.model.updateMatrixWorld(true);
     R.blade.edge.getWorldPosition(_te); R.blade.inner.getWorldPosition(_ti);
+    _tm.subVectors(_te, _ti); _te.addScaledVector(_tm, 0.35); _ti.addScaledVector(_tm, -0.4); // a wider smear than the blade
     tr.pts.push([_te.x, _te.y, _te.z, _ti.x, _ti.y, _ti.z]);
     if (tr.pts.length > TRAIL_N) tr.pts.shift();
   } else if (tr.pts.length) tr.pts.splice(0, 2); // shrink away from the tail
@@ -917,9 +920,9 @@ function animateRig(e, dt) {
     else if (e.state === 'rockets') rigLoop(R, 'Shoot Rifle', 0);
     else rigLocomotion(e, R, dt);
   }
-  const axe = e.state === 'swing' && R.one && e.atk && e.atk.axe;
+  const axe = (e.state === 'swing' || e.state === 'leap') && R.one && e.atk && e.atk.axe;
   if (R.freezeT > 0) R.freezeT -= dt;
-  if (axe) R.one.action.timeScale = R.freezeT > 0 ? 0 : RIG_ATK_TS * axeSpeed(e.atk, rigTime(R));
+  if (axe && e.state === 'swing') R.one.action.timeScale = R.freezeT > 0 ? 0 : RIG_ATK_TS * axeSpeed(e.atk, rigTime(R));
   R.mixer.update(dt);
   if (axe) axeExaggerate(e, R);
   // gunners hold the rifle up while moving, blended in and out

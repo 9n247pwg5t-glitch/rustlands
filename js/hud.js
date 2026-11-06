@@ -96,20 +96,11 @@ const hud = (() => {
         el.gunName.textContent = g.name;
         el.gunName.style.color = RARITY[g.rarity].css;
         el.gunSub.innerHTML = g.element !== 'none' ? `${g.sub.split(' · ')[0]} · <span style="color:${ELEM[g.element].css}">${ELEM[g.element].label}</span>` : g.sub;
-        el.mag.textContent = g.melee ? '⚔' : (p.reloadT > 0 ? '··' : g.inMag);
-        el.mag.classList.toggle('empty', !g.melee && g.inMag <= Math.ceil(g.mag * 0.2));
-        el.pool.textContent = g.melee ? '' : p.ammo[g.ammo];
+        el.mag.textContent = p.comboT > -COMBO_WINDOW || p.meleeT > 0 ? '⚔'.repeat((p.combo || 0) + 1) : '⚔';
+        el.mag.classList.remove('empty');
       }
-      let sh = '';
-      for (let i = 0; i < p.weapons.length; i++) {
-        const w = p.weapons[i];
-        sh += `<div class="slot${i === p.cur ? ' on' : ''}" data-i="${i}" style="border-color:${RARITY[w.rarity].css}"><span>${i + 1}</span>${w.label}</div>`;
-      }
-      if (el.slots.dataset.v !== sh) { el.slots.innerHTML = sh; el.slots.dataset.v = sh; }
-      el.gren.textContent = p.grenades;
-      if (turret.active) { el.skillFill.style.transform = `scaleY(${turret.t / turret.dur})`; el.skill.className = 'active'; el.skillTxt.textContent = Math.ceil(turret.t); }
-      else if (p.skillCd > 0) { el.skillFill.style.transform = `scaleY(${1 - p.skillCd / turret.cooldown})`; el.skill.className = 'cool'; el.skillTxt.textContent = Math.ceil(p.skillCd); }
-      else { el.skillFill.style.transform = 'scaleY(1)'; el.skill.className = 'ready'; el.skillTxt.textContent = IS_TOUCH ? 'TURRET' : 'Q'; }
+      // the combo step and the kick cooldown under the axe's name
+      el.pool.textContent = p.kickCd > 0 ? 'kick ' + p.kickCd.toFixed(1) : 'kick ready';
 
       el.wave.textContent = game.waveLabel();
       el.waveSub.textContent = game.waveSub();

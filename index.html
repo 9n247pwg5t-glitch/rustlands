@@ -321,7 +321,7 @@
   <div class="bc"><div id="lvl">1</div><div class="xpbar"><div id="xpFill"></div></div><button id="skillBtn" aria-label="Skills">★</button></div>
   <div id="xpPop" hidden></div>
   <div class="br">
-    <div class="kit">
+    <div class="kit" hidden>
       <div class="gren" title="Grenades">G·<span id="grenCount">3</span></div>
       <div id="skill"><div id="skillFill"></div><div id="skillTxt">Q</div></div>
     </div>
@@ -334,34 +334,33 @@
 
 <div id="touch" hidden>
   <div id="stickBase" hidden><div id="stickKnob"></div></div>
-  <div class="tb" data-act="fire" id="fireBtn"><span>FIRE</span><small id="fireHint">◀ AIM</small></div>
+  <div class="tb" data-act="fire" id="fireBtn"><span>SWING</span><small id="fireHint">slash</small></div>
   <div class="tb" data-act="jump">JUMP</div>
   <div class="tb" data-act="use" id="useBtn" hidden>USE</div>
-  <div id="wheelBtn" data-act="wheel"><i id="wbName">PISTOL</i><b id="wbAmmo">12</b><small id="wbPool">120</small></div>
+  <div id="wheelBtn" data-act="wheel"><i id="wbName">KICK</i><b id="wbAmmo">🦶</b><small id="wbPool">ready</small></div>
   <div id="wheel" hidden></div>
 </div>
 
 <div id="menu" class="screen">
   <div class="panel">
     <h1 class="logo">RUSTLANDS</h1>
-    <div class="tag">Shoot · Loot · Repeat</div>
+    <div class="tag">Swing · Loot · Repeat</div>
     <div class="row">
       <button class="btn" id="btnContinue" hidden>CONTINUE</button>
       <button class="btn" id="btnNew">START</button>
     </div>
     <div id="saveLine"></div>
     <div class="controls" id="ctlDesktop">
-      <div><b>WASD</b>Move</div><div><b>MOUSE</b>Aim · shoot · right-click to zoom</div>
+      <div><b>WASD</b>Move</div><div><b>MOUSE</b>Look · click to swing the axe</div>
       <div><b>SHIFT</b>Sprint</div><div><b>SPACE</b>Jump</div>
-      <div><b>R</b>Reload</div><div><b>E</b>Pick up · open · buy</div>
-      <div><b>1–4</b>Weapons (or wheel)</div><div><b>F</b>Melee</div>
-      <div><b>G</b>Grenade</div><div><b>Q</b>Deploy turret</div>
+      <div><b>CLICK ×3</b>Slash, backhand, overhead chop</div><div><b>E</b>Pick up · open · buy</div>
+      <div><b>F</b>Kick (shoves and staggers)</div><div><b>K</b>Skills</div>
       <div><b>N</b>Skip to next wave / leave a cleared stage</div><div><b>ESC</b>Pause</div>
     </div>
     <div class="controls" id="ctlTouch" hidden>
       <div><b>LEFT</b>Drag to move, push all the way to sprint</div><div><b>RIGHT</b>Drag to aim</div>
-      <div><b>FIRE</b>Tap to shoot, hold for automatics, drag to look</div><div><b>JUMP</b>Jump</div>
-      <div><b>FIRE</b>Swipe left to aim, right for hip fire</div><div><b>WHEEL</b>Tap to reload, hold and slide for guns, grenade, turret</div>
+      <div><b>SWING</b>Tap to swing; keep tapping for the 3-hit combo; drag to look</div><div><b>JUMP</b>Jump</div>
+      <div><b>KICK</b>Shoves enemies back and breaks their attacks</div>
     </div>
     <div class="legend">
       <span style="color:#e9e6df">Common</span><span style="color:#42e04f">Uncommon</span><span style="color:#3e8eff">Rare</span><span style="color:#b552ff">Epic</span><span style="color:#ff8a1c">Legendary</span>

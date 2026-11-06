@@ -22,7 +22,8 @@ const STAGES = [
 
 // ---------------------------------------------------------------------------
 // Save file (this browser's localStorage; reading or writing can fail, e.g. in private browsing)
-// v2: the arsenal (rifle, pistol, axe) with mods and skills. A v1 save (gun loot) is migrated:
+// v2: the arsenal with mods and skills (since 2026-11-06 the axe only: rifle mods and rifle-tree
+// skills in a save are dropped and their skill points refunded). A v1 save (gun loot) is migrated:
 // level, XP, cash, grenades and stage records carry over, with a skill point for every level gained.
 const SAVE_KEY = 'rustlands.save.v2', OLD_SAVE_KEY = 'rustlands.save.v1';
 const campaign = { save: null, stage: null, stageIdx: -1, runT: 0, extractT: 0, previewUrl: null, newGameArmed: 0 };
@@ -35,7 +36,7 @@ function readSave() {
     const o = JSON.parse(localStorage.getItem(OLD_SAVE_KEY));
     if (o && o.v === 1) {
       const p = o.player;
-      return { v: 2, stages: o.stages || {}, player: p && { level: p.level, xp: p.xp, cash: p.cash, grenades: p.grenades, cur: 0, ammo: {}, mods: { ar: {}, melee: {} }, skills: {}, skillPoints: Math.max(0, p.level - 1) } };
+      return { v: 2, stages: o.stages || {}, player: p && { level: p.level, xp: p.xp, cash: p.cash, grenades: p.grenades, cur: 0, ammo: {}, mods: { melee: {} }, skills: {}, skillPoints: Math.max(0, p.level - 1) } };
     }
   } catch (e) { /* storage unavailable */ }
   return null;
@@ -52,22 +53,21 @@ function snapshotPlayer() {
   return {
     level: player.level, xp: player.xp, cash: player.cash, cur: player.cur, grenades: player.grenades, ammo: player.ammo,
     mods: player.mods, skills: player.skills, skillPoints: player.skillPoints,
-    mags: player.weapons.map((w) => w.inMag),
   };
 }
 function savePlayer() { campaign.save.player = JSON.parse(JSON.stringify(snapshotPlayer())); return writeSave(); }
 function restorePlayer(p) {
   resetPlayer();
   if (!p) return;
-  Object.assign(player, { level: p.level, xp: p.xp, cash: p.cash, cur: p.cur || 0, grenades: p.grenades, skillPoints: p.skillPoints || 0 });
-  player.mods = { ar: Object.assign({}, p.mods && p.mods.ar), melee: Object.assign({}, p.mods && p.mods.melee) };
+  Object.assign(player, { level: p.level, xp: p.xp, cash: p.cash, cur: 0, grenades: 0, skillPoints: p.skillPoints || 0 });
+  player.mods = { melee: Object.assign({}, p.mods && p.mods.melee) };
   player.skills = Object.assign({}, p.skills);
+  refundRetiredSkills();
   Object.assign(player.ammo, p.ammo);
   // new items must not reuse the ids of saved ones
-  for (const m of [...Object.values(player.mods.ar), ...Object.values(player.mods.melee)]) if (m && m.id >= _itemId) _itemId = m.id + 1;
+  for (const m of Object.values(player.mods.melee)) if (m && m.id >= _itemId) _itemId = m.id + 1;
   player.shieldItem = levelShield();
   buildWeapons();
-  if (p.mags) player.weapons.forEach((w, i) => { if (p.mags[i] != null && !w.melee) w.inMag = Math.min(p.mags[i], w.mag); });
   player.recomputeMaxHp();
   player.hp = player.maxHp;
   player.shield = player.shieldMax();

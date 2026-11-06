@@ -104,12 +104,13 @@ function resetPlayer() {
   Object.assign(player, {
     level: 1, xp: 0, cash: 0, hp: 100, maxHp: 100, shield: 0, shieldDelayT: 0,
     weapons: [], cur: 0,
-    ammo: { ar: 180, pistol: 72 },
-    grenades: 3, alive: true, downed: false, downT: 0, invuln: 1,
+    ammo: { ar: 0, pistol: 0 },
+    grenades: 0, alive: true, downed: false, downT: 0, invuln: 1,
     reloadT: 0, swapT: 0, fireCd: 0, burstLeft: 0, skillCd: 0, hyperSpin: 0, meleeT: 0, meleeCd: 0,
+    combo: 0, comboT: -9, kickT: 0, kickCd: 0, kickDur: 0.42,
     stats: { kills: 0, crits: 0, shots: 0, damage: 0 },
-    // the arsenal (js/arsenal.js): rifle, pistol and axe, built from level, mods and skills
-    mods: { ar: {}, melee: {} }, skills: {}, skillPoints: 0, buffs: {},
+    // the arsenal (js/arsenal.js): the axe, built from level, mods and skills
+    mods: { melee: {} }, skills: {}, skillPoints: 0, buffs: {},
   });
   buildWeapons();
   player.shieldItem = levelShield();
@@ -322,10 +323,8 @@ function fireOnce(g) {
 function updateWeapon(dt) {
   const g = player.gun();
   player.fireCd -= dt;
-  player.meleeCd -= dt; player.meleeT -= dt;
+  updatePlayerMelee(dt); // the axe combo and the kick (js/arsenal.js)
   updateBuffs(dt);
-  // an axe swing lands a beat after it starts
-  if (player.meleeT > 0 && !player.meleeHit && player.meleeDur - player.meleeT >= player.meleeHitT) { player.meleeHit = true; resolveMeleeHit(); }
   if (player.swapT > 0) player.swapT -= dt;
   if (player.reloadT > 0) { player.reloadT -= dt; if (player.reloadT <= 0) finishReload(); }
   vmFlash.intensity = Math.max(0, vmFlash.intensity - dt * 30);
@@ -337,7 +336,7 @@ function updateWeapon(dt) {
     g.regenT = (g.regenT || 0) + dt;
     if (g.regenT > 0.35) { g.regenT = 0; if (g.inMag < g.mag) g.inMag++; }
   }
-  if (player.reloadT > 0 || player.swapT > 0 || player.meleeT > 0) return;
+  if (player.reloadT > 0 || player.swapT > 0 || player.meleeT > 0 || player.kickT > 0) return;
   if (g.melee) { if (input.fire || player.triggerQueue > 0) { player.triggerQueue = 0; meleeSwing(); } return; }
   if (g.inMag <= 0 && g.special !== 'infinite' && player.ammo[g.ammo] > 0 && !input.fire) { startReload(); return; }
   if (player.fireCd > 0) return;
@@ -357,8 +356,8 @@ function updateWeapon(dt) {
   } else player.fireCd = 1 / g.rate;
 }
 
-// Quick melee from any weapon: an axe swing.
-function doMelee() { meleeSwing(); }
+// The quick-melee button kicks.
+function doMelee() { kick(); }
 // ---------------------------------------------------------------------------
 // Player projectiles: gyrojets, rockets, grenades, thrown Tediore guns, bomblets
 const playerProj = [];

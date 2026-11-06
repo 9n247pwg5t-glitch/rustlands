@@ -126,26 +126,75 @@ function fpSetGun(g) {
   FP.sight = FP.optic ? null : new THREE.Vector3(0, 0.1 * FP_GUN_SCALE, -0.05);
 }
 
-// The axe: held up and forward at rest; a swing winds up and back, strikes down and across, recovers.
-const AXE_REST = [0.2, -0.3, -0.42, -0.45, 0.25, -0.15]; // x, y, z, pitch, yaw, roll
-const AXE_KEYS = [
-  [0, AXE_REST],
-  [0.35, [0.24, -0.16, -0.36, 0.55, 0.35, -0.45]], // wound up: raised and cocked back
-  [0.58, [-0.06, -0.4, -0.55, -1.5, 0.05, 0.85]], // through the strike, down and across
-  [1, AXE_REST],
-];
+// The axe: held up and forward at rest. The combo's three moves each have their own keyframes
+// (time 0..1 through the swing: x, y, z, pitch, yaw, roll of the axe in front of the eye):
+//  1. slash: wound up high on the right, cut diagonally down to the lower left
+//  2. backhand: pulled across to the left, swept flat out to the right
+//  3. chop: lifted high overhead, brought straight down the middle
+// The key marked `strike` is where the axe accelerates (it eases in rather than out).
+const AXE_REST = [0.2, -0.3, -0.42, -0.45, 0.25, -0.15];
+const AXE_MOVES = {
+  slash: { strike: 1, keys: [
+    [0, AXE_REST],
+    [0.35, [0.26, -0.12, -0.34, 0.6, 0.4, -0.5]], // up and cocked back over the right shoulder
+    [0.58, [-0.14, -0.34, -0.55, -1.45, 0.1, 0.95]], // through, down and across to the left
+    [0.78, [-0.1, -0.4, -0.5, -1.2, 0.15, 0.8]],
+    [1, AXE_REST],
+  ] },
+  backhand: { strike: 1, keys: [
+    [0, AXE_REST],
+    [0.32, [-0.32, -0.06, -0.3, -0.15, 1.1, 1.45]], // drawn across the body to the left, blade flat
+    [0.56, [0.4, -0.1, -0.5, -0.3, -1.25, 1.35]], // swept out to the right
+    [0.76, [0.36, -0.18, -0.44, -0.3, -1.0, 1.0]],
+    [1, AXE_REST],
+  ] },
+  chop: { strike: 2, keys: [
+    [0, AXE_REST],
+    [0.2, [0.12, -0.05, -0.3, 0.6, 0.15, -0.1]],
+    [0.44, [0.05, 0.12, -0.24, 1.25, 0.05, 0]], // raised high overhead, held a beat
+    [0.62, [0.02, -0.5, -0.6, -1.65, 0, 0.05]], // slammed straight down
+    [0.8, [0.03, -0.48, -0.56, -1.55, 0.02, 0.05]], // buried for a moment
+    [1, AXE_REST],
+  ] },
+};
 function fpAxePose(p, e) {
   let v = AXE_REST;
   if (player.meleeT > 0) {
+    const M = AXE_MOVES[(AXE_COMBO[player.combo || 0] || AXE_COMBO[0]).name], K = M.keys;
     const t = 1 - player.meleeT / player.meleeDur;
-    let i = 0; while (i < AXE_KEYS.length - 2 && t > AXE_KEYS[i + 1][0]) i++;
-    const [t0, a] = AXE_KEYS[i], [t1, b] = AXE_KEYS[i + 1];
+    let i = 0; while (i < K.length - 2 && t > K[i + 1][0]) i++;
+    const [t0, a] = K[i], [t1, b] = K[i + 1];
     let u = clamp((t - t0) / (t1 - t0), 0, 1);
-    u = i === 1 ? u * u : u * u * (3 - 2 * u); // the strike accelerates
+    u = i === M.strike ? u * u : u * u * (3 - 2 * u);
     v = a.map((x, j) => x + (b[j] - x) * u);
+  }
+  // a kick pulls the axe back and up out of the way
+  if (player.kickT > 0) {
+    const s = Math.sin((1 - player.kickT / player.kickDur) * Math.PI);
+    v = v.map((x, j) => x + [0.05, 0.08, 0.12, 0.3, 0.1, -0.1][j] * s);
   }
   p.set(v[0], v[1], v[2]);
   e.set(v[3], v[4], v[5]);
+}
+// The kick: a boot thrusts up into view from below.
+function fpKick(dt) {
+  if (!FP.boot) {
+    const g = new THREE.Group();
+    box(0.13, 0.12, 0.3, 0x2a1c14, 0, 0, -0.05, g, 0.012);
+    box(0.14, 0.04, 0.32, 0x111111, 0, -0.07, -0.05, g, 0.012);
+    box(0.12, 0.2, 0.13, 0x3b3f52, 0, 0.13, 0.06, g, 0.012); // the trouser leg
+    g.visible = false;
+    FP.pivot.add(g);
+    FP.boot = g;
+  }
+  const on = player.kickT > 0;
+  FP.boot.visible = on;
+  if (!on) return;
+  const t = 1 - player.kickT / player.kickDur;
+  const s = t < 0.4 ? t / 0.4 : 1 - (t - 0.4) / 0.6; // out fast, back slower
+  const u = s * s * (3 - 2 * s);
+  FP.boot.position.set(0.1, -0.72 + u * 0.4, -0.25 - u * 0.5);
+  FP.boot.rotation.set(-0.9 + u * 0.75, 0, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -257,6 +306,7 @@ function fpUpdate(dt, o) {
   // reload: the gun tips over towards the player, magazine side out
   _gp.copy(FP_HIP).add(_ads.set(0.03, -0.03, 0.04).multiplyScalar(FP.sprintK)).add(_ads.set(0.04, -0.45, 0.1).multiplyScalar(FP.throwK)).add(_ads.set(-0.04, 0.03, 0.04).multiplyScalar(FP.reloadK));
   _ge.set(-0.22 * FP.sprintK - 0.5 * FP.throwK + 0.18 * FP.reloadK, FP_TOE + 0.12 * FP.sprintK, 0.22 * FP.sprintK + 0.55 * FP.reloadK);
+  fpKick(dt);
   if (FP.axe) fpAxePose(_gp, _ge);
   else if (k > 0 && FP.mount.children.length) {
     // the optic's eye point (or the sight line) a hand's width in front of the eye

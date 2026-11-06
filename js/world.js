@@ -418,7 +418,7 @@ function buildVending(x, z, rot, kind) {
     taken.push([x, z, 7]);
     buildSpawnGate(x, z);
   }
-  buildVending(-3.2, 4.5, 0, 'ammo');
+  // (no ammo machine: the player only has the axe)
   buildVending(3.2, 4.5, 0, 'health');
 
   for (let i = 0; i < 6; i++) {

@@ -667,6 +667,62 @@ function afterMeleeAttack(e) {
   if (Math.random() < 0.3) e.backoffT = rand(0.7, 1.1);
 }
 
+// The blade glints (a flash of light at the edge) a moment before an axe blow lands.
+function axeGlint(e, dist) {
+  const b = e.rig && e.rig.blade;
+  if (!b) return;
+  const p = b.edge.getWorldPosition(new THREE.Vector3());
+  flashAt(p, 0xfff0c0, 2.2, 4, 0.12);
+  burst(p, 0xffffff, 5, 1.5, 0.07, 0.18, 0, true);
+  if (Math.random() < 0.6) SFX.yell(clamp(1.3 - dist / 30, 0, 1));
+}
+
+// The leap slam: from a few strides out, a psycho jumps at the player with the axe raised and
+// chops down as it lands. Landing on or next to the player hurts; a sidestep makes it miss and
+// leaves the psycho stuck for a moment.
+function startLeap(e, tgt, dist, fwd) {
+  const T = clamp(dist / 9.5, 0.6, 0.85); // time in the air
+  // land a step short of where the player will be
+  const ax = tgt.pos.x + player.vel.x * T * 0.5 - fwd.x * 1.1, az = tgt.pos.z + player.vel.z * T * 0.5 - fwd.z * 1.1;
+  e.leapV = new THREE.Vector3((ax - e.pos.x) / T, 0, (az - e.pos.z) / T);
+  e.vy = 11 * T; e.grounded = false; e.pos.y += 0.05;
+  e.state = 'leap'; e.leapT = 0; e.leapDur = T; e.leapLanded = false;
+  e.leapCd = rand(5, 8); e.attackCd = 0.6; e.dashCd = Math.max(e.dashCd, 1.5);
+  e.atk = RIG_LEAP; e.atkHit = 0; e.glintHit = -1;
+  // the clip's swing runs from its start to the impact while airborne
+  rigOnce(e.rig, RIG_LEAP.clip, (RIG_LEAP.hits[0] - RIG_LEAP.start) / T, RIG_LEAP.start, RIG_LEAP.end, 0.08);
+  SFX.yell(clamp(1.4 - dist / 30, 0.4, 1)); SFX.swing();
+}
+function updateLeap(e, dt, tgt, dist, fwd) {
+  e.leapT += dt;
+  e.faceLock = true;
+  if (!e.leapLanded) {
+    _want.copy(e.leapV);
+    if (e.glintHit < 0 && e.leapT > e.leapDur - 0.3) { e.glintHit = 0; axeGlint(e, dist); }
+    if ((e.grounded && e.leapT > 0.2) || e.leapT > e.leapDur + 0.4) {
+      e.leapLanded = true; e.atkHit = 1;
+      e.vel.x *= 0.1; e.vel.z *= 0.1;
+      e.rig.one && (e.rig.one.action.timeScale = RIG_ATK_TS);
+      const at = e.pos.clone().addScaledVector(fwd, 1.0); at.y = groundAt(at.x, at.z);
+      ringFx(at, 3.2, 0xc9a070, 0.45);
+      burst(at.clone().setY(at.y + 0.15), 0xc9a070, 22, 5, 0.16, 0.7, 0.6);
+      SFX.chop(false); SFX.boom(0.6, clamp(1.2 - dist / 40, 0.2, 1));
+      const pd = Math.hypot(player.pos.x - at.x, player.pos.z - at.z);
+      game.shake(clamp(1 - pd / 12, 0.1, 0.7));
+      if (pd < 2.4 && !tgt.isTurret && !player.downed) {
+        player.hurt(e.def.dmg * e.dmgScale * RIG_LEAP.dmg[0] * (pd < 1.4 ? 1 : 0.6), e.pos);
+        player.vel.x += fwd.x * 7; player.vel.z += fwd.z * 7; player.vel.y = Math.max(player.vel.y, 4);
+        e.rig.freezeT = 0.1; game.hitstop = Math.max(game.hitstop, 0.06);
+        e.landed = true;
+      } else if (e.rig.one) e.rig.one.action.timeScale = RIG_ATK_TS * 0.65; // a miss: slow to pull the axe free, an opening
+    }
+    return false;
+  }
+  _want.set(0, 0, 0); e.vel.x *= 0.5; e.vel.z *= 0.5;
+  if (!e.rig.one || rigTime(e.rig) >= RIG_LEAP.end - 0.02) { e.state = 'move'; afterMeleeAttack(e); }
+  return false;
+}
+
 // Returns true when the enemy blew itself up.
 function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   const ai = e.def.ai;
@@ -681,9 +737,11 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     return true;
   }
   e.attackCd -= dt; e.dashCd -= dt; e.tauntCd -= dt; e.waitT -= dt;
+  e.leapCd = (e.leapCd == null ? rand(2, 5) : e.leapCd) - dt;
 
   // attacks already under way
   e.faceLock = false;
+  if (e.state === 'leap') return updateLeap(e, dt, tgt, dist, fwd);
   if (e.state === 'swing' && e.rig) {
     const a = e.atk, t = rigTime(e.rig);
     const next = a.hits[Math.min(e.atkHit, a.hits.length - 1)];
@@ -697,6 +755,8 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     else { _want.set(0, 0, 0); e.vel.x *= 0.5; e.vel.z *= 0.5; }
     // track the target while winding up, then commit to the swing (a sidestep can dodge it)
     e.faceLock = (toHit >= 0 && toHit < 0.16) || sinceHit < 0.3;
+    // the tell: the blade flashes and the swinger yells just before the blow comes
+    if (a.axe && toHit > 0 && toHit < 0.34 && e.glintHit !== e.atkHit) { e.glintHit = e.atkHit; axeGlint(e, dist); }
     while (e.atkHit < a.hits.length && t >= a.hits[e.atkHit]) {
       const connect = dist < 2.4 * e.def.scale && !tgt.isTurret;
       if (a.axe) SFX.chop(connect); else SFX.swing();
@@ -767,6 +827,8 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
       e.vel.x *= 0.15; e.vel.z *= 0.15; // plant the feet for the swing
       if (e.rig && ai === 'melee') startRigAttack(e);
       else if (e.rig) e.state = 'move';
+    } else if (e.rig && ai === 'melee' && e.direct && dist > 4.5 && dist < 8.5 && e.leapCd <= 0 && e.grounded && !tgt.isTurret && Math.random() < dt * 2) {
+      startLeap(e, tgt, dist, fwd);
     } else if (e.rig && ai === 'melee' && e.direct && dist > 4 && dist < 10 && e.dashCd <= 0 && e.grounded) {
       e.dashCd = rand(2.5, 4.5);
       e.state = 'dash'; e.dashDir.copy(fwd);
@@ -858,7 +920,8 @@ function updateEnemy(e, dt) {
   const px = e.pos.x, pz = e.pos.z;
 
   // movement
-  if (e.state !== 'charge' && e.state !== 'dash') {
+  if (e.state === 'leap' && !e.leapLanded) { e.vel.x = _want.x; e.vel.z = _want.z; }
+  else if (e.state !== 'charge' && e.state !== 'dash') {
     const k = e.grounded ? 1 - Math.exp(-8 * dt) : 1 - Math.exp(-1 * dt);
     e.vel.x = lerp(e.vel.x, _want.x, k); e.vel.z = lerp(e.vel.z, _want.z, k);
     if (e.rig && e.grounded && (e.state === 'move' || e.state === 'swing')) {

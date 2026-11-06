@@ -14,8 +14,6 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
   - Weapon model nicknames: Honkmaker, Calliope, Sad Sack, Punchline (README; the model files'
     own node names).
   - Legendary weapon names and flavour text (`LEGENDARY` in `js/loot.js`).
-  - The starting assault rifle is named "Ringmaster HA15", the name its uploaded model came with
-    (`STARTER_AR` in `js/loot.js`).
 - **Borderlands-owned names.** Must be replaced before any public release (bible: take structure
   and feel, not protected names):
   - Gun manufacturers Jakobs, Maliwan, Torgue, Vladof, Tediore, Hyperion, Dahl remain in the code
@@ -45,7 +43,7 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
   level's XP; replays a quarter of that), the 20-second extraction window after the last wave, and
   "unlock the next stage in the list" are prototype choices, not approved rules (§8: confirm exact
   progression and loot rules).
-- **Saves are per browser.** The save lives in this browser's `localStorage` (`rustlands.save.v1`):
+- **Saves are per browser.** The save lives in this browser's `localStorage` (`rustlands.save.v2`):
   it doesn't follow the player to another device, and iPhone Safari can clear site storage for sites
   not visited for a while. Cross-device saves or a save export would need deciding.
 
@@ -57,15 +55,21 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
 
 ## Gameplay items the bible lists as OPEN but the build already fixes (§6)
 
-The arsenal and loot model are now decided (decisions.md, 2026-11-05). Still open or placeholder:
-- Mod slots (rifle: barrel, magazine, optic, stock; axe: head, handle, charm), mod stat ranges,
-  rarity tiers (Common → Legendary) and elements (fire, shock, corrosive) are first-pass choices.
-- Skill names (Hollow Points, Steady Hands, Deep Pockets, Fast Hands, Trigger Happy, Headhunter,
-  Overdrive; Heavy Swings, Bloodthirst, Quick Swings, Thick Skin, Executioner, Cleave, Berserk),
-  their effects, tiers (levels 5 and 10) and every number are placeholders (`js/arsenal.js`).
+The arsenal and loot model are now decided (decisions.md, 2026-11-05 and 2026-11-06: axe and melee
+only). Still open or placeholder:
+- Axe mod slots (head, handle, charm), mod stat ranges, rarity tiers (Common → Legendary) and
+  elements (fire, shock, corrosive) are first-pass choices.
+- Skill names (Heavy Swings, Quick Swings, Bloodthirst, Steel Toes, Finisher, Thick Skin,
+  Executioner, Cleave, Berserk, Earthsplitter), their effects, tiers (levels 5 and 10) and every
+  number are placeholders (`js/arsenal.js`).
+- The combo's three moves, their timings and damage, the 0.65 s window to chain them, and the kick
+  (damage, knock-down, 1.1 s cooldown) are first-pass (`AXE_COMBO` in `js/arsenal.js`, `AXE_MOVES`
+  in `js/fparms.js`).
+- Enemy leap slam range, damage and cooldown (`startLeap` in `js/enemies.js`).
 - Difficulty values (`DIFFICULTY` in `js/enemies.js`), the XP curve, the shield scaling with level.
-- The deployable-turret action skill and grenades are still in, outside the two skill trees.
-- Weapon switching UI (the touch weapon wheel).
+  Melee-only players now have to close in on enemies who shoot; the balance hasn't been retuned for that.
+- Leftover gun code (gun loot, player projectiles, the turret, grenades, ammo pickups) is still in
+  `js/player.js` and `js/loot.js` but unused by the player.
 
 ## Controls (§10)
 
