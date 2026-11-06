@@ -26,17 +26,22 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
 
 - **Only one playable stage, and it's a stand-in.** The campaign flow exists (`js/stages.js`):
   main menu → hub room → console → stage select → briefing → stage → results → hub, with locked, unlocked and
-  completed stages, replay and a save file. Stage 1 is the desert arena (clear 5 waves, the 5th a
+  completed stages, replay and a save file. Stage 1 is the uploaded gas station map (clear 5 waves, the 5th a
   boss wave); Stages 2 and 3 are empty placeholders that unlock but can't be entered.
 - **The hub room is a placeholder.** Between stages the player walks around a room (`js/hub.js`)
   and uses a console in front of a wall of TVs to open stage select. Whose place it is, where it
   is, how it looks and what else it holds (shop, gear, story) are OPEN; it's a generic panelled
   interior with no story content, labelled "HUB" in the HUD.
-- **The desert arena** doesn't match the bible's visual identity (early-2000s suburbs, retail
-  strips, highways, carnival/wrestling venues, distant metropolis). It's a prototype space.
-- **Stages don't load their own worlds yet.** The arena is built once at boot (`js/world.js`);
-  each stage has `load()`/`unload()` hooks for building and tearing down its own map, but the arena
-  doesn't use them. The first real stage should move world building behind these hooks.
+- **Stage 1's map is loaded at boot, not by the stage.** The gas station map (`js/map.js`)
+  downloads in the background when the game starts and becomes the "arena" world; it is hidden
+  and not simulated outside Stage 1, but it isn't built by Stage 1's `load()` or removed by
+  `unload()`. Fine with one map; with more stages, each map should load on entering its stage.
+- **The gas station map's names.** Its node names (`GasStation_*`, `Clown_Carnival`, `Farm`...)
+  are the file's own labels, not approved place names; the stage card calls it "Roadside gas
+  station · placeholder".
+- **Map performance is unproven on the target phone.** On phones the map draws about 250 draw calls
+  and 150k triangles a frame with no map shadows and a shorter view; this needs checking on the
+  actual iPhone.
 - **Objectives are wave-based only.** The bible imagines explorable zones with branching paths,
   optional discoveries and a culminating objective; stage objectives are just "clear N waves" so far.
 - **Placeholder progression numbers.** Stage rewards (first clear: $300 × level scale and 60% of a
@@ -55,11 +60,12 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
 
 ## Gameplay items the bible lists as OPEN but the build already fixes (§6)
 
-The arsenal and loot model are now decided (decisions.md, 2026-11-05 and 2026-11-06: axe and melee
-only). Still open or placeholder:
-- Axe mod slots (head, handle, charm), mod stat ranges, rarity tiers (Common → Legendary) and
-  elements (fire, shock, corrosive) are first-pass choices.
-- Skill names (Heavy Swings, Quick Swings, Bloodthirst, Steel Toes, Finisher, Thick Skin,
+The arsenal and loot model are decided (decisions.md, 2026-11-05 and 2026-11-06: assault rifle
+and axe, toggled). Still open or placeholder:
+- Mod slots (rifle: barrel, magazine, optic, stock; axe: head, handle, charm), mod stat ranges,
+  rarity tiers (Common → Legendary) and elements (fire, shock, corrosive) are first-pass choices.
+- Skill names (Hollow Points, Steady Hands, Deep Pockets, Fast Hands, Trigger Happy, Headhunter,
+  Overdrive; Heavy Swings, Quick Swings, Bloodthirst, Steel Toes, Finisher, Thick Skin,
   Executioner, Cleave, Berserk, Earthsplitter), their effects, tiers (levels 5 and 10) and every
   number are placeholders (`js/arsenal.js`).
 - The combo's three moves, their timings and damage, the 0.65 s window to chain them, and the kick
@@ -67,9 +73,11 @@ only). Still open or placeholder:
   in `js/fparms.js`).
 - Enemy leap slam range, damage and cooldown (`startLeap` in `js/enemies.js`).
 - Difficulty values (`DIFFICULTY` in `js/enemies.js`), the XP curve, the shield scaling with level.
-  Melee-only players now have to close in on enemies who shoot; the balance hasn't been retuned for that.
-- Leftover gun code (gun loot, player projectiles, the turret, grenades, ammo pickups) is still in
-  `js/player.js` and `js/loot.js` but unused by the player.
+- Leftover gun code (gun loot, player projectiles, the turret, grenades) is still in `js/player.js`
+  and `js/loot.js` but unused by the player.
+- The touch controls for switching (tap the corner button, hold to reload) and the KICK button.
+- The starting assault rifle is named "Ringmaster HA15", the name its uploaded model came with
+  (`STARTER_AR` in `js/loot.js`).
 
 ## Controls (§10)
 

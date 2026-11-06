@@ -82,9 +82,12 @@ function updateWaves(dt) {
   if (game.toSpawn.length && game.spawnT <= 0 && alive < maxAlive) {
     game.spawnT = rand(0.4, 1.0);
     const key = game.toSpawn.shift();
-    const gates = spawnPoints.filter((g) => g.distanceTo(player.pos) > 28);
-    const gate = pick(gates.length ? gates : spawnPoints);
-    const p = gate.clone().multiplyScalar(0.94).add(new THREE.Vector3(rand(-2.5, 2.5), 0, rand(-2.5, 2.5)));
+    // the map's enemy spawn points that are out of sight range but not too far to walk in from
+    const byDist = spawnPoints.slice().sort((a, b) => a.distanceTo(player.pos) - b.distanceTo(player.pos));
+    const gates = byDist.filter((g) => { const d = g.distanceTo(player.pos); return d > 26 && d < 85; });
+    const gate = gates.length ? pick(gates) : byDist.find((g) => g.distanceTo(player.pos) > 26) || byDist[byDist.length - 1];
+    const p = gate.clone();
+    for (let k = 0; k < 8; k++) { const x = gate.x + rand(-2.5, 2.5), z = gate.z + rand(-2.5, 2.5); if (navWalkable(x, z)) { p.set(x, 0, z); break; } }
     p.y = groundAt(p.x, p.z);
     const lvl = game.enemyLevel + (key === 'boss' ? 1 : 0);
     spawnEnemy(key, lvl, p);
@@ -100,17 +103,19 @@ function dropLoot(e) {
   const p = enemyCenter(e, new THREE.Vector3());
   const lvl = e.level;
   const luck = (e.def.badass ? 0.8 : 0) + game.wave * 0.03;
-  // loot is axe mods (js/arsenal.js)
+  // loot is rifle and axe mods (js/arsenal.js)
   if (e.def.boss) {
     spawnDrop('item', p, { item: genMod(lvl, { rarity: Math.random() < 0.45 ? 4 : 3 }) });
     spawnDrop('item', p, { item: genMod(lvl, { luck: 2 }) });
     spawnDrop('item', p, { item: genMod(lvl, { luck: 2 }) });
     for (let i = 0; i < 6; i++) spawnDrop('cash', p, { amount: Math.round(rand(10, 20) * levelScale(lvl)) });
+    for (let i = 0; i < 3; i++) spawnDrop('ammo', p, { ammo: 'ar' });
     spawnDrop('health', p);
     return;
   }
   if (Math.random() < (e.def.badass ? 0.8 : 0.1)) spawnDrop('item', p, { item: genMod(lvl, { luck }) });
   if (Math.random() < 0.55) spawnDrop('cash', p, { amount: Math.round(rand(3, 8) * levelScale(lvl) * (e.def.badass ? 4 : 1)) });
+  if (Math.random() < 0.38) spawnDrop('ammo', p, { ammo: 'ar' });
   if (Math.random() < DIFFICULTY.healthDrop) spawnDrop('health', p);
 }
 
@@ -129,7 +134,9 @@ function buildChestModel(boss) {
 }
 function spawnChest(boss) {
   if (game.chest) scene.remove(game.chest.group);
-  const pos = new THREE.Vector3(0, 0, -1.5); pos.y = groundAt(pos.x, pos.z);
+  // in the open on the forecourt, a few steps from where the player starts
+  const pos = MAP.ready ? MAP.spawn.clone().add(new THREE.Vector3(0, 0, 6)) : new THREE.Vector3(0, 0, -1.5);
+  pos.y = groundAt(pos.x, pos.z);
   const group = buildChestModel(boss);
   group.position.copy(pos);
   scene.add(group);
@@ -148,6 +155,7 @@ function openChest() {
   spawnDrop('item', p, { item: genMod(lvl, { luck, rarity: c.boss ? (Math.random() < 0.3 ? 4 : 3) : undefined }) });
   spawnDrop('item', p, { item: genMod(lvl, { luck }) });
   for (let i = 0; i < 3; i++) spawnDrop('cash', p, { amount: Math.round(rand(6, 12) * levelScale(lvl)) });
+  spawnDrop('ammo', p, { ammo: 'ar' }); spawnDrop('ammo', p, { ammo: 'ar' });
 }
 
 const AMMO_PICK = { pistol: 24, smg: 48, ar: 36, shotgun: 8, sniper: 4, rocket: 2 };
@@ -426,11 +434,11 @@ function clearStageWorld() {
   if (game.chest) { scene.remove(game.chest.group); game.chest = null; }
 }
 // Put the player at a spot with full health and a fresh weapon state, keeping their gear.
-function readyPlayer(at) {
+function readyPlayer(at, yaw = 0) {
   player.alive = true; player.downed = false; player.invuln = 1;
   player.reloadT = 0; player.swapT = 0; player.fireCd = 0; player.burstLeft = 0; player.skillCd = 0;
   player.hp = player.maxHp; player.shield = player.shieldMax();
-  respawnAt(at);
+  respawnAt(at, yaw);
   setViewmodel();
   camera.fov = baseFov(); camera.updateProjectionMatrix();
 }
@@ -438,7 +446,7 @@ function readyPlayer(at) {
 function startGame() {
   SFX.init();
   clearStageWorld();
-  readyPlayer(new THREE.Vector3(0, 0, 12));
+  readyPlayer(stageSpawn(), stageSpawnYaw());
   hud.reset();
   Object.assign(game, { mode: 'stage', wave: 0, phase: 'intermission', interT: 6, toSpawn: [], waveTotal: 0, waveKilled: 0, enemyLevel: 1 });
   game.state = 'play';
@@ -446,7 +454,7 @@ function startGame() {
   lockPointer();
   if (IS_TOUCH) setAds(false);
   hud.log(campaign.stage ? campaign.stage.objective : 'Shoot bandits. Grab loot. Don\'t die.', '#ffd23a');
-  hud.log(IS_TOUCH ? 'Left thumb moves. Drag right side to aim.' : 'WASD move · Mouse aim · Click swing (keep swinging to combo) · F kick', '#fff3dc');
+  hud.log(IS_TOUCH ? 'Left thumb moves. Drag right side to aim.' : 'WASD move · Mouse aim · Q or wheel: rifle ⇄ axe · F kick', '#fff3dc');
 }
 function pauseGame() {
   if (game.state !== 'play') return;
@@ -478,7 +486,7 @@ function respawn() {
   player.cash -= Math.floor(player.cash * 0.07);
   player.alive = true; player.downed = false;
   player.hp = player.maxHp; player.shield = player.shieldMax(); player.invuln = 3;
-  respawnAt(new THREE.Vector3(0, 0, 12));
+  respawnAt(stageSpawn(), stageSpawnYaw());
   for (const s of enemyShots) scene.remove(s.mesh);
   enemyShots.length = 0;
   burst(player.center(), 0x4fc6ff, 30, 5, 0.12, 0.8, 0.2, true);
@@ -537,7 +545,11 @@ window.addEventListener('keydown', (e) => {
   switch (e.code) {
     case 'Space': input.jumpPressed = true; e.preventDefault(); break;
     case 'KeyE': interact(); break;
-    case 'KeyF': case 'KeyV': case 'KeyQ': doMelee(); break;
+    case 'KeyR': startReload(); break;
+    case 'KeyQ': toggleWeapon(); break;
+    case 'Digit1': switchWeapon(0); break;
+    case 'Digit2': switchWeapon(1); break;
+    case 'KeyF': case 'KeyV': doMelee(); break;
     case 'KeyK': openSkills(); break;
     case 'KeyN': if (game.phase === 'intermission') game.interT = 0; else if (game.phase === 'complete') finishStage(true); break;
     case 'KeyM': $('btnMute').textContent = SFX.toggleMute() ? 'Sound: off' : 'Sound: on'; break;
@@ -545,15 +557,17 @@ window.addEventListener('keydown', (e) => {
   }
 });
 window.addEventListener('keyup', (e) => { input.keys[e.code] = false; });
+window.addEventListener('wheel', (e) => { if (game.state === 'play' && Math.abs(e.deltaY) > 4) toggleWeapon(); }, { passive: true });
 window.addEventListener('blur', () => { input.keys = Object.create(null); input.fire = false; if (game.state === 'play' && !IS_TOUCH) pauseGame(); });
 
 // ---------------------------------------------------------------------------
 // Touch controls
 //  - left side: floating move stick (push all the way to sprint)
 //  - right side: drag to look
-//  - SWING: tap to swing the axe, keep tapping (or hold) to run the three-move combo; dragging it
-//    also turns the camera
-//  - KICK (bottom-right): tap to kick
+//  - FIRE / SWING: hold to shoot the rifle, or tap (keep tapping, or hold) for the axe's three-move
+//    combo; dragging it also turns the camera; with the rifle a quick swipe left aims, right un-aims
+//  - corner button: tap to switch rifle <-> axe, hold to reload
+//  - KICK: kick
 const touchEl = $('touch');
 const stickBase = $('stickBase'), stickKnob = $('stickKnob');
 const fireBtn = $('fireBtn'), wheelBtn = $('wheelBtn'), wheelEl = $('wheel');
@@ -561,24 +575,33 @@ const pointers = new Map();
 
 function setAds(on) {
   input.ads = on;
+  fireBtn.classList.toggle('ads', on);
 }
 function fireStart(p) { if (p.decided) return; p.decided = 'fire'; input.fire = true; input.firePressed = true; }
 
-// ----- the kick button shows its cooldown; the swing button the next move
+// ----- the corner button shows the weapon and its ammo and switches; the kick button its cooldown;
+// the fire button reads FIRE or SWING (and the axe combo's next move)
 function updateWheelButton() {
-  const cd = Math.max(0, player.kickCd || 0);
-  $('wbAmmo').textContent = cd > 0 ? cd.toFixed(1) : '🦶';
-  $('wbPool').textContent = cd > 0 ? '' : 'ready';
-  // the swing button names the combo's next move
-  const next = AXE_COMBO[player.meleeT > 0 || player.comboT > -COMBO_WINDOW ? (player.combo + 1) % 3 : 0].name;
-  if ($('fireHint').textContent !== next) $('fireHint').textContent = next;
-  wheelBtn.classList.toggle('empty', cd > 0);
+  const g = player.gun();
+  if (!g) return;
+  const other = player.weapons[player.cur === 0 ? 1 : 0];
+  $('wbName').textContent = g.label;
+  $('wbAmmo').textContent = g.melee ? '⚔' : player.reloadT > 0 ? '··' : g.inMag;
+  $('wbPool').textContent = (g.melee ? '' : player.ammo[g.ammo] + ' · ') + '⇄ ' + (other ? other.label.toUpperCase() : '');
+  wheelBtn.style.borderColor = RARITY[g.rarity].css;
+  wheelBtn.classList.toggle('empty', !g.melee && g.inMag <= Math.ceil(g.mag * 0.2));
+  $('kickBtn').classList.toggle('cool', player.kickCd > 0);
+  const label = g.melee ? 'SWING' : 'FIRE';
+  if ($('fireLabel').textContent !== label) $('fireLabel').textContent = label;
+  const hint = g.melee ? AXE_COMBO[player.meleeT > 0 || player.comboT > -COMBO_WINDOW ? (player.combo + 1) % 3 : 0].name : input.ads ? 'HIP ▶' : '◀ AIM';
+  if ($('fireHint').textContent !== hint) $('fireHint').textContent = hint;
 }
 function openWheel() { /* no weapon wheel: the axe is the only weapon */ }
 
 function touchAct(act, btn) {
   if (game.state !== 'play') return;
   if (act === 'jump') input.jumpPressed = true;
+  else if (act === 'kick') doMelee();
   else if (act === 'use') interact();
 }
 touchEl.addEventListener('pointerdown', (e) => {
@@ -593,9 +616,11 @@ touchEl.addEventListener('pointerdown', (e) => {
     btn.classList.add('down');
     fireStart(p);
   } else if (btn && btn.dataset.act === 'wheel') {
+    // tap: switch weapons; hold: reload
     btn.classList.add('down');
-    if (game.state === 'play') doMelee(); // the kick
-    pointers.set(e.pointerId, { kind: 'btn', btn });
+    const p = { kind: 'swap', btn, t0: now, done: false };
+    p.timer = setTimeout(() => { if (pointers.get(e.pointerId) === p && game.state === 'play') { p.done = true; startReload(); } }, 380);
+    pointers.set(e.pointerId, p);
   } else if (btn) {
     btn.classList.add('down');
     touchAct(btn.dataset.act, btn);
@@ -622,8 +647,16 @@ touchEl.addEventListener('pointermove', (e) => {
     input.lookDX += (e.clientX - p.x) * 2.4; input.lookDY += (e.clientY - p.y) * 2.4;
     p.x = e.clientX; p.y = e.clientY;
   } else if (p.kind === 'fire') {
-    // the swing button turns the camera too
-    input.lookDX += (e.clientX - p.x) * 2.4; input.lookDY += (e.clientY - p.y) * 2.4;
+    const dx = e.clientX - p.x0, dy = e.clientY - p.y0;
+    const g = player.gun();
+    if (g && !g.melee && !p.swiped && !p.looked && performance.now() - p.t0 < 280 && Math.abs(dx) > 34 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      // with the rifle, a quick sideways swipe toggles aiming down the sights
+      p.swiped = true; input.fire = false; setAds(dx < 0);
+    } else if (!p.swiped) {
+      if (Math.hypot(dx, dy) > 30) p.looked = true;
+      // the fire button turns the camera too
+      input.lookDX += (e.clientX - p.x) * 2.4; input.lookDY += (e.clientY - p.y) * 2.4;
+    }
     p.x = e.clientX; p.y = e.clientY;
   }
 }, { passive: false });
@@ -635,6 +668,9 @@ function endPointer(e) {
   if (p.kind === 'stick') { input.touchMove.x = 0; input.touchMove.y = 0; stickBase.hidden = true; }
   else if (p.kind === 'fire') {
     input.fire = false;
+  } else if (p.kind === 'swap') {
+    clearTimeout(p.timer);
+    if (!p.done && game.state === 'play') toggleWeapon();
   }
 }
 touchEl.addEventListener('pointerup', endPointer);
@@ -711,6 +747,8 @@ function frame(now) {
   if (game.state === 'play') update(dt);
   else if (game.state === 'menu') updateMenu(dt);
   renderer.clear();
+  camera.updateMatrixWorld();
+  updateStageMap(camera);
   renderer.render(scene, camera);
   if (game.state !== 'menu' && player.gun()) { renderer.clearDepth(); renderer.render(vmScene, vmCamera); }
 }

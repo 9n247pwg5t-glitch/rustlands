@@ -59,20 +59,6 @@ const sky = new THREE.Mesh(
 sky.renderOrder = -1;
 scene.add(sky);
 
-// Distant mesas silhouettes
-(function () {
-  const mat = new THREE.MeshBasicMaterial({ color: 0xc98f62, fog: false });
-  const rng = makeRng(77);
-  for (let i = 0; i < 28; i++) {
-    const a = (i / 28) * TAU + rng() * 0.2;
-    const r = 330 + rng() * 60;
-    const w = 30 + rng() * 60, h = 20 + rng() * 45;
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.6, w, h, 6), mat);
-    m.position.set(Math.cos(a) * r, h / 2 - 4, Math.sin(a) * r);
-    scene.add(m);
-  }
-})();
-
 // ---------------------------------------------------------------------------
 // Lights
 const hemi = new THREE.HemisphereLight(0xcfe8ff, 0xb06a3c, 0.6);
@@ -181,60 +167,26 @@ function addOutline(mesh, scale) {
 }
 
 // ---------------------------------------------------------------------------
-// Terrain: a dusty basin ringed by cliffs.
-const ARENA_R = 84;          // playable radius
-// The active world (see "Worlds" below): its id, flat floor height (null = the arena's terrain) and bounds.
-const WORLD = { id: 'arena', flat: null, bounds: { r: ARENA_R } };
-const WORLD_SIZE = 300, SEG = 150;
-const CELL = WORLD_SIZE / SEG;
-function rawHeight(x, z) {
-  const r = Math.hypot(x, z);
-  let h = fbm(x * 0.025, z * 0.025) * 5 + fbm(x * 0.09 + 7, z * 0.09 - 3, 2) * 0.7;
-  h *= smoothstep(8, 55, r) * 0.85 + 0.15;
-  const c = smoothstep(76, 104, r);
-  h += c * c * 34 + c * fbm(x * 0.06, z * 0.06) * 12;
-  return h;
-}
-const HMAP = new Float32Array((SEG + 1) * (SEG + 1));
-const terrainGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, SEG, SEG);
-terrainGeo.rotateX(-Math.PI / 2);
-(function buildTerrain() {
-  const pos = terrainGeo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i);
-    const y = rawHeight(x, z);
-    pos.setY(i, y);
-    const gx = Math.round((x + WORLD_SIZE / 2) / CELL), gz = Math.round((z + WORLD_SIZE / 2) / CELL);
-    HMAP[gz * (SEG + 1) + gx] = y;
-  }
-  terrainGeo.computeVertexNormals();
-  const nrm = terrainGeo.attributes.normal;
-  const cols = new Float32Array(pos.count * 3);
-  const sandA = [0.93, 0.71, 0.46], sandB = [0.85, 0.6, 0.38], rockA = [0.66, 0.38, 0.26], rockB = [0.5, 0.28, 0.21], dark = [0.75, 0.5, 0.33];
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    const slope = 1 - nrm.getY(i);
-    let c;
-    if (slope > 0.3 || y > 13) c = (Math.floor(y / 2.6) % 2 === 0) ? rockA : rockB;
-    else if (slope > 0.16) c = dark;
-    else c = vnoise(x * 0.12, z * 0.12) > 0.25 ? sandB : sandA;
-    cols[i * 3] = c[0]; cols[i * 3 + 1] = c[1]; cols[i * 3 + 2] = c[2];
-  }
-  terrainGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-})();
-const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: gradTex }));
-terrain.receiveShadow = true;
-scene.add(terrain);
-
-// Ground height: the arena's terrain, or the active world's flat floor (see WORLD below).
+// Ground. Stage maps are loaded from files (js/map.js): the arena world's ground is the loaded
+// map's baked heightmap (`MAPG`), sampled bilinearly. Until a map is loaded the ground is flat at 0.
+// The active world (see "Worlds" below): its id, flat floor height (null = the stage map's ground) and bounds.
+const WORLD = { id: 'arena', flat: null, bounds: { minX: -150, maxX: 150, minZ: -150, maxZ: 150 } };
+const MAPG = { ready: false, x0: 0, z0: 0, cell: 1, nx: 1, nz: 1, h: null };
 function groundAt(x, z) { return WORLD.flat != null ? WORLD.flat : terrainAt(x, z); }
 function terrainAt(x, z) {
-  const fx = (x + WORLD_SIZE / 2) / CELL, fz = (z + WORLD_SIZE / 2) / CELL;
-  const ix = clamp(Math.floor(fx), 0, SEG - 1), iz = clamp(Math.floor(fz), 0, SEG - 1);
+  if (!MAPG.ready) return 0;
+  const fx = (x - MAPG.x0) / MAPG.cell - 0.5, fz = (z - MAPG.z0) / MAPG.cell - 0.5;
+  const ix = clamp(Math.floor(fx), 0, MAPG.nx - 2), iz = clamp(Math.floor(fz), 0, MAPG.nz - 2);
   const tx = clamp(fx - ix, 0, 1), tz = clamp(fz - iz, 0, 1);
-  const W = SEG + 1;
-  const a = HMAP[iz * W + ix], b = HMAP[iz * W + ix + 1], c = HMAP[(iz + 1) * W + ix], d = HMAP[(iz + 1) * W + ix + 1];
-  return lerp(lerp(a, b, tx), lerp(c, d, tx), tz);
+  const W = MAPG.nx, H = MAPG.h;
+  const a = H[iz * W + ix], b = H[iz * W + ix + 1], c = H[(iz + 1) * W + ix], d = H[(iz + 1) * W + ix + 1];
+  return lerp(lerp(a, b, tx), lerp(c, d, tx), tz) * 0.01;
+}
+// Is a point inside the active world's playable area (with a margin)?
+function inBounds(x, z, m = 0) {
+  const B = WORLD.bounds;
+  if (B.r) return Math.hypot(x, z) < B.r - m;
+  return x > B.minX + m && x < B.maxX - m && z > B.minZ + m && z < B.maxZ - m;
 }
 
 // ---------------------------------------------------------------------------
@@ -243,7 +195,49 @@ const boxCols = [];
 const sphCols = [];
 function addBoxCol(cx, cz, w, d, y0, y1, ref = null) {
   const c = { minX: cx - w / 2, maxX: cx + w / 2, minZ: cz - d / 2, maxZ: cz + d / 2, minY: y0, maxY: y1, ref };
-  boxCols.push(c); return c;
+  boxCols.push(c); COLG.dirty = true; return c;
+}
+// A uniform grid over the active world's colliders, so collision and ray tests only look at the
+// ones nearby (a stage map has thousands). Rebuilt when the world or its colliders change.
+const COLG = { dirty: true, cell: 6, x0: 0, z0: 0, nx: 0, nz: 0, cells: null, stamp: 1 };
+function colgBuild() {
+  COLG.dirty = false;
+  let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+  const ext = (a, b, c, d) => { minX = Math.min(minX, a); minZ = Math.min(minZ, b); maxX = Math.max(maxX, c); maxZ = Math.max(maxZ, d); };
+  for (const c of boxCols) ext(c.minX, c.minZ, c.maxX, c.maxZ);
+  for (const s of sphCols) ext(s.x - s.r, s.z - s.r, s.x + s.r, s.z + s.r);
+  if (minX === Infinity) { minX = minZ = -1; maxX = maxZ = 1; }
+  const C = COLG.cell;
+  COLG.x0 = minX - C; COLG.z0 = minZ - C;
+  COLG.nx = Math.ceil((maxX - COLG.x0) / C) + 2; COLG.nz = Math.ceil((maxZ - COLG.z0) / C) + 2;
+  COLG.cells = new Array(COLG.nx * COLG.nz);
+  const add = (o, a, b, c, d) => {
+    for (let iz = Math.floor((b - COLG.z0) / C); iz <= Math.floor((d - COLG.z0) / C); iz++)
+      for (let ix = Math.floor((a - COLG.x0) / C); ix <= Math.floor((c - COLG.x0) / C); ix++) {
+        const k = iz * COLG.nx + ix;
+        (COLG.cells[k] || (COLG.cells[k] = [])).push(o);
+      }
+  };
+  for (const c of boxCols) add(c, c.minX, c.minZ, c.maxX, c.maxZ);
+  for (const s of sphCols) add(s, s.x - s.r, s.z - s.r, s.x + s.r, s.z + s.r);
+}
+// The colliders overlapping an XZ rectangle: boxes into nearBoxes, spheres into nearSphs.
+const nearBoxes = [], nearSphs = [];
+function colsNear(minX, minZ, maxX, maxZ) {
+  if (COLG.dirty) colgBuild();
+  nearBoxes.length = 0; nearSphs.length = 0;
+  const st = ++COLG.stamp, C = COLG.cell;
+  const ix0 = Math.max(0, Math.floor((minX - COLG.x0) / C)), ix1 = Math.min(COLG.nx - 1, Math.floor((maxX - COLG.x0) / C));
+  const iz0 = Math.max(0, Math.floor((minZ - COLG.z0) / C)), iz1 = Math.min(COLG.nz - 1, Math.floor((maxZ - COLG.z0) / C));
+  for (let iz = iz0; iz <= iz1; iz++) for (let ix = ix0; ix <= ix1; ix++) {
+    const L = COLG.cells[iz * COLG.nx + ix];
+    if (!L) continue;
+    for (const o of L) {
+      if (o._st === st) continue;
+      o._st = st;
+      if (o.minX !== undefined) { if (!o.ref || o.ref.alive) nearBoxes.push(o); } else nearSphs.push(o);
+    }
+  }
 }
 
 const props = new THREE.Group();
@@ -257,93 +251,6 @@ function rotXZ(x, z, rot) {
   return [x * c - z * s, x * s + z * c];
 }
 
-function buildShack(x, z, rot, rng) {
-  const g = new THREE.Group();
-  const y = groundAt(x, z);
-  g.position.set(x, y, z); g.rotation.y = rot;
-  const W = 6 + rng() * 2, D = 5 + rng() * 1.5, H = 3.4;
-  const metal = pick([0xa1593a, 0x8b6b4a, 0x7c8a8a, 0xb07a3a]);
-  // three walls + open front
-  box(W, H, 0.2, metal, 0, H / 2 - 0.3, -D / 2, g);
-  box(0.2, H, D, metal, -W / 2, H / 2 - 0.3, 0, g);
-  box(0.2, H, D, metal, W / 2, H / 2 - 0.3, 0, g);
-  box(W * 0.3, H, 0.2, metal, -W * 0.35, H / 2 - 0.3, D / 2, g);
-  box(W * 0.3, H, 0.2, metal, W * 0.35, H / 2 - 0.3, D / 2, g);
-  const roof = box(W + 0.8, 0.15, D + 1, 0x6d4630, 0, H - 0.1, 0, g);
-  roof.rotation.x = 0.08;
-  // corrugation stripes
-  for (let i = -2; i <= 2; i++) box(0.08, H * 0.9, 0.05, 0x5a3322, i * W * 0.18, H / 2 - 0.3, -D / 2 - 0.13, g, 0);
-  // sign
-  box(2.2, 0.6, 0.1, 0xe8d24a, 0, H + 0.4, D / 2 + 0.2, g);
-  props.add(g);
-  // colliders (walls) – rotation is a multiple of 90deg so boxes stay axis-aligned
-  const walls = [[0, -D / 2, W, 0.3], [-W / 2, 0, 0.3, D], [W / 2, 0, 0.3, D], [-W * 0.35, D / 2, W * 0.3, 0.3], [W * 0.35, D / 2, W * 0.3, 0.3]];
-  for (const [lx, lz, w, d] of walls) {
-    const [ox, oz] = rotXZ(lx, lz, -rot);
-    const swap = Math.abs(Math.sin(rot)) > 0.5;
-    addBoxCol(x + ox, z + oz, swap ? d : w, swap ? w : d, y - 1, y + H - 0.2);
-  }
-  // roof you can stand on
-  const swap = Math.abs(Math.sin(rot)) > 0.5;
-  addBoxCol(x, z, swap ? D : W, swap ? W : D, y + H - 0.4, y + H);
-}
-
-function buildCrate(x, z, s, rng) {
-  const y = groundAt(x, z);
-  const c = box(s, s, s, pick([0x9c6b3e, 0x7f8f4a, 0xb08a52]), x, y + s / 2, z, props, 0.04);
-  c.rotation.y = 0;
-  box(s * 1.02, s * 0.12, s * 1.02, 0x4b3b2a, 0, s * 0.3, 0, c, 0);
-  box(s * 1.02, s * 0.12, s * 1.02, 0x4b3b2a, 0, -s * 0.3, 0, c, 0);
-  addBoxCol(x, z, s, s, y, y + s);
-  return y + s;
-}
-
-function buildWall(x, z, len, rot) {
-  const y = groundAt(x, z);
-  const vertical = Math.abs(Math.sin(rot)) > 0.5;
-  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rot;
-  const n = Math.round(len / 1.4);
-  for (let i = 0; i < n; i++) {
-    const h = 1.3 + Math.random() * 0.5;
-    const p = box(1.35, h, 0.25, pick([0x8a5a3c, 0x9a9a8c, 0x6f4b33, 0xa77a40]), -len / 2 + 0.7 + i * 1.4, h / 2 - 0.1, (Math.random() - 0.5) * 0.1, g, 0.04);
-    p.rotation.z = (Math.random() - 0.5) * 0.1;
-  }
-  props.add(g);
-  addBoxCol(x, z, vertical ? 0.5 : len, vertical ? len : 0.5, y - 1, y + 1.45);
-}
-
-function buildRock(x, z, r, rng) {
-  const y = groundAt(x, z);
-  const geo = new THREE.DodecahedronGeometry(r, 0);
-  const m = new THREE.Mesh(geo, toon(pick([0x9b5a3c, 0x8a4c33, 0xae6a45])));
-  m.scale.set(1 + rng() * 0.4, 0.65 + rng() * 0.4, 1 + rng() * 0.4);
-  m.rotation.set(rng() * 3, rng() * 3, rng() * 3);
-  m.position.set(x, y + r * 0.35, z);
-  m.castShadow = true; m.receiveShadow = true;
-  addOutline(m, 1.05);
-  props.add(m);
-  const er = r * Math.max(m.scale.x, m.scale.z) * 0.85;
-  sphCols.push({ x, y: y + r * 0.35, z, r: er, top: y + r * 0.35 + r * m.scale.y * 0.8 });
-}
-
-function buildCar(x, z, rot) {
-  const y = groundAt(x, z);
-  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rot;
-  const col = pick([0x4f7a8a, 0xa3402e, 0x7b6a2e]);
-  box(4.4, 0.9, 2.1, col, 0, 0.75, 0, g);
-  box(2.2, 0.7, 1.9, col, -0.3, 1.5, 0, g);
-  box(1.95, 0.5, 1.95, 0x2a3a40, -0.3, 1.5, 0, g, 0);
-  for (const [wx, wz] of [[1.4, 1.05], [-1.4, 1.05], [1.4, -1.05], [-1.4, -1.05]]) {
-    const w = cyl(0.42, 0.42, 0.3, 0x222222, wx, 0.42, wz, g, 0.03, 12);
-    w.rotation.x = Math.PI / 2;
-  }
-  box(0.3, 0.2, 2.2, 0x9a9a9a, 2.25, 0.6, 0, g);
-  g.rotation.z = (Math.random() - 0.5) * 0.1;
-  props.add(g);
-  const vertical = Math.abs(Math.sin(rot)) > 0.5;
-  addBoxCol(x, z, vertical ? 2.1 : 4.4, vertical ? 4.4 : 2.1, y, y + 1.85);
-}
-
 function buildBarrel(x, z) {
   const y = groundAt(x, z);
   const g = new THREE.Group(); g.position.set(x, y, z);
@@ -355,32 +262,6 @@ function buildBarrel(x, z) {
   const b = { group: g, x, y, z, hp: 25, alive: true, col: null };
   b.col = addBoxCol(x, z, 0.8, 0.8, y, y + 1.1, b);
   barrels.push(b);
-}
-
-function buildTower(x, z) {
-  const y = groundAt(x, z);
-  const g = new THREE.Group(); g.position.set(x, y, z);
-  for (const [lx, lz] of [[1.5, 1.5], [-1.5, 1.5], [1.5, -1.5], [-1.5, -1.5]]) box(0.25, 9, 0.25, 0x5a4030, lx, 4.5, lz, g);
-  cyl(2.4, 2.4, 3.2, 0x8f6a45, 0, 10.6, 0, g, 0.06, 14);
-  cyl(2.6, 0.3, 1.2, 0x5a3a28, 0, 12.8, 0, g, 0.05, 14);
-  box(3.4, 0.2, 3.4, 0x5a4030, 0, 8.9, 0, g);
-  props.add(g);
-  addBoxCol(x, z, 3.5, 3.5, y, y + 8.9);
-}
-
-function buildSpawnGate(x, z) {
-  const y = groundAt(x, z);
-  const g = new THREE.Group(); g.position.set(x, y, z);
-  g.lookAt(0, y, 0);
-  box(0.4, 5, 0.4, 0x4a3426, -3, 2.5, 0, g);
-  box(0.4, 5, 0.4, 0x4a3426, 3, 2.5, 0, g);
-  box(6.8, 0.5, 0.4, 0x4a3426, 0, 4.8, 0, g);
-  const flag = box(1.4, 0.9, 0.05, 0xc0392b, -3, 5.6, 0, g, 0.03);
-  box(0.5, 0.5, 0.06, 0xffffff, 0, 0, 0.01, flag, 0);
-  // skull totems
-  box(0.5, 0.45, 0.45, 0xf0e6d0, 3, 5.4, 0, g, 0.03);
-  props.add(g);
-  spawnPoints.push(new THREE.Vector3(x, y, z));
 }
 
 function buildVending(x, z, rot, kind) {
@@ -401,91 +282,6 @@ function buildVending(x, z, rot, kind) {
   interactables.push({ kind, pos: new THREE.Vector3(x + fx * 1.2, y + 1.2, z + fz * 1.2), group: g });
 }
 
-(function buildArena() {
-  const rng = makeRng(4242);
-  const taken = [];
-  const free = (x, z, r) => {
-    if (Math.hypot(x, z) < 9) return false;
-    for (const t of taken) if (Math.hypot(t[0] - x, t[1] - z) < t[2] + r) return false;
-    taken.push([x, z, r]); return true;
-  };
-  const randPos = (minR, maxR) => { const a = rng() * TAU, r = minR + rng() * (maxR - minR); return [Math.cos(a) * r, Math.sin(a) * r]; };
-
-  // spawn gates on the rim
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * TAU + 0.3;
-    const x = Math.cos(a) * 74, z = Math.sin(a) * 74;
-    taken.push([x, z, 7]);
-    buildSpawnGate(x, z);
-  }
-  // (no ammo machine: the player only has the axe)
-  buildVending(3.2, 4.5, 0, 'health');
-
-  for (let i = 0; i < 6; i++) {
-    for (let k = 0; k < 20; k++) {
-      const [x, z] = randPos(22, 60);
-      if (free(x, z, 6)) { buildShack(x, z, Math.floor(rng() * 4) * Math.PI / 2, rng); break; }
-    }
-  }
-  for (let i = 0; i < 2; i++) {
-    for (let k = 0; k < 20; k++) {
-      const [x, z] = randPos(40, 66);
-      if (free(x, z, 4)) { buildTower(x, z); break; }
-    }
-  }
-  for (let i = 0; i < 14; i++) {
-    for (let k = 0; k < 20; k++) {
-      const [x, z] = randPos(12, 66);
-      const len = 4 + Math.floor(rng() * 3) * 1.4;
-      if (free(x, z, len / 2 + 1)) { buildWall(x, z, len, rng() < 0.5 ? 0 : Math.PI / 2); break; }
-    }
-  }
-  for (let i = 0; i < 5; i++) {
-    for (let k = 0; k < 20; k++) {
-      const [x, z] = randPos(15, 65);
-      if (free(x, z, 3.5)) { buildCar(x, z, rng() < 0.5 ? 0 : Math.PI / 2); break; }
-    }
-  }
-  for (let i = 0; i < 16; i++) {
-    for (let k = 0; k < 20; k++) {
-      const [x, z] = randPos(12, 68);
-      if (free(x, z, 1.5)) {
-        buildCrate(x, z, 1.2, rng);
-        if (rng() < 0.4) { const y = groundAt(x, z); const c = box(1.0, 1.0, 1.0, 0x9c6b3e, x + 0.1, y + 1.7, z, props); addBoxCol(x + 0.1, z, 1.0, 1.0, y + 1.2, y + 2.2); c.rotation.y = 0; }
-        break;
-      }
-    }
-  }
-  for (let i = 0; i < 28; i++) {
-    for (let k = 0; k < 20; k++) {
-      const [x, z] = randPos(14, 78);
-      const r = 0.9 + rng() * 2.2;
-      if (free(x, z, r + 0.8)) { buildRock(x, z, r, rng); break; }
-    }
-  }
-  for (let i = 0; i < 12; i++) {
-    for (let k = 0; k < 20; k++) {
-      const [x, z] = randPos(10, 62);
-      if (free(x, z, 1.2)) { buildBarrel(x, z); break; }
-    }
-  }
-  // decorative scrub, bones and tyres (no collision)
-  for (let i = 0; i < 60; i++) {
-    const [x, z] = randPos(10, 80);
-    const y = groundAt(x, z);
-    if (rng() < 0.5) {
-      const s = 0.3 + rng() * 0.5;
-      const m = new THREE.Mesh(new THREE.ConeGeometry(s, s * 2.2, 5), toon(pick([0x7a8a3a, 0x8f9b46, 0x6a7a30])));
-      m.position.set(x, y + s, z); addOutline(m, 1.08); props.add(m);
-    } else if (rng() < 0.5) {
-      const t = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.18, 6, 10), toon(0x262626));
-      t.rotation.x = Math.PI / 2 + (rng() - 0.5) * 0.6; t.position.set(x, y + 0.18, z); addOutline(t, 1.08); props.add(t);
-    } else {
-      box(0.9, 0.12, 0.12, 0xefe4cc, x, y + 0.06, z, props, 0.025).rotation.y = rng() * 3;
-    }
-  }
-})();
-
 // ---------------------------------------------------------------------------
 // Worlds. Each place the player can be (the arena, the hub room) owns its scene objects,
 // colliders, interactables, floor and bounds; switching swaps them in and out whole, so only the
@@ -494,7 +290,7 @@ function buildVending(x, z, rot, kind) {
 const worlds = {
   arena: {
     objects: scene.children.filter((o) => o !== camera && !o.isLight && o !== sun.target),
-    box: [], sph: [], inter: [], flat: null, bounds: { r: ARENA_R },
+    box: [], sph: [], inter: [], flat: null, bounds: WORLD.bounds,
     fog: scene.fog, background: FOG_COLOR, light: { hemi: hemi.intensity, sun: sun.intensity },
   },
 };
@@ -508,6 +304,7 @@ function defineWorld(id, def, build) {
   build(group);
   worlds[id] = Object.assign({ objects: [group], box: boxCols.splice(0), sph: sphCols.splice(0), inter: interactables.splice(0) }, def);
   boxCols.push(...keep[0]); sphCols.push(...keep[1]); interactables.push(...keep[2]);
+  COLG.dirty = true;
   return worlds[id];
 }
 function switchWorld(id) {
@@ -518,6 +315,7 @@ function switchWorld(id) {
   boxCols.push(...next.box); sphCols.push(...next.sph); interactables.push(...next.inter);
   for (const o of next.objects) o.visible = true;
   WORLD.id = id; WORLD.flat = next.flat; WORLD.bounds = next.bounds;
+  COLG.dirty = true;
   scene.fog = next.fog; scene.background = next.background;
   hemi.intensity = next.light.hemi; sun.intensity = next.light.sun;
 }
@@ -577,13 +375,32 @@ function rayFlat(o, d, maxD) {
 // returns {t, barrel}
 function rayWorld(o, d, maxD) {
   let best = maxD, barrel = null;
-  for (const c of boxCols) {
-    const t = rayBox(o.x, o.y, o.z, d.x, d.y, d.z, c);
-    if (t < best) { best = t; barrel = c.ref; }
-  }
-  for (const s of sphCols) {
-    const t = raySphere(o.x, o.y, o.z, d.x, d.y, d.z, s.x, s.y, s.z, s.r);
-    if (t < best) { best = t; barrel = null; }
+  // walk the collider grid cells along the ray (2D DDA), nearest first, until past the best hit
+  if (COLG.dirty) colgBuild();
+  const C = COLG.cell, st = ++COLG.stamp;
+  let ix = Math.floor((o.x - COLG.x0) / C), iz = Math.floor((o.z - COLG.z0) / C);
+  const sx = d.x > 0 ? 1 : -1, sz = d.z > 0 ? 1 : -1;
+  const ddx = Math.abs(d.x) > 1e-9 ? C / Math.abs(d.x) : Infinity, ddz = Math.abs(d.z) > 1e-9 ? C / Math.abs(d.z) : Infinity;
+  let tx = Math.abs(d.x) > 1e-9 ? ((sx > 0 ? (ix + 1) * C + COLG.x0 - o.x : o.x - (ix * C + COLG.x0)) / Math.abs(d.x)) : Infinity;
+  let tz = Math.abs(d.z) > 1e-9 ? ((sz > 0 ? (iz + 1) * C + COLG.z0 - o.z : o.z - (iz * C + COLG.z0)) / Math.abs(d.z)) : Infinity;
+  let tEnter = 0;
+  for (let guard = 0; guard < 400 && tEnter <= best; guard++) {
+    if (ix >= 0 && iz >= 0 && ix < COLG.nx && iz < COLG.nz) {
+      const L = COLG.cells[iz * COLG.nx + ix];
+      if (L) for (const c of L) {
+        if (c._st === st) continue;
+        c._st = st;
+        if (c.minX !== undefined) {
+          if (c.ref && !c.ref.alive) continue;
+          const t = rayBox(o.x, o.y, o.z, d.x, d.y, d.z, c);
+          if (t < best) { best = t; barrel = c.ref; }
+        } else {
+          const t = raySphere(o.x, o.y, o.z, d.x, d.y, d.z, c.x, c.y, c.z, c.r);
+          if (t < best) { best = t; barrel = null; }
+        }
+      }
+    } else if ((ix < 0 && sx < 0) || (iz < 0 && sz < 0) || (ix >= COLG.nx && sx > 0) || (iz >= COLG.nz && sz > 0)) break; // left the grid
+    if (tx < tz) { tEnter = tx; tx += ddx; ix += sx; } else { tEnter = tz; tz += ddz; iz += sz; }
   }
   const tt = WORLD.flat != null ? rayFlat(o, d, best) : rayTerrain(o, d, best);
   if (tt < best) { best = tt; barrel = null; }
@@ -600,7 +417,8 @@ function lineOfSight(a, b) {
 // Push a vertical capsule (feet at p) out of the world; returns ground height under it.
 function collideBody(p, radius, height, vy = 0) {
   let ground = groundAt(p.x, p.z);
-  for (const c of boxCols) {
+  colsNear(p.x - radius, p.z - radius, p.x + radius, p.z + radius);
+  for (const c of nearBoxes) {
     if (p.x + radius < c.minX || p.x - radius > c.maxX || p.z + radius < c.minZ || p.z - radius > c.maxZ) continue;
     const insideXZ = p.x > c.minX && p.x < c.maxX && p.z > c.minZ && p.z < c.maxZ;
     if (p.y >= c.maxY - 0.45 && vy <= 0.5) {
@@ -621,7 +439,7 @@ function collideBody(p, radius, height, vy = 0) {
       p.x += (dx / dist) * (radius - dist); p.z += (dz / dist) * (radius - dist);
     }
   }
-  for (const s of sphCols) {
+  for (const s of nearSphs) {
     const dx = p.x - s.x, dz = p.z - s.z;
     const dist = Math.hypot(dx, dz);
     const rr = s.r + radius;
@@ -804,42 +622,31 @@ window.addEventListener('resize', onResize);
 onResize();
 
 // ---------------------------------------------------------------------------
-// Navigation: a walkability grid over the arena plus a flow field toward the
-// player, so enemies route around shacks, walls, cars and rocks.
-const NAV_CELL = 1.0;
-const NAV_N = Math.ceil((ARENA_R * 2) / NAV_CELL) + 2;
-const NAV_OFF = NAV_N * NAV_CELL / 2;
-const navBlocked = new Uint8Array(NAV_N * NAV_N);
-const navDist = new Float32Array(NAV_N * NAV_N).fill(Infinity);
+// Navigation: a walkability grid over the stage plus a flow field toward the
+// player, so enemies route around buildings, fences, cars, trees and rocks.
+// The grid comes with the stage map (baked by tools/map-bake.mjs); navInit sets it up.
+let NAV_CELL = 1, NAV_N = 2, NAV_X0 = -1, NAV_Z0 = -1;
+let navBlocked = new Uint8Array(4), navDist = new Float32Array(4).fill(Infinity);
+let _heapIdx = new Int32Array(16), _heapKey = new Float32Array(16);
+let _aG = new Float32Array(4), _aFrom = new Int32Array(4), _aSeen = new Uint32Array(4);
+const NAV_REACH = 110; // the flow field spreads this far (m) from the target; beyond it enemies head straight in
 const navCellOf = (x, z) => {
-  const ix = Math.floor((x + NAV_OFF) / NAV_CELL), iz = Math.floor((z + NAV_OFF) / NAV_CELL);
+  const ix = Math.floor((x - NAV_X0) / NAV_CELL), iz = Math.floor((z - NAV_Z0) / NAV_CELL);
   return ix < 0 || iz < 0 || ix >= NAV_N || iz >= NAV_N ? -1 : iz * NAV_N + ix;
 };
-const navCenterX = (i) => (i % NAV_N + 0.5) * NAV_CELL - NAV_OFF;
-const navCenterZ = (i) => (Math.floor(i / NAV_N) + 0.5) * NAV_CELL - NAV_OFF;
+const navCenterX = (i) => (i % NAV_N + 0.5) * NAV_CELL + NAV_X0;
+const navCenterZ = (i) => (Math.floor(i / NAV_N) + 0.5) * NAV_CELL + NAV_Z0;
+// `n` cells a side of `cell` metres from (x0, z0); `bits` marks blocked cells (1 bit each, row by row).
+function navInit(n, cell, x0, z0, bits) {
+  NAV_N = n; NAV_CELL = cell; NAV_X0 = x0; NAV_Z0 = z0;
+  navBlocked = new Uint8Array(n * n); navDist = new Float32Array(n * n).fill(Infinity);
+  _heapIdx = new Int32Array(n * n * 4); _heapKey = new Float32Array(n * n * 4);
+  _aG = new Float32Array(n * n); _aFrom = new Int32Array(n * n); _aSeen = new Uint32Array(n * n);
+  for (let i = 0; i < n * n; i++) navBlocked[i] = (bits[i >> 3] >> (i & 7)) & 1;
+  navTargetCell = -2; navAge = 99;
+}
 
-(function buildNav() {
-  const pad = 0.5;
-  for (let i = 0; i < navBlocked.length; i++) {
-    const x = navCenterX(i), z = navCenterZ(i);
-    if (Math.hypot(x, z) > ARENA_R - 0.5) { navBlocked[i] = 1; continue; }
-    const g = groundAt(x, z);
-    for (const c of boxCols) {
-      if (c.ref) continue; // barrels come and go
-      if (c.maxY < g + 0.5 || c.minY > g + 1.6) continue;
-      if (x > c.minX - pad && x < c.maxX + pad && z > c.minZ - pad && z < c.maxZ + pad) { navBlocked[i] = 1; break; }
-    }
-    if (navBlocked[i]) continue;
-    for (const s of sphCols) {
-      if (s.top < g + 0.5) continue;
-      if (Math.hypot(x - s.x, z - s.z) < s.r + pad) { navBlocked[i] = 1; break; }
-    }
-  }
-})();
-
-// Dijkstra from the target cell with a binary heap. ~29k cells, a few ms.
-const _heapIdx = new Int32Array(NAV_N * NAV_N * 4);
-const _heapKey = new Float32Array(NAV_N * NAV_N * 4);
+// Dijkstra from the target cell with a binary heap, out to NAV_REACH.
 let navTargetCell = -2, navAge = 99;
 function navUpdate(target, dt) {
   navAge += dt;
@@ -884,6 +691,7 @@ function navUpdate(target, dt) {
     const k0 = _heapKey[0];
     const i = pop();
     if (k0 > navDist[i]) continue;
+    if (k0 > NAV_REACH) break;
     const x = i % NAV_N, z = (i - x) / NAV_N;
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
       if (!dx && !dz) continue;
@@ -946,7 +754,6 @@ function navLineClear(a, b) {
 function navWalkable(x, z) { const i = navCellOf(x, z); return i >= 0 && !navBlocked[i]; }
 
 // A* over the grid from one point to another. Returns waypoints (cell centres) or null.
-const _aG = new Float32Array(NAV_N * NAV_N), _aFrom = new Int32Array(NAV_N * NAV_N), _aSeen = new Uint32Array(NAV_N * NAV_N);
 let _aGen = 0;
 function navFindPath(from, to, maxExpand = 5000) {
   let s = navCellOf(from.x, from.z), g = navCellOf(to.x, to.z);

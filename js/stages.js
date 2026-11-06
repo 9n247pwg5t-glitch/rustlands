@@ -10,11 +10,11 @@
 // entered yet. Names here are placeholders until the creator names the stages (see docs/).
 const STAGES = [
   {
-    id: 'stage-1', title: 'Stage 1', subtitle: 'Prototype arena · placeholder',
-    env: 'The desert test arena, standing in until the first real stage is built.',
+    id: 'stage-1', title: 'Stage 1', subtitle: 'Roadside gas station · placeholder',
+    env: 'A clown-infested gas station on a blockaded highway: forecourt, store, car wash, a carnival tent and a carousel, woods, a farm and a pond.',
     objective: 'Clear 5 waves. The 5th is a boss wave.',
     waves: 5, ready: true, preview: 'snapshot',
-    load() { switchWorld('arena'); }, unload() {}, // the arena is the world built at boot
+    load() { switchWorld('arena'); }, unload() {}, // the map (js/map.js) loads in the background at boot
   },
   { id: 'stage-2', title: 'Stage 2', subtitle: 'Not built yet', ready: false },
   { id: 'stage-3', title: 'Stage 3', subtitle: 'Not built yet', ready: false },
@@ -22,8 +22,8 @@ const STAGES = [
 
 // ---------------------------------------------------------------------------
 // Save file (this browser's localStorage; reading or writing can fail, e.g. in private browsing)
-// v2: the arsenal with mods and skills (since 2026-11-06 the axe only: rifle mods and rifle-tree
-// skills in a save are dropped and their skill points refunded). A v1 save (gun loot) is migrated:
+// v2: the arsenal (rifle and axe) with mods and skills; points spent on skills that no longer
+// exist are refunded. A v1 save (gun loot) is migrated:
 // level, XP, cash, grenades and stage records carry over, with a skill point for every level gained.
 const SAVE_KEY = 'rustlands.save.v2', OLD_SAVE_KEY = 'rustlands.save.v1';
 const campaign = { save: null, stage: null, stageIdx: -1, runT: 0, extractT: 0, previewUrl: null, newGameArmed: 0 };
@@ -36,7 +36,7 @@ function readSave() {
     const o = JSON.parse(localStorage.getItem(OLD_SAVE_KEY));
     if (o && o.v === 1) {
       const p = o.player;
-      return { v: 2, stages: o.stages || {}, player: p && { level: p.level, xp: p.xp, cash: p.cash, grenades: p.grenades, cur: 0, ammo: {}, mods: { melee: {} }, skills: {}, skillPoints: Math.max(0, p.level - 1) } };
+      return { v: 2, stages: o.stages || {}, player: p && { level: p.level, xp: p.xp, cash: p.cash, grenades: p.grenades, cur: 0, ammo: {}, mods: { ar: {}, melee: {} }, skills: {}, skillPoints: Math.max(0, p.level - 1) } };
     }
   } catch (e) { /* storage unavailable */ }
   return null;
@@ -52,22 +52,24 @@ const stageUnlocked = (i) => i === 0 || !!(campaign.save.stages[STAGES[i - 1].id
 function snapshotPlayer() {
   return {
     level: player.level, xp: player.xp, cash: player.cash, cur: player.cur, grenades: player.grenades, ammo: player.ammo,
-    mods: player.mods, skills: player.skills, skillPoints: player.skillPoints,
+    mods: player.mods, skills: player.skills, skillPoints: player.skillPoints, arMag: player.weapons[0] && player.weapons[0].inMag,
   };
 }
 function savePlayer() { campaign.save.player = JSON.parse(JSON.stringify(snapshotPlayer())); return writeSave(); }
 function restorePlayer(p) {
   resetPlayer();
   if (!p) return;
-  Object.assign(player, { level: p.level, xp: p.xp, cash: p.cash, cur: 0, grenades: 0, skillPoints: p.skillPoints || 0 });
-  player.mods = { melee: Object.assign({}, p.mods && p.mods.melee) };
+  Object.assign(player, { level: p.level, xp: p.xp, cash: p.cash, cur: p.cur === 1 ? 1 : 0, grenades: 0, skillPoints: p.skillPoints || 0 });
+  player.mods = { ar: Object.assign({}, p.mods && p.mods.ar), melee: Object.assign({}, p.mods && p.mods.melee) };
   player.skills = Object.assign({}, p.skills);
   refundRetiredSkills();
   Object.assign(player.ammo, p.ammo);
   // new items must not reuse the ids of saved ones
-  for (const m of Object.values(player.mods.melee)) if (m && m.id >= _itemId) _itemId = m.id + 1;
+  for (const m of [...Object.values(player.mods.ar), ...Object.values(player.mods.melee)]) if (m && m.id >= _itemId) _itemId = m.id + 1;
   player.shieldItem = levelShield();
   buildWeapons();
+  if (p.arMag != null) player.weapons[0].inMag = Math.min(p.arMag, player.weapons[0].mag);
+  else player.ammo.ar = Math.max(player.ammo.ar || 0, 180); // a save from the axe-only build had no rifle ammo
   player.recomputeMaxHp();
   player.hp = player.maxHp;
   player.shield = player.shieldMax();
@@ -148,7 +150,8 @@ function stagePreviewUrl(st) {
     try {
       switchWorld('arena');
       const cam = new THREE.PerspectiveCamera(50, c.width / c.height, 0.5, 700);
-      cam.position.set(46, 20, 26); cam.lookAt(0, 3, 0);
+      cam.position.set(-34, 22, -42); cam.lookAt(0, 2, 6); cam.updateMatrixWorld();
+      updateStageMap(cam);
       sun.position.set(0, 0, 0).addScaledVector(SUN_DIR, 80); sun.target.position.set(0, 0, 0);
       renderer.render(scene, cam);
       campaign.previewUrl = c.toDataURL('image/jpeg', 0.7);
@@ -222,6 +225,13 @@ function openBrief(i) {
 // ---------------------------------------------------------------------------
 // Running a stage
 function startStage(i) {
+  // the stage's map may still be downloading
+  if (i === 0 && !MAP.ready) {
+    if (MAP.failed) { $('briefRecord').textContent = 'The map failed to load. Reload the page to try again.'; return; }
+    $('briefRecord').textContent = 'Loading the map…';
+    MAP.promise.then(() => { if (MAP.ready && !screens.brief.hidden) startStage(i); });
+    return;
+  }
   if (campaign.stage && campaign.stage !== STAGES[i]) campaign.stage.unload();
   campaign.stage = STAGES[i];
   campaign.stage.load();

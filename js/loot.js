@@ -360,8 +360,9 @@ function updateDrops(dt) {
       d.pos.addScaledVector(d.vel, dt);
       const g = groundAt(d.pos.x, d.pos.z) + 0.35;
       if (d.pos.y < g) { d.pos.y = g; d.vel.y = -d.vel.y * 0.35; d.vel.x *= 0.5; d.vel.z *= 0.5; if (Math.abs(d.vel.y) < 1.2) d.grounded = true; }
-      const r = Math.hypot(d.pos.x, d.pos.z);
-      if (r > ARENA_R - 1) { d.pos.x *= (ARENA_R - 1) / r; d.pos.z *= (ARENA_R - 1) / r; }
+      const B = WORLD.bounds;
+      if (B.r) { const r = Math.hypot(d.pos.x, d.pos.z); if (r > B.r - 1) { d.pos.x *= (B.r - 1) / r; d.pos.z *= (B.r - 1) / r; } }
+      else { d.pos.x = clamp(d.pos.x, B.minX + 1, B.maxX - 1); d.pos.z = clamp(d.pos.z, B.minZ + 1, B.maxZ - 1); }
     }
     d.group.position.copy(d.pos);
     d.group.position.y += Math.sin(d.t * 3) * 0.06;

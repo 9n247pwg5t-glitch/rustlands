@@ -96,11 +96,17 @@ const hud = (() => {
         el.gunName.textContent = g.name;
         el.gunName.style.color = RARITY[g.rarity].css;
         el.gunSub.innerHTML = g.element !== 'none' ? `${g.sub.split(' · ')[0]} · <span style="color:${ELEM[g.element].css}">${ELEM[g.element].label}</span>` : g.sub;
-        el.mag.textContent = p.comboT > -COMBO_WINDOW || p.meleeT > 0 ? '⚔'.repeat((p.combo || 0) + 1) : '⚔';
-        el.mag.classList.remove('empty');
+        el.mag.textContent = g.melee ? (p.comboT > -COMBO_WINDOW || p.meleeT > 0 ? '⚔'.repeat((p.combo || 0) + 1) : '⚔') : (p.reloadT > 0 ? '··' : g.inMag);
+        el.mag.classList.toggle('empty', !g.melee && g.inMag <= Math.ceil(g.mag * 0.2));
       }
-      // the combo step and the kick cooldown under the axe's name
-      el.pool.textContent = p.kickCd > 0 ? 'kick ' + p.kickCd.toFixed(1) : 'kick ready';
+      // the rifle's ammo pool, or the kick cooldown with the axe; the two weapon slots
+      if (g) el.pool.textContent = g.melee ? (p.kickCd > 0 ? 'kick ' + p.kickCd.toFixed(1) : 'kick ready') : p.ammo[g.ammo];
+      let sh = '';
+      for (let i = 0; i < p.weapons.length; i++) {
+        const w = p.weapons[i];
+        sh += `<div class="slot${i === p.cur ? ' on' : ''}" data-i="${i}" style="border-color:${RARITY[w.rarity].css}"><span>${i + 1}</span>${w.label}</div>`;
+      }
+      if (el.slots.dataset.v !== sh) { el.slots.innerHTML = sh; el.slots.dataset.v = sh; }
 
       el.wave.textContent = game.waveLabel();
       el.waveSub.textContent = game.waveSub();

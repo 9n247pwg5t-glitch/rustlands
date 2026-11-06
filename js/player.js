@@ -104,13 +104,13 @@ function resetPlayer() {
   Object.assign(player, {
     level: 1, xp: 0, cash: 0, hp: 100, maxHp: 100, shield: 0, shieldDelayT: 0,
     weapons: [], cur: 0,
-    ammo: { ar: 0, pistol: 0 },
+    ammo: { ar: 180, pistol: 0 },
     grenades: 0, alive: true, downed: false, downT: 0, invuln: 1,
     reloadT: 0, swapT: 0, fireCd: 0, burstLeft: 0, skillCd: 0, hyperSpin: 0, meleeT: 0, meleeCd: 0,
     combo: 0, comboT: -9, kickT: 0, kickCd: 0, kickDur: 0.42,
     stats: { kills: 0, crits: 0, shots: 0, damage: 0 },
-    // the arsenal (js/arsenal.js): the axe, built from level, mods and skills
-    mods: { melee: {} }, skills: {}, skillPoints: 0, buffs: {},
+    // the arsenal (js/arsenal.js): rifle and axe, built from level, mods and skills
+    mods: { ar: {}, melee: {} }, skills: {}, skillPoints: 0, buffs: {},
   });
   buildWeapons();
   player.shieldItem = levelShield();
@@ -120,10 +120,10 @@ function resetPlayer() {
   respawnAt(new THREE.Vector3(0, 0, 12));
   setViewmodel();
 }
-function respawnAt(p) {
+function respawnAt(p, yaw = 0) {
   player.pos.copy(p); player.pos.y = groundAt(p.x, p.z) + 0.1;
   player.vel.set(0, 0, 0);
-  player.yaw = 0; player.pitch = 0;
+  player.yaw = yaw; player.pitch = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,6 +249,8 @@ function switchWeapon(i) {
   player.reloadT = 0; player.burstLeft = 0; player.hyperSpin = 0;
   setViewmodel();
 }
+// Rifle <-> axe.
+function toggleWeapon() { if (player.alive && !player.downed && player.meleeT <= 0) switchWeapon(player.cur === 0 ? 1 : 0); }
 function cycleWeapon(dir) {
   const n = player.weapons.length;
   for (let k = 1; k <= n; k++) {
@@ -484,7 +486,8 @@ function deployTurret() {
   if (w.t >= 12) p = player.pos.clone().addScaledVector(flat, 4);
   collideBody(p, 0.6, 1.4);
   p.y = groundAt(p.x, p.z);
-  for (const c of boxCols) if (p.x > c.minX && p.x < c.maxX && p.z > c.minZ && p.z < c.maxZ && c.maxY < camera.position.y && c.maxY > p.y) p.y = c.maxY;
+  colsNear(p.x, p.z, p.x, p.z);
+  for (const c of nearBoxes) if (p.x > c.minX && p.x < c.maxX && p.z > c.minZ && p.z < c.maxZ && c.maxY < camera.position.y && c.maxY > p.y) p.y = c.maxY;
   turret.pos.copy(p);
   turret.group.position.copy(p);
   turret.group.scale.setScalar(0.01);

@@ -275,10 +275,9 @@ function damageBarrel(b, dmg) {
   if (b.hp > 0) return;
   b.alive = false;
   b.group.visible = false;
-  const i = boxCols.indexOf(b.col); if (i >= 0) boxCols.splice(i, 1);
   explode(new THREE.Vector3(b.x, b.y + 0.6, b.z), 6, 70 * levelScale(Math.max(1, game.enemyLevel)), 'explosive', { fromPlayer: true, hurtsPlayer: true, selfScale: 2.5 });
   // barrels respawn later so the arena doesn't run dry
-  setTimeout(() => { b.alive = true; b.hp = 25; b.group.visible = true; worldBoxCols('arena').push(b.col); }, 45000);
+  setTimeout(() => { b.alive = true; b.hp = 25; b.group.visible = true; }, 45000); // (a dead barrel's collider is skipped)
 }
 
 // ---------------------------------------------------------------------------
@@ -341,8 +340,9 @@ function updateEnemyShots(dt) {
   }
 }
 function pointInBox(p) {
-  for (const c of boxCols) if (p.x > c.minX && p.x < c.maxX && p.z > c.minZ && p.z < c.maxZ && p.y > c.minY && p.y < c.maxY) return true;
-  for (const s of sphCols) if ((p.x - s.x) ** 2 + (p.y - s.y) ** 2 + (p.z - s.z) ** 2 < s.r * s.r * 0.8) return true;
+  colsNear(p.x, p.z, p.x, p.z);
+  for (const c of nearBoxes) if (p.x > c.minX && p.x < c.maxX && p.z > c.minZ && p.z < c.maxZ && p.y > c.minY && p.y < c.maxY) return true;
+  for (const s of nearSphs) if ((p.x - s.x) ** 2 + (p.y - s.y) ** 2 + (p.z - s.z) ** 2 < s.r * s.r * 0.8) return true;
   return false;
 }
 
@@ -454,13 +454,14 @@ function pickSpot(e, tgt, retreat) {
     cands.push([tgt.pos.x + Math.sin(a) * r, tgt.pos.z + Math.cos(a) * r]);
   }
   const near = [];
-  for (const c of boxCols) {
+  colsNear(e.pos.x - 18, e.pos.z - 18, e.pos.x + 18, e.pos.z + 18);
+  for (const c of nearBoxes) {
     if (c.ref || c.maxY - c.minY < 1) continue;
     const cx = (c.minX + c.maxX) / 2, cz = (c.minZ + c.maxZ) / 2;
     const d = Math.hypot(cx - e.pos.x, cz - e.pos.z);
     if (d < 18) near.push([cx, cz, Math.max(c.maxX - c.minX, c.maxZ - c.minZ) / 2, d]);
   }
-  for (const c of sphCols) { const d = Math.hypot(c.x - e.pos.x, c.z - e.pos.z); if (d < 18 && c.r > 1) near.push([c.x, c.z, c.r, d]); }
+  for (const c of nearSphs) { const d = Math.hypot(c.x - e.pos.x, c.z - e.pos.z); if (d < 18 && c.r > 1) near.push([c.x, c.z, c.r, d]); }
   near.sort((u, v) => u[3] - v[3]);
   for (const [cx, cz, half] of near.slice(0, 6)) {
     const ax = cx - tgt.pos.x, az = cz - tgt.pos.z, al = Math.hypot(ax, az) || 1;
@@ -471,7 +472,7 @@ function pickSpot(e, tgt, retreat) {
   let best = null, bestS = -Infinity;
   for (const [x, z] of cands) {
     const a = Math.atan2(x - tgt.pos.x, z - tgt.pos.z), r = Math.hypot(x - tgt.pos.x, z - tgt.pos.z);
-    if (Math.hypot(x, z) > ARENA_R - 3 || !navWalkable(x, z)) continue;
+    if (!inBounds(x, z, 3) || !navWalkable(x, z)) continue;
     if (!retreat && (r < rMin * 0.8 || r > rMax + 2)) continue;
     const y = groundAt(x, z);
     _sp1.set(x, y + 1.5 * e.def.scale, z);
@@ -842,7 +843,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   if (e.orbitAng == null) e.orbitAng = Math.atan2(e.pos.x - tgt.pos.x, e.pos.z - tgt.pos.z);
   e.orbitAng += e.orbitDir * dt * (sp * 0.4) / e.orbitR;
   let ox = tgt.pos.x + Math.sin(e.orbitAng) * e.orbitR, oz = tgt.pos.z + Math.cos(e.orbitAng) * e.orbitR;
-  if (!navWalkable(ox, oz) || Math.hypot(ox, oz) > ARENA_R - 3) { e.orbitDir = -e.orbitDir; e.orbitAng += e.orbitDir * 0.3; }
+  if (!navWalkable(ox, oz) || !inBounds(ox, oz, 3)) { e.orbitDir = -e.orbitDir; e.orbitAng += e.orbitDir * 0.3; }
   _b.set(ox, 0, oz);
   const td = steerTo(e, _b, dt, _a);
   e.faceMove = td > 4;

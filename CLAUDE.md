@@ -48,5 +48,9 @@ When something is approved, add a dated line to `docs/decisions.md` in the same 
 - Worlds (`js/world.js`, "Worlds"): the arena and the hub are separate worlds swapped whole with
   `switchWorld(id)`; a new stage map is a new world made with `defineWorld(id, def, build)`, and its
   `load()` switches to it. The hub room is `js/hub.js`; stage select is opened from its console.
+- Stage maps (`js/map.js`): Stage 1's "arena" world is an uploaded glTF map. Convert one with
+  `tools/map-optimize.mjs` (rendering) and `tools/map-bake.mjs` (ground, colliders, nav grid,
+  spawn/loot markers); see `tools/README.md`. Collider queries go through `colsNear`/`rayWorld`
+  (a spatial grid), never a loop over all of `boxCols`.
 - Spoiler material (the writer's answer key for the Layer 3 mysteries) is not stored here unless
   the creator adds it; don't infer answers to those mysteries.
