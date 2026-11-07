@@ -115,7 +115,6 @@
   #ffylFill { background: #ff4a3a; }
 
   #crosshair { position: fixed; left: 50%; top: 50%; width: 0; height: 0; --gap: 8px; pointer-events: none; z-index: 3; }
-  #game canvas { cursor: none; }
   #crosshair i { position: absolute; background: var(--paper); box-shadow: 0 0 0 1px var(--ink); transition: background 0.08s; }
   #crosshair i:nth-child(1) { width: 2px; height: 8px; left: -1px; bottom: var(--gap); }
   #crosshair i:nth-child(2) { width: 2px; height: 8px; left: -1px; top: var(--gap); }
@@ -358,7 +357,7 @@
     </div>
     <div id="saveLine"></div>
     <div class="controls" id="ctlDesktop">
-      <div><b>WASD</b>Move (up is north)</div><div><b>MOUSE</b>Point to aim · click to shoot or swing</div>
+      <div><b>WASD</b>Move (up is north)</div><div><b>CLICK / J</b>Shoot or swing (aims itself at the nearest enemy)</div>
       <div><b>SHIFT</b>Sprint</div><div><b>SPACE</b>Jump</div>
       <div><b>Q · 1/2 · WHEEL</b>Switch rifle ⇄ axe</div><div><b>R</b>Reload</div>
       <div><b>CLICK ×3</b>Axe: slash, backhand, overhead chop</div><div><b>E</b>Pick up · open · buy</div>
@@ -367,7 +366,7 @@
     </div>
     <div class="controls" id="ctlTouch" hidden>
       <div><b>LEFT</b>Drag to move, push all the way to sprint</div>
-      <div><b>RIGHT</b>Drag to aim, push all the way to shoot or swing</div><div><b>FIRE / SWING</b>Shoots or swings at the nearest enemy in front</div><div><b>JUMP</b>Jump</div>
+      <div><b>FIRE / SWING</b>Aims itself at the nearest enemy</div><div><b>RIGHT</b>Optional: drag to aim by hand, push all the way to fire</div><div><b>JUMP</b>Jump</div>
       <div><b>CORNER</b>Tap to switch rifle ⇄ axe, hold to reload</div><div><b>KICK</b>Shoves enemies back and breaks their attacks</div>
     </div>
     <div class="legend">

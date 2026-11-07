@@ -378,7 +378,7 @@ function startGame() {
   lockPointer();
   if (IS_TOUCH) setAds(false);
   hud.log(campaign.stage ? campaign.stage.objective : 'Shoot bandits. Grab loot. Don\'t die.', '#ffd23a');
-  hud.log(IS_TOUCH ? 'Left thumb moves. Right thumb aims; push it all the way to shoot.' : 'WASD move · Mouse aim · Q or wheel: rifle ⇄ axe · F kick', '#fff3dc');
+  hud.log(IS_TOUCH ? 'Left thumb moves. FIRE aims itself at the nearest enemy.' : 'WASD move · Click or J fires (auto-aim) · Q: rifle ⇄ axe · F kick', '#fff3dc');
 }
 function pauseGame() {
   if (game.state !== 'play') return;
@@ -435,13 +435,13 @@ $('pauseBtn').addEventListener('click', pauseGame);
 // ---------------------------------------------------------------------------
 // Mouse & keyboard
 const canvasEl = renderer.domElement;
-// Top-down: the cursor stays free and aims (js/topdown.js); clicking shoots or swings.
+// Top-down: aiming is automatic (js/topdown.js); clicking (or J) fires at the locked-on enemy.
 function lockPointer() {}
 canvasEl.addEventListener('mousedown', (e) => {
   if (game.state !== 'play') return;
-  if (e.button === 0) { input.fire = true; input.firePressed = true; }
+  if (e.button === 0) { TD.mouseFire = true; input.fire = true; input.firePressed = true; }
 });
-window.addEventListener('mouseup', (e) => { if (e.button === 0) input.fire = false; });
+window.addEventListener('mouseup', (e) => { if (e.button === 0) { TD.mouseFire = false; input.fire = false; } });
 canvasEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
 window.addEventListener('keydown', (e) => {
@@ -453,6 +453,7 @@ window.addEventListener('keydown', (e) => {
   }
   switch (e.code) {
     case 'Space': input.jumpPressed = true; e.preventDefault(); break;
+    case 'KeyJ': TD.mouseFire = true; input.firePressed = true; break;
     case 'KeyE': interact(); break;
     case 'KeyR': startReload(); break;
     case 'KeyQ': toggleWeapon(); break;
@@ -465,7 +466,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyP': case 'Escape': pauseGame(); break;
   }
 });
-window.addEventListener('keyup', (e) => { input.keys[e.code] = false; });
+window.addEventListener('keyup', (e) => { input.keys[e.code] = false; if (e.code === 'KeyJ') TD.mouseFire = false; });
 window.addEventListener('wheel', (e) => { if (game.state === 'play' && Math.abs(e.deltaY) > 4) toggleWeapon(); }, { passive: true });
 window.addEventListener('blur', () => { input.keys = Object.create(null); input.fire = false; if (game.state === 'play' && !IS_TOUCH) pauseGame(); });
 

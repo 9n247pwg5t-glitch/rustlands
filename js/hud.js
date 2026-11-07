@@ -127,8 +127,8 @@ const hud = (() => {
         el.tHp.className = target.hpType === 'armor' ? 'armor' : '';
       } else el.target.hidden = true;
       el.cross.classList.toggle('on-enemy', !!hit);
-      // top-down: the crosshair is the reticle where you aim (the mouse cursor on desktop)
-      const ret = !IS_TOUCH && TD.mouse.has ? { x: TD.mouse.x, y: TD.mouse.y } : project(TD.aimPoint);
+      // top-down: the crosshair marks what you'll shoot at (the locked-on enemy)
+      const ret = project(TD.aimPoint);
       if (ret) { el.cross.style.left = ret.x + 'px'; el.cross.style.top = ret.y + 'px'; reticle = ret; }
       if (g) {
         crossKick = Math.max(0, crossKick - dt * 40);

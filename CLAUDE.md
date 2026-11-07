@@ -48,7 +48,7 @@ When something is approved, add a dated line to `docs/decisions.md` in the same 
 - Worlds (`js/world.js`, "Worlds"): the arena and the hub are separate worlds swapped whole with
   `switchWorld(id)`; a new stage map is a new world made with `defineWorld(id, def, build)`, and its
   `load()` switches to it. The hub room is `js/hub.js`; stage select is opened from its console.
-- View (`js/topdown.js`): angled overhead follow camera, cursor/twin-stick aiming, the player's
+- View (`js/topdown.js`): angled overhead follow camera, automatic aiming (iOS-first; no cursor aiming; optional right-stick override), the player's
   animated body, and the cutaway (`CUT` in `js/world.js`) that hides geometry above the player's
   head; world materials get it through `addCutaway`. Gameplay aims from `aimEye()` along
   `TD.aimDir` (`camBasis()` returns the aim basis, not the camera's).

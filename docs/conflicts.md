@@ -57,7 +57,7 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
 - **The bible still describes a first-person game.** Since decisions.md 2026-11-07 the game is
   top-down; the bible's "first-person combat" (§6.1) and "two-thumb FPS" layout (§10) are
   superseded there. Camera height, angle and lead, the roof/treetop cutaway radius (`TD_VIEW` in
-  `js/topdown.js`) and the aim assist strength are first-pass values.
+  `js/topdown.js`) and the auto-aim (lock range and cone) are first-pass values.
 - **Leftover first-person code.** `js/fparms.js` (first-person arms) and the viewmodel code in
   `js/player.js` are no longer used and could be removed.
 

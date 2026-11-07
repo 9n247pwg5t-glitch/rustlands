@@ -2,14 +2,16 @@
 // Top-down view (docs/decisions.md, 2026-11-07): instead of first person, a camera hangs above and
 // behind the player at a fixed angle (screen up is always north) and follows them. The player is a
 // full animated body (the uploaded Mixamo character) holding the rifle or the axe. Aiming is
-// separate from moving: the mouse cursor on desktop; on touch, a second stick on the right side of
-// the screen (pushing it far fires), with light auto-aim. World geometry above the player's head
-// is cut away around them (see CUT in js/world.js) so roofs and treetops never hide them.
+// automatic, made for iOS touch: firing turns you to the nearest enemy in sight (locked on while it
+// stays in range); a second stick on the right side of the screen optionally aims by hand
+// (pushing it far fires). There is no cursor aiming on desktop either: click fires the same way.
+// World geometry above the player's head is cut away around them (see CUT in js/world.js) so
+// roofs and treetops never hide them.
 
 const TD = {
   cam: new THREE.Vector3(), camReady: false,
   aimDir: new THREE.Vector3(0, 0, -1), aimPoint: new THREE.Vector3(), target: null,
-  mouse: { x: 0, y: 0, has: false }, stick: { x: 0, y: 0, on: false }, fireBtn: false,
+  stick: { x: 0, y: 0, on: false }, fireBtn: false, mouseFire: false, lock: null,
   body: null,
 };
 // phones sit closer, so the characters are big enough to read on a small screen
@@ -49,7 +51,7 @@ function cutawayOff() { CUT.value.y = 1e6; }
 
 // ---------------------------------------------------------------------------
 // Aiming
-const _tdRay = new THREE.Raycaster(), _ndc = new THREE.Vector2(), _ta = new THREE.Vector3(), _tb = new THREE.Vector3();
+const _ta = new THREE.Vector3(), _tb = new THREE.Vector3();
 // The nearest enemy in sight within `cone` radians of a direction and `range` metres.
 function tdTarget(dir, cone, range) {
   const eye = aimEye(_tb);
@@ -70,37 +72,31 @@ function tdAim(dt) {
   const eye = aimEye(_tb.clone());
   let want = null;
   TD.target = null; TD.exact = false;
-  if (!IS_TOUCH) {
-    if (TD.mouse.has) {
-      _ndc.set(TD.mouse.x / window.innerWidth * 2 - 1, -(TD.mouse.y / window.innerHeight) * 2 + 1);
-      _tdRay.setFromCamera(_ndc, camera);
-      const r = _tdRay.ray;
-      // an enemy under the cursor is aimed at exactly where the cursor is on it (heads count)
-      const wt = rayWorld(r.origin, r.direction, 250).t;
-      const hit = rayEnemies(r.origin, r.direction, wt);
-      if (hit) { want = r.origin.clone().addScaledVector(r.direction, hit.t); TD.target = hit.e; TD.exact = true; }
-      else if (wt < 250) { want = r.origin.clone().addScaledVector(r.direction, wt); want.y += 1.0; } // chest height above the ground under the cursor
-      else if (r.direction.y < -1e-3) want = r.origin.clone().addScaledVector(r.direction, (eye.y - r.origin.y) / r.direction.y);
-    }
-  } else {
-    const st = TD.stick, m = Math.hypot(st.x, st.y);
-    input.fire = TD.fireBtn || (st.on && m > 0.7); // the aim stick pushed far shoots (or swings)
-    if (st.on && m > 0.7 && !TD.stickFired) input.firePressed = true;
-    TD.stickFired = st.on && m > 0.7;
-    if (st.on && m > 0.25) {
-      // the aim stick points the way to shoot; a nearby enemy close to that line is locked onto
-      _ta.set(st.x / m, 0, st.y / m);
-      const e = tdTarget(_ta, 0.45, 32);
-      if (e) { want = enemyCenter(e, new THREE.Vector3()); TD.target = e; }
-      else want = eye.clone().addScaledVector(_ta, 10);
-    } else if (TD.fireBtn || player.meleeT > 0) {
-      // the FIRE button with the aim stick idle: turn to the nearest enemy in front, else straight on
-      _ta.copy(TD.aimDir);
-      const e = tdTarget(_ta, 1.3, 28) || tdTarget(_ta, Math.PI, 9);
-      if (e) { want = enemyCenter(e, new THREE.Vector3()); TD.target = e; }
-    } else if (Math.hypot(player.vel.x, player.vel.z) > 1.5) {
-      want = eye.clone().add(_ta.set(player.vel.x, 0, player.vel.z).normalize().multiplyScalar(10)); // face where you're going
-    }
+  // Aiming is automatic (built for iOS touch; no cursor aiming): firing turns you to the
+  // locked-on enemy, the nearest one in sight (kept while it stays in range), preferring ones in
+  // front. The right-side stick on touch is an optional manual override.
+  const g0 = player.gun(), range = g0 && g0.melee ? (g0.reach || 2.7) + 4 : 30;
+  const st = TD.stick, m = Math.hypot(st.x, st.y);
+  const btn = TD.fireBtn || (!IS_TOUCH && TD.mouseFire);
+  input.fire = btn || (st.on && m > 0.7); // the aim stick pushed far shoots (or swings)
+  if (st.on && m > 0.7 && !TD.stickFired) input.firePressed = true;
+  TD.stickFired = st.on && m > 0.7;
+  // the lock: keep the current one while it's alive, in range and in sight, else pick again
+  const L = TD.lock;
+  if (!(L && L.alive && L.pos.distanceTo(player.pos) < range + 3 && lineOfSight(eye, enemyCenter(L, _ta)))) {
+    _ta.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+    TD.lock = tdTarget(_ta, 1.2, range) || tdTarget(_ta, Math.PI, range);
+  }
+  if (st.on && m > 0.25) {
+    // manual: the aim stick points the way to shoot; an enemy close to that line is locked onto
+    _ta.set(st.x / m, 0, st.y / m);
+    const e = tdTarget(_ta, 0.45, 32);
+    if (e) { want = enemyCenter(e, new THREE.Vector3()); TD.target = e; TD.lock = e; }
+    else want = eye.clone().addScaledVector(_ta, 10);
+  } else if (input.fire || player.meleeT > 0 || player.kickT > 0) {
+    if (TD.lock) { want = enemyCenter(TD.lock, new THREE.Vector3()); TD.target = TD.lock; }
+  } else if (Math.hypot(player.vel.x, player.vel.z) > 1.5) {
+    want = eye.clone().add(_ta.set(player.vel.x, 0, player.vel.z).normalize().multiplyScalar(10)); // face where you're going
   }
   // melee assist: an axe swing or kick turns toward an enemy within reach near where you aim
   const g = player.gun();
@@ -121,14 +117,16 @@ function tdAim(dt) {
     } else want = null;
   }
   // light assist: an enemy close to the aim line gets the shot's height (so shots don't sail over
-  // someone standing lower), unless the cursor is exactly on an enemy
+  // someone standing lower)
   if (!TD.exact) {
     _ta.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
     const e = TD.target || tdTarget(_ta, IS_TOUCH ? 0.2 : 0.09, 60);
     if (e) { const c = enemyCenter(e, new THREE.Vector3()); dy = (c.y - eye.y) / Math.max(0.5, Math.hypot(c.x - eye.x, c.z - eye.z)); TD.target = e; }
   }
   TD.aimDir.set(-Math.sin(player.yaw), clamp(dy, -0.6, 0.6), -Math.cos(player.yaw)).normalize();
-  if (want) TD.aimPoint.copy(want); else TD.aimPoint.copy(eye).addScaledVector(TD.aimDir, 8);
+  if (want) TD.aimPoint.copy(want);
+  else if (TD.lock) enemyCenter(TD.lock, TD.aimPoint); // the crosshair sits on the locked-on enemy
+  else TD.aimPoint.copy(eye).addScaledVector(TD.aimDir, 8);
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +202,3 @@ function updatePlayerBody(dt) {
   animateRig(pe, dt);
   if (player.downed) B.root.rotation.x = -0.5; // slumped
 }
-
-// ---------------------------------------------------------------------------
-// Input: the mouse cursor aims (no pointer lock); a right-side touch stick aims on phones.
-document.addEventListener('mousemove', (e) => { TD.mouse.x = e.clientX; TD.mouse.y = e.clientY; TD.mouse.has = true; });
