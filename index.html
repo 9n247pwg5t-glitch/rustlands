@@ -114,7 +114,8 @@
   #ffyl .tbar { height: 12px; }
   #ffylFill { background: #ff4a3a; }
 
-  #crosshair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; --gap: 8px; }
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 0; height: 0; --gap: 8px; pointer-events: none; z-index: 3; }
+  #game canvas { cursor: none; }
   #crosshair i { position: absolute; background: var(--paper); box-shadow: 0 0 0 1px var(--ink); transition: background 0.08s; }
   #crosshair i:nth-child(1) { width: 2px; height: 8px; left: -1px; bottom: var(--gap); }
   #crosshair i:nth-child(2) { width: 2px; height: 8px; left: -1px; top: var(--gap); }
@@ -225,6 +226,8 @@
 
   /* ---------- Touch ---------- */
   #touch { position: fixed; inset: 0; z-index: 3; touch-action: none; }
+  #aimBase { position: absolute; left: 0; top: 0; width: 120px; height: 120px; border-radius: 50%; border: 3px solid rgba(255, 120, 90, 0.55); background: rgba(28, 17, 10, 0.3); pointer-events: none; }
+  #aimKnob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 90, 58, 0.75); border: 2px solid var(--ink); }
   #stickBase { position: absolute; left: 0; top: 0; width: 120px; height: 120px; border-radius: 50%; border: 3px solid rgba(255, 243, 220, 0.5); background: rgba(28, 17, 10, 0.3); pointer-events: none; }
   #stickKnob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 210, 58, 0.75); border: 2px solid var(--ink); }
   .tb { position: absolute; display: grid; place-items: center; border-radius: 50%; border: 3px solid var(--ink); background: rgba(28, 17, 10, 0.55); color: var(--paper); font: 15px/1 var(--display); letter-spacing: 0.06em; box-shadow: 2px 2px 0 var(--ink); }
@@ -336,6 +339,7 @@
 
 <div id="touch" hidden>
   <div id="stickBase" hidden><div id="stickKnob"></div></div>
+  <div id="aimBase" hidden><div id="aimKnob"></div></div>
   <div class="tb" data-act="fire" id="fireBtn"><span id="fireLabel">FIRE</span><small id="fireHint">◀ AIM</small></div>
   <div class="tb" data-act="kick" id="kickBtn">KICK</div>
   <div class="tb" data-act="jump">JUMP</div>
@@ -354,7 +358,7 @@
     </div>
     <div id="saveLine"></div>
     <div class="controls" id="ctlDesktop">
-      <div><b>WASD</b>Move</div><div><b>MOUSE</b>Aim · shoot or swing · right-click to zoom</div>
+      <div><b>WASD</b>Move (up is north)</div><div><b>MOUSE</b>Point to aim · click to shoot or swing</div>
       <div><b>SHIFT</b>Sprint</div><div><b>SPACE</b>Jump</div>
       <div><b>Q · 1/2 · WHEEL</b>Switch rifle ⇄ axe</div><div><b>R</b>Reload</div>
       <div><b>CLICK ×3</b>Axe: slash, backhand, overhead chop</div><div><b>E</b>Pick up · open · buy</div>
@@ -362,8 +366,8 @@
       <div><b>N</b>Skip to next wave / leave a cleared stage</div><div><b>ESC</b>Pause</div>
     </div>
     <div class="controls" id="ctlTouch" hidden>
-      <div><b>LEFT</b>Drag to move, push all the way to sprint</div><div><b>RIGHT</b>Drag to aim</div>
-      <div><b>FIRE / SWING</b>Hold to shoot, tap for the axe combo; drag to look; swipe left to aim, right for hip fire</div><div><b>JUMP</b>Jump</div>
+      <div><b>LEFT</b>Drag to move, push all the way to sprint</div>
+      <div><b>RIGHT</b>Drag to aim, push all the way to shoot or swing</div><div><b>FIRE / SWING</b>Shoots or swings at the nearest enemy in front</div><div><b>JUMP</b>Jump</div>
       <div><b>CORNER</b>Tap to switch rifle ⇄ axe, hold to reload</div><div><b>KICK</b>Shoves enemies back and breaks their attacks</div>
     </div>
     <div class="legend">
@@ -455,6 +459,7 @@
 <script src="js/enemies.js"></script>
 <script src="js/player.js"></script>
 <script src="js/fparms.js"></script>
+<script src="js/topdown.js"></script>
 <script src="js/hud.js"></script>
 <script src="js/stages.js"></script>
 <script src="js/hub.js"></script>

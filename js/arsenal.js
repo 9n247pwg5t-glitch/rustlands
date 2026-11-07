@@ -201,11 +201,12 @@ function resolveMeleeHit() {
   const g = axeOf(), M = AXE_COMBO[player.combo || 0];
   const finisher = M.name === 'chop';
   camBasis();
+  _fwd.y = 0; _fwd.normalize(); // swings and kicks sweep level
   const c = new THREE.Vector3(), hits = [];
   for (const e of enemies) {
     if (!e.alive) continue;
     enemyCenter(e, c);
-    const d = c.clone().sub(camera.position);
+    const d = c.clone().sub(aimEye()); d.y *= 0.3;
     const dist = d.length();
     if (dist > g.reach + e.radius) continue;
     if (d.normalize().dot(_fwd) < (g.cleave ? Math.min(0.2, M.arc) : M.arc)) continue;
@@ -256,12 +257,13 @@ function kick() {
 function resolveKick() {
   const g = axeOf(), k = rank('mKick');
   camBasis();
+  _fwd.y = 0; _fwd.normalize(); // swings and kicks sweep level
   const c = new THREE.Vector3();
   let any = false;
   for (const e of enemies) {
     if (!e.alive) continue;
     enemyCenter(e, c);
-    const d = c.clone().sub(camera.position);
+    const d = c.clone().sub(aimEye()); d.y *= 0.3;
     if (d.length() > 2.4 + e.radius || d.normalize().dot(_fwd) < 0.5) continue;
     const dealt = damageEnemy(e, g.damage * 0.35 * (1 + k * 0.4), 'none', { fromPlayer: true, dir: _fwd.clone() });
     player.stats.damage += dealt;

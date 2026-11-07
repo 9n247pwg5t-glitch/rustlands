@@ -11,7 +11,7 @@ const input = {
 };
 
 // Portrait screens get a wider vertical FOV so the horizontal view isn't a slit.
-const baseFov = () => (camera.aspect < 1 ? 92 : 75);
+const baseFov = () => TD_VIEW.fov; // top-down (js/topdown.js)
 const player = {
   pos: new THREE.Vector3(0, 0, 12), vel: new THREE.Vector3(),
   get vy() { return this.vel.y; }, set vy(v) { this.vel.y = v; },
@@ -135,8 +135,10 @@ function setViewmodel() {
   if (vm.gun) vm.root.remove(vm.gun);
   vm.gun = null;
   const g = player.gun();
-  if (FP.ready) { fpSetGun(g); player.swapT = g ? 0.35 : 0; return; } // the gun goes in the first-person arms
-  if (!g) return;
+  // top-down: the weapon is in the body's hand (js/topdown.js); there's no viewmodel
+  tdSetWeapon(g);
+  player.swapT = g ? 0.35 : 0;
+  return;
   vm.gun = buildGunModel(g, 0.008);
   // a gloved hand on the grip
   box(0.085, 0.09, 0.11, 0x3a2a1e, 0.0, -0.1, 0.04, vm.gun, 0.008);
@@ -145,16 +147,14 @@ function setViewmodel() {
   player.swapT = 0.35;
 }
 const _fwd = new THREE.Vector3(), _right = new THREE.Vector3(), _up = new THREE.Vector3();
+// The aim basis: forward is where the player aims (top-down: not where the camera looks), from
+// the chest (aimEye). Shots, swings and kicks all use it.
 function camBasis() {
-  _fwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
-  _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
-  _up.set(0, 1, 0).applyQuaternion(camera.quaternion);
+  _fwd.copy(TD.aimDir);
+  _right.set(-_fwd.z, 0, _fwd.x).normalize();
+  _up.crossVectors(_right, _fwd).normalize();
 }
-function muzzleWorld() {
-  camBasis();
-  const k = player.adsK;
-  return camera.position.clone().addScaledVector(_fwd, 0.75).addScaledVector(_right, 0.2 * (1 - k)).addScaledVector(_up, -0.16 + k * 0.06);
-}
+function muzzleWorld() { camBasis(); return tdMuzzle(new THREE.Vector3()); }
 
 function updateViewmodel(dt, moving, sprint) {
   const g = player.gun();
@@ -268,7 +268,7 @@ function fireOnce(g) {
   if (g.special !== 'infinite') g.inMag--;
   player.stats.shots++;
   camBasis();
-  const origin = camera.position.clone();
+  const origin = aimEye();
   const fwd = _fwd.clone();
   const muzzle = muzzleWorld();
   const spread = spreadFor(g);
@@ -377,7 +377,7 @@ function spawnPlayerProj(kind, pos, vel, gun) {
 
 function throwTediore(g) {
   camBasis();
-  const pos = camera.position.clone().addScaledVector(_fwd, 0.6).addScaledVector(_right, 0.2);
+  const pos = aimEye().addScaledVector(_fwd, 0.6).addScaledVector(_right, 0.2);
   const vel = _fwd.clone().multiplyScalar(18).addScaledVector(_up, 3).add(player.vel);
   const ghost = Object.assign({}, g);
   ghost.tediDmg = g.damage * g.pellets * Math.max(2, g.inMag) * 0.6;
@@ -391,7 +391,7 @@ function throwGrenade() {
   if (player.grenades <= 0 || !player.alive || player.downed) { if (player.grenades <= 0) hud.log('No grenades', '#ff6a5a'); return; }
   player.grenades--;
   camBasis();
-  const pos = camera.position.clone().addScaledVector(_fwd, 0.5).addScaledVector(_right, -0.2);
+  const pos = aimEye().addScaledVector(_fwd, 0.5).addScaledVector(_right, -0.2);
   const vel = _fwd.clone().multiplyScalar(20).addScaledVector(_up, 4).add(player.vel);
   spawnPlayerProj('grenade', pos, vel, null);
   SFX.swing();
@@ -481,13 +481,13 @@ function deployTurret() {
   if (turret.active || player.skillCd > 0 || !player.alive || player.downed) { if (player.skillCd > 0) SFX.deny(); return; }
   camBasis();
   const flat = new THREE.Vector3(_fwd.x, 0, _fwd.z).normalize();
-  const w = rayWorld(camera.position, _fwd, 12);
-  let p = camera.position.clone().addScaledVector(_fwd, Math.max(2, w.t - 0.8));
+  const w = rayWorld(aimEye(), _fwd, 12);
+  let p = aimEye().addScaledVector(_fwd, Math.max(2, w.t - 0.8));
   if (w.t >= 12) p = player.pos.clone().addScaledVector(flat, 4);
   collideBody(p, 0.6, 1.4);
   p.y = groundAt(p.x, p.z);
   colsNear(p.x, p.z, p.x, p.z);
-  for (const c of nearBoxes) if (p.x > c.minX && p.x < c.maxX && p.z > c.minZ && p.z < c.maxZ && c.maxY < camera.position.y && c.maxY > p.y) p.y = c.maxY;
+  for (const c of nearBoxes) if (p.x > c.minX && p.x < c.maxX && p.z > c.minZ && p.z < c.maxZ && c.maxY < player.pos.y + 3 && c.maxY > p.y) p.y = c.maxY;
   turret.pos.copy(p);
   turret.group.position.copy(p);
   turret.group.scale.setScalar(0.01);

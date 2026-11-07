@@ -45,7 +45,9 @@ const RIG_LOOKS = {
 
 // Weapon models (glTF as .json, vertex coloured; barrel or blade toward +Z, up +Y, metres). The
 // sockets are where the hand grips it and where shots leave. `size` scales the model in the fist.
-const GUN_FILES = { pistol: 'gun-pistol', rifle: 'gun-rifle', shotgun: 'gun-shotgun', axe: 'gun-axe', ringmaster: 'player-ar' };
+// The axe and the player's rifle use lower-detail copies (-td, made with tools/optimize.mjs) since the
+// top-down view shows them small; the full models were for first-person close-ups.
+const GUN_FILES = { pistol: 'gun-pistol', rifle: 'gun-rifle', shotgun: 'gun-shotgun', axe: 'gun-axe-td', ringmaster: 'player-ar-td' };
 const GUN_SOCKETS = {
   pistol: { grip: [0, -0.035, -0.052], muzzle: [0, 0.034, 0.282], size: 0.9 },
   rifle: { grip: [0, -0.03, -0.042], muzzle: [0, 0.046, 0.66], size: 0.8 },

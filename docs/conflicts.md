@@ -52,6 +52,15 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
   it doesn't follow the player to another device, and iPhone Safari can clear site storage for sites
   not visited for a while. Cross-device saves or a save export would need deciding.
 
+## Camera (§1, §6, §10)
+
+- **The bible still describes a first-person game.** Since decisions.md 2026-11-07 the game is
+  top-down; the bible's "first-person combat" (§6.1) and "two-thumb FPS" layout (§10) are
+  superseded there. Camera height, angle and lead, the roof/treetop cutaway radius (`TD_VIEW` in
+  `js/topdown.js`) and the aim assist strength are first-pass values.
+- **Leftover first-person code.** `js/fparms.js` (first-person arms) and the viewmodel code in
+  `js/player.js` are no longer used and could be removed.
+
 ## Narrative delivery (§5)
 
 - No Layer 1 context (mission briefings, propaganda, environmental storytelling) and no Layer 2

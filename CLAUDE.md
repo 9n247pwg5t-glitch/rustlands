@@ -1,7 +1,7 @@
 # Slaughterhouse Universe (working repo name: rustlands)
 
-A dystopian, satirical clown-punk first-person looter-shooter (Borderlands-style feel) with an
-Ape Escape-style stage-select campaign, built on three.js r128 for mobile browsers first (iPhone
+A dystopian, satirical clown-punk top-down looter-shooter (Borderlands-style feel; first person until
+the 2026-11-07 decision) with an Ape Escape-style stage-select campaign, built on three.js r128 for mobile browsers first (iPhone
 Safari), desktop second. No build step: plain scripts loaded by `index.html` (see README for layout).
 
 The authoritative creative and design spec is the narrative bible, imported here:
@@ -48,6 +48,10 @@ When something is approved, add a dated line to `docs/decisions.md` in the same 
 - Worlds (`js/world.js`, "Worlds"): the arena and the hub are separate worlds swapped whole with
   `switchWorld(id)`; a new stage map is a new world made with `defineWorld(id, def, build)`, and its
   `load()` switches to it. The hub room is `js/hub.js`; stage select is opened from its console.
+- View (`js/topdown.js`): angled overhead follow camera, cursor/twin-stick aiming, the player's
+  animated body, and the cutaway (`CUT` in `js/world.js`) that hides geometry above the player's
+  head; world materials get it through `addCutaway`. Gameplay aims from `aimEye()` along
+  `TD.aimDir` (`camBasis()` returns the aim basis, not the camera's).
 - Stage maps (`js/map.js`): Stage 1's "arena" world is an uploaded glTF map. Convert one with
   `tools/map-optimize.mjs` (rendering) and `tools/map-bake.mjs` (ground, colliders, nav grid,
   spawn/loot markers); see `tools/README.md`. Collider queries go through `colsNear`/`rayWorld`

@@ -20,6 +20,10 @@ and Playwright (for the browser step).
    texture files. The weapons use `30000 --meshopt 1`.
 4. Add the file to `RIG_FILES` in `js/rigs.js` and use it in `RIG_LOOKS`.
 
+For the top-down view the axe and the player's rifle use lower-detail copies: copy `models/gun-axe.json`
+and `models/player-ar.json` into a folder as `gun-axe-td.gltf` and `player-ar-td.gltf`, then
+`node optimize.mjs <that folder> ../models 2500 --meshopt 1` (it also reads .gltf, including meshopt-packed input).
+
 ## Rigging a static model
 
 `rig.html` + `rig-run.js` auto-rig an unrigged humanoid mesh (facing +Z, in metres, A- or T-pose) onto

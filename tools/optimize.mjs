@@ -4,11 +4,12 @@
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { prune, dedup, weld, simplifyPrimitive, quantize, unpartition, meshopt } from '@gltf-transform/functions';
-import { MeshoptSimplifier, MeshoptEncoder } from 'meshoptimizer';
+import { MeshoptSimplifier, MeshoptEncoder, MeshoptDecoder } from 'meshoptimizer';
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 
+// (.gltf inputs work too, e.g. a models/*.json copied to <name>.gltf, to make a lower-detail copy)
 // usage: node optimize.mjs <glb dir> <out dir> [vertex budget] [--tex 2048] [--normals 1024] [--meshopt 1]
 // --tex caps colour textures, --normals keeps normal maps at that size (default: dropped),
 // --meshopt 1 packs the geometry with EXT_meshopt_compression (the game loads it with vendor/meshopt_decoder.js)
@@ -20,11 +21,12 @@ const BUDGET = +(budgetArg || 16000);
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 await MeshoptSimplifier.ready;
 await MeshoptEncoder.ready;
-io.registerDependencies({ 'meshopt.encoder': MeshoptEncoder });
+await MeshoptDecoder.ready;
+io.registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder });
 fs.mkdirSync(outDir, { recursive: true });
 
-for (const f of fs.readdirSync(inDir).filter((f) => f.endsWith('.glb'))) {
-  const name = f.replace(/\.glb$/, '').toLowerCase().replace(/_+/g, '-');
+for (const f of fs.readdirSync(inDir).filter((f) => /\.(glb|gltf)$/.test(f))) {
+  const name = f.replace(/\.(glb|gltf)$/, '').toLowerCase().replace(/_+/g, '-');
   const doc = await io.read(path.join(inDir, f));
   const root = doc.getRoot();
   await doc.transform(weld());

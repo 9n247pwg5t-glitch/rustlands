@@ -53,6 +53,7 @@ function mapMaterial(m, cache) {
     depthWrite: m.depthWrite, gradientMap: gradTex,
   });
   t.name = m.name;
+  addCutaway(t);
   for (const k of ['map', 'emissiveMap']) if (t[k]) { t[k].encoding = THREE.LinearEncoding; t[k].anisotropy = IS_TOUCH ? 1 : 4; }
   cache.set(m, t);
   m.dispose();
@@ -180,7 +181,7 @@ const _sharedMats = new Map();
 function sharedMat(m) {
   const k = matKey(m);
   let s = _sharedMats.get(k);
-  if (!s) { s = m.clone(); s.color.setRGB(1, 1, 1); s.vertexColors = true; s.name = 'merged:' + m.name; _sharedMats.set(k, s); }
+  if (!s) { s = addCutaway(m.clone()); s.color.setRGB(1, 1, 1); s.vertexColors = true; s.name = 'merged:' + m.name; _sharedMats.set(k, s); }
   return s;
 }
 const MAP_NO_SHADOW = /^(Terrain|Road|GasStation_Lot|Bounds_|Blood|Graffiti|Pond$|PowerLines)/;

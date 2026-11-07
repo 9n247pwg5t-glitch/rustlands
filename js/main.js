@@ -220,8 +220,7 @@ let focus = null; // what E would act on
 const USE_KEY = IS_TOUCH ? '' : '<kbd>E</kbd> ';
 function updateInteraction(dt) {
   focus = null;
-  const eye = camera.position;
-  camBasis();
+  const eye = player.center();
   // auto pickups with a little magnetism
   for (let i = drops.length - 1; i >= 0; i--) {
     const d = drops[i];
@@ -238,10 +237,9 @@ function updateInteraction(dt) {
     if (d.kind !== 'item') continue;
     const to = d.pos.clone().sub(eye);
     const dist = to.length();
-    if (dist > 3.2) continue;
-    const dot = to.normalize().dot(_fwd);
-    const score = dot * 2 - dist * 0.4;
-    if (dot > 0.55 && score > bestScore) { bestScore = score; best = d; }
+    if (dist > 2.6) continue;
+    const score = -dist;
+    if (score > bestScore) { bestScore = score; best = d; }
   }
   if (best) {
     const it = best.item;
@@ -296,17 +294,17 @@ function interact() {
 function updatePlayer(dt) {
   const k = input.keys;
   let mx = 0, mz = 0;
-  if (k.KeyW) mz += 1; if (k.KeyS) mz -= 1; if (k.KeyD) mx += 1; if (k.KeyA) mx -= 1;
+  if (k.KeyW || k.ArrowUp) mz += 1; if (k.KeyS || k.ArrowDown) mz -= 1; if (k.KeyD || k.ArrowRight) mx += 1; if (k.KeyA || k.ArrowLeft) mx -= 1;
   mx += input.touchMove.x; mz += input.touchMove.y;
   const mag = Math.hypot(mx, mz);
   if (mag > 1) { mx /= mag; mz /= mag; }
-  const stickSprint = Math.hypot(input.touchMove.x, input.touchMove.y) > 0.92 && input.touchMove.y > 0.5;
-  const sprint = (k.ShiftLeft || k.ShiftRight || stickSprint) && mz > 0.3 && !input.ads && !player.downed;
+  const stickSprint = Math.hypot(input.touchMove.x, input.touchMove.y) > 0.92;
+  const sprint = (k.ShiftLeft || k.ShiftRight || stickSprint) && mag > 0.3 && !player.downed;
   stickBase.classList.toggle('sprint', stickSprint);
   let speed = player.downed ? 1.6 : sprint ? 10.5 : 7;
   if (player.adsK > 0.5) speed *= 0.6;
-  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
-  const rx = Math.cos(player.yaw), rz = -Math.sin(player.yaw);
+  // top-down: up on the stick (or W) is up the screen, which is always north
+  const fx = 0, fz = -1, rx = 1, rz = 0;
   const wx = (fx * mz + rx * mx) * speed, wz = (fz * mz + rz * mx) * speed;
   const a = player.grounded ? 1 - Math.exp(-12 * dt) : 1 - Math.exp(-2.5 * dt);
   player.vel.x = lerp(player.vel.x, wx, a); player.vel.z = lerp(player.vel.z, wz, a);
@@ -336,83 +334,9 @@ function updatePlayer(dt) {
   return { moving, sprint };
 }
 
-function updateCamera(dt, moving, sprint) {
-  const g = player.gun();
-  const wantAds = input.ads && g && player.reloadT <= 0 && !sprint;
-  player.adsK = clamp(player.adsK + (wantAds ? dt : -dt) * 7, 0, 1);
-  const zoom = g ? g.zoom : 1;
-  const fov = baseFov() / lerp(1, zoom, player.adsK) + (sprint ? 6 : 0);
-  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = lerp(camera.fov, fov, Math.min(1, dt * 14)); camera.updateProjectionMatrix(); }
-  const bobY = moving ? Math.abs(Math.sin(player.bob)) * 0.05 * (1 - player.adsK) : 0;
-  camera.position.set(player.pos.x, player.eyeY() + bobY, player.pos.z);
-  game.shakeAmt = Math.max(0, game.shakeAmt - dt * 2.5);
-  const s = game.shakeAmt * game.shakeAmt * 0.15;
-  camera.position.x += rand(-s, s); camera.position.y += rand(-s, s); camera.position.z += rand(-s, s);
-  player.recoil -= player.recoil * Math.min(1, dt * 9);
-  camera.rotation.set(clamp(player.pitch + player.recoil, -1.55, 1.55), player.yaw, player.downed ? 0.15 : 0);
-  sky.position.copy(camera.position);
-  sun.position.copy(player.pos).addScaledVector(SUN_DIR, 80);
-  sun.target.position.copy(player.pos);
-}
-
-// Aim assist. Three light layers, all aimed at the body so headshots are still
-// on you: friction (look slows while the crosshair is near an enemy), a gentle
-// pull while shooting or zoomed, and a quick snap when you start zooming next
-// to a target. Touch gets more help than a mouse.
-const assist = { snapT: 0, prevAds: false, target: null, current: null };
-const _ac = new THREE.Vector3(), _at = new THREE.Vector3();
-function findAssistTarget(cone, maxDist) {
-  camBasis();
-  let best = null, bestScore = Infinity;
-  for (const e of enemies) {
-    if (!e.alive) continue;
-    enemyCenter(e, _ac);
-    _at.subVectors(_ac, camera.position);
-    const d = _at.length();
-    if (d > maxDist || d < 0.5) continue;
-    _at.divideScalar(d);
-    const ang = Math.acos(clamp(_at.dot(_fwd), -1, 1));
-    const lim = cone + Math.atan(e.radius / d);
-    if (ang > lim) continue;
-    const score = ang / lim + d * 0.003;
-    if (score < bestScore && lineOfSight(camera.position, _ac)) { best = e; bestScore = score; }
-  }
-  return best;
-}
-function steerToward(e, k) {
-  enemyCenter(e, _ac);
-  _at.subVectors(_ac, camera.position).normalize();
-  const wantYaw = Math.atan2(-_at.x, -_at.z), wantPitch = Math.asin(clamp(_at.y, -1, 1)) - player.recoil;
-  let dy = wantYaw - player.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-  player.yaw += dy * k;
-  player.pitch += (wantPitch - player.pitch) * k;
-}
-function applyLook(dt) {
-  const g = player.gun();
-  const zoom = g ? lerp(1, g.zoom, player.adsK) : 1;
-  const range = !g ? 50 : g.type === 'sniper' ? 140 : g.type === 'shotgun' ? 28 : g.type === 'launcher' ? 70 : 60;
-  const touch = IS_TOUCH;
-  const tgt = player.alive ? findAssistTarget((touch ? 0.09 : 0.045) / Math.sqrt(zoom), range) : null;
-  assist.current = tgt;
-  let friction = 1;
-  if (tgt) friction = touch ? 0.5 : (player.adsK > 0.5 ? 0.7 : 0.85);
-  const sens = SENS / zoom * friction;
-  player.yaw -= input.lookDX * sens;
-  player.pitch = clamp(player.pitch - input.lookDY * sens, -1.5, 1.5);
-
-  const adsNow = input.ads;
-  if (adsNow && !assist.prevAds && player.adsK < 0.3) {
-    const snapTgt = findAssistTarget(touch ? 0.17 : 0.1, range);
-    if (snapTgt) { assist.snapT = 0.18; assist.target = snapTgt; }
-  }
-  assist.prevAds = adsNow;
-  if (assist.snapT > 0 && assist.target && assist.target.alive) {
-    assist.snapT -= dt;
-    steerToward(assist.target, Math.min(1, dt * (touch ? 16 : 9)));
-  } else if (tgt && (input.fire || player.adsK > 0.5)) {
-    steerToward(tgt, Math.min(1, dt * (touch ? 4 : 1.2)));
-  }
-}
+// The camera and aiming are top-down (js/topdown.js). Enemies read assist.current (the enemy being
+// aimed at) to decide when to dodge.
+const assist = { current: null };
 
 // ---------------------------------------------------------------------------
 // Screens
@@ -454,7 +378,7 @@ function startGame() {
   lockPointer();
   if (IS_TOUCH) setAds(false);
   hud.log(campaign.stage ? campaign.stage.objective : 'Shoot bandits. Grab loot. Don\'t die.', '#ffd23a');
-  hud.log(IS_TOUCH ? 'Left thumb moves. Drag right side to aim.' : 'WASD move · Mouse aim · Q or wheel: rifle ⇄ axe · F kick', '#fff3dc');
+  hud.log(IS_TOUCH ? 'Left thumb moves. Right thumb aims; push it all the way to shoot.' : 'WASD move · Mouse aim · Q or wheel: rifle ⇄ axe · F kick', '#fff3dc');
 }
 function pauseGame() {
   if (game.state !== 'play') return;
@@ -511,28 +435,13 @@ $('pauseBtn').addEventListener('click', pauseGame);
 // ---------------------------------------------------------------------------
 // Mouse & keyboard
 const canvasEl = renderer.domElement;
-let lockFailed = false, hadLock = false;
-function lockPointer() {
-  if (IS_TOUCH || lockFailed) return;
-  try { const r = canvasEl.requestPointerLock(); if (r && r.catch) r.catch(() => { lockFailed = true; }); } catch (e) { lockFailed = true; }
-}
-document.addEventListener('pointerlockchange', () => {
-  if (document.pointerLockElement === canvasEl) hadLock = true;
-  else if (hadLock && game.state === 'play') pauseGame();
-});
-document.addEventListener('pointerlockerror', () => { lockFailed = true; });
-
-document.addEventListener('mousemove', (e) => {
-  if (game.state !== 'play') return;
-  if (document.pointerLockElement === canvasEl || lockFailed) { input.lookDX += e.movementX || 0; input.lookDY += e.movementY || 0; }
-});
+// Top-down: the cursor stays free and aims (js/topdown.js); clicking shoots or swings.
+function lockPointer() {}
 canvasEl.addEventListener('mousedown', (e) => {
   if (game.state !== 'play') return;
-  if (!document.pointerLockElement && !lockFailed) { lockPointer(); return; }
   if (e.button === 0) { input.fire = true; input.firePressed = true; }
-  if (e.button === 2) input.ads = true;
 });
-window.addEventListener('mouseup', (e) => { if (e.button === 0) input.fire = false; if (e.button === 2) input.ads = false; });
+window.addEventListener('mouseup', (e) => { if (e.button === 0) input.fire = false; });
 canvasEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
 window.addEventListener('keydown', (e) => {
@@ -563,13 +472,14 @@ window.addEventListener('blur', () => { input.keys = Object.create(null); input.
 // ---------------------------------------------------------------------------
 // Touch controls
 //  - left side: floating move stick (push all the way to sprint)
-//  - right side: drag to look
+//  - right side: floating aim stick (top-down twin-stick): point it to aim, push it far to shoot
+//    or swing; an enemy near the aim line is locked onto
 //  - FIRE / SWING: hold to shoot the rifle, or tap (keep tapping, or hold) for the axe's three-move
-//    combo; dragging it also turns the camera; with the rifle a quick swipe left aims, right un-aims
+//    combo, at the nearest enemy in front when the aim stick isn't held
 //  - corner button: tap to switch rifle <-> axe, hold to reload
 //  - KICK: kick
 const touchEl = $('touch');
-const stickBase = $('stickBase'), stickKnob = $('stickKnob');
+const stickBase = $('stickBase'), stickKnob = $('stickKnob'), aimBase = $('aimBase'), aimKnob = $('aimKnob');
 const fireBtn = $('fireBtn'), wheelBtn = $('wheelBtn'), wheelEl = $('wheel');
 const pointers = new Map();
 
@@ -577,7 +487,7 @@ function setAds(on) {
   input.ads = on;
   fireBtn.classList.toggle('ads', on);
 }
-function fireStart(p) { if (p.decided) return; p.decided = 'fire'; input.fire = true; input.firePressed = true; }
+function fireStart(p) { if (p.decided) return; p.decided = 'fire'; TD.fireBtn = true; input.fire = true; input.firePressed = true; }
 
 // ----- the corner button shows the weapon and its ammo and switches; the kick button its cooldown;
 // the fire button reads FIRE or SWING (and the axe combo's next move)
@@ -593,7 +503,7 @@ function updateWheelButton() {
   $('kickBtn').classList.toggle('cool', player.kickCd > 0);
   const label = g.melee ? 'SWING' : 'FIRE';
   if ($('fireLabel').textContent !== label) $('fireLabel').textContent = label;
-  const hint = g.melee ? AXE_COMBO[player.meleeT > 0 || player.comboT > -COMBO_WINDOW ? (player.combo + 1) % 3 : 0].name : input.ads ? 'HIP ▶' : '◀ AIM';
+  const hint = g.melee ? AXE_COMBO[player.meleeT > 0 || player.comboT > -COMBO_WINDOW ? (player.combo + 1) % 3 : 0].name : 'auto-aim';
   if ($('fireHint').textContent !== hint) $('fireHint').textContent = hint;
 }
 function openWheel() { /* no weapon wheel: the axe is the only weapon */ }
@@ -630,7 +540,13 @@ touchEl.addEventListener('pointerdown', (e) => {
     stickBase.hidden = false;
     stickBase.style.transform = `translate(${e.clientX - 60}px, ${e.clientY - 60}px)`;
     stickKnob.style.transform = 'translate(0px, 0px)';
-  } else pointers.set(e.pointerId, { kind: 'look', x: e.clientX, y: e.clientY });
+  } else {
+    pointers.set(e.pointerId, { kind: 'aim', x0: e.clientX, y0: e.clientY });
+    aimBase.hidden = false;
+    aimBase.style.transform = `translate(${e.clientX - 60}px, ${e.clientY - 60}px)`;
+    aimKnob.style.transform = 'translate(0px, 0px)';
+    TD.stick.on = true; TD.stick.x = TD.stick.y = 0;
+  }
   try { touchEl.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
 }, { passive: false });
 touchEl.addEventListener('pointermove', (e) => {
@@ -643,21 +559,12 @@ touchEl.addEventListener('pointermove', (e) => {
     if (d > R) { dx = dx / d * R; dy = dy / d * R; }
     stickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
     input.touchMove.x = dx / R; input.touchMove.y = -dy / R;
-  } else if (p.kind === 'look') {
-    input.lookDX += (e.clientX - p.x) * 2.4; input.lookDY += (e.clientY - p.y) * 2.4;
-    p.x = e.clientX; p.y = e.clientY;
-  } else if (p.kind === 'fire') {
-    const dx = e.clientX - p.x0, dy = e.clientY - p.y0;
-    const g = player.gun();
-    if (g && !g.melee && !p.swiped && !p.looked && performance.now() - p.t0 < 280 && Math.abs(dx) > 34 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      // with the rifle, a quick sideways swipe toggles aiming down the sights
-      p.swiped = true; input.fire = false; setAds(dx < 0);
-    } else if (!p.swiped) {
-      if (Math.hypot(dx, dy) > 30) p.looked = true;
-      // the fire button turns the camera too
-      input.lookDX += (e.clientX - p.x) * 2.4; input.lookDY += (e.clientY - p.y) * 2.4;
-    }
-    p.x = e.clientX; p.y = e.clientY;
+  } else if (p.kind === 'aim') {
+    let dx = e.clientX - p.x0, dy = e.clientY - p.y0;
+    const d = Math.hypot(dx, dy), R = 55;
+    if (d > R) { dx = dx / d * R; dy = dy / d * R; }
+    aimKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+    TD.stick.x = dx / R; TD.stick.y = dy / R; // screen right = east, screen down = south
   }
 }, { passive: false });
 function endPointer(e) {
@@ -666,7 +573,9 @@ function endPointer(e) {
   pointers.delete(e.pointerId);
   if (p.btn) p.btn.classList.remove('down');
   if (p.kind === 'stick') { input.touchMove.x = 0; input.touchMove.y = 0; stickBase.hidden = true; }
+  else if (p.kind === 'aim') { TD.stick.on = false; TD.stick.x = TD.stick.y = 0; aimBase.hidden = true; }
   else if (p.kind === 'fire') {
+    TD.fireBtn = false;
     input.fire = false;
   } else if (p.kind === 'swap') {
     clearTimeout(p.timer);
@@ -679,22 +588,18 @@ document.addEventListener('gesturestart', (e) => e.preventDefault());
 
 // ---------------------------------------------------------------------------
 // Main loop
-const SENS = 0.0022;
 function update(dt) {
-  if (input.keys.ArrowLeft) input.lookDX -= 900 * dt;
-  if (input.keys.ArrowRight) input.lookDX += 900 * dt;
-  if (input.keys.ArrowUp) input.lookDY -= 600 * dt;
-  if (input.keys.ArrowDown) input.lookDY += 600 * dt;
-  applyLook(dt);
+  tdAim(dt);
+  assist.current = TD.target;
   const hub = game.mode === 'hub';
   if (hub) { input.fire = false; input.firePressed = false; } // no shooting in the hub
   else navUpdate(player.pos, dt);
 
   const { moving, sprint } = updatePlayer(dt);
   if (game.state !== 'play') return;
-  updateCamera(dt, moving, sprint);
+  updateCamera(dt);
   updateWeapon(dt);
-  updateViewmodel(dt, moving, sprint);
+  updatePlayerBody(dt);
   updateTurret(dt);
   tacticsFrame(dt);
   for (const e of enemies) if (e.alive) updateEnemy(e, dt);
@@ -720,6 +625,7 @@ function update(dt) {
 
 let menuT = 0;
 function updateMenu(dt) {
+  cutawayOff();
   if (WORLD.id === 'hub') {
     // the main menu looks over the hub; menus opened in the hub keep the player's view
     if (!screens.menu.hidden) {
@@ -750,7 +656,6 @@ function frame(now) {
   camera.updateMatrixWorld();
   updateStageMap(camera);
   renderer.render(scene, camera);
-  if (game.state !== 'menu' && player.gun()) { renderer.clearDepth(); renderer.render(vmScene, vmCamera); }
 }
 
 // boot
@@ -761,7 +666,7 @@ showMainMenu();
   btn.disabled = true; btn.textContent = 'LOADING…';
   const ready = () => { btn.disabled = false; btn.textContent = 'DEPLOY'; };
   const fallback = setTimeout(ready, 15000);
-  loadRigs().then(() => { clearTimeout(fallback); buildFpArms(); ready(); });
+  loadRigs().then(() => { clearTimeout(fallback); buildPlayerBody(); ready(); });
 })();
 $('ctlDesktop').hidden = IS_TOUCH;
 $('ctlTouch').hidden = !IS_TOUCH;

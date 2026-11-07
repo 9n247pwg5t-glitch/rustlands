@@ -93,12 +93,24 @@ const gradTex = (() => {
   t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
   return t;
 })();
+// Top-down cutaway: world materials hide everything above the player's head within a radius of
+// them (roofs, the canopy, ceilings, treetops), so the overhead camera can always see the player.
+// CUT = (x, height, z, radius); js/topdown.js moves it every frame; height 1e6 turns it off.
+const CUT = { value: new THREE.Vector4(0, 1e6, 0, 0) };
+function cutawayCompile(sh) {
+  sh.uniforms.uCut = CUT;
+  sh.vertexShader = 'varying vec3 vCutW;\n' + sh.vertexShader.replace('#include <project_vertex>',
+    '#include <project_vertex>\nvec4 cutW = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\ncutW = instanceMatrix * cutW;\n#endif\nvCutW = (modelMatrix * cutW).xyz;');
+  sh.fragmentShader = 'uniform vec4 uCut;\nvarying vec3 vCutW;\n' + sh.fragmentShader.replace('void main() {',
+    'void main() {\nif (vCutW.y > uCut.y && length(vCutW.xz - uCut.xz) < uCut.w) discard;');
+}
+function addCutaway(m) { m.onBeforeCompile = cutawayCompile; return m; }
 const _toonCache = new Map();
 function toon(color, emissive = 0) {
   const key = color + '_' + emissive;
   let m = _toonCache.get(key);
   if (!m) {
-    m = new THREE.MeshToonMaterial({ color, gradientMap: gradTex });
+    m = addCutaway(new THREE.MeshToonMaterial({ color, gradientMap: gradTex }));
     if (emissive) { m.emissive = new THREE.Color(emissive); }
     _toonCache.set(key, m);
   }
@@ -115,7 +127,7 @@ function glow(color, opacity = 1, additive = false) {
   }
   return m;
 }
-const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x1c110a, side: THREE.BackSide });
+const OUTLINE_MAT = addCutaway(new THREE.MeshBasicMaterial({ color: 0x1c110a, side: THREE.BackSide }));
 
 const _geoCache = new Map();
 function boxGeo(w, h, d) {

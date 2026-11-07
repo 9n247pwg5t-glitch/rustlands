@@ -25,7 +25,7 @@ window.addEventListener('resize', readSafe);
 const hud = (() => {
   const nums = [], hurtArcs = [], logs = [];
   let marker = 0, markerKind = 0, bannerT = 0, xpFloat = 0, xpFloatT = 0;
-  let target = null, targetT = 0, crossKick = 0;
+  let target = null, targetT = 0, crossKick = 0, reticle = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   const el = {
     wave: $('waveLabel'), waveSub: $('waveSub'), cash: $('cash'),
     shieldFill: $('shieldFill'), shieldTxt: $('shieldTxt'), hpFill: $('hpFill'), hpTxt: $('hpTxt'),
@@ -113,8 +113,9 @@ const hud = (() => {
 
       // target info from what's under the crosshair
       camBasis();
-      const w = rayWorld(camera.position, _fwd, 120);
-      const hit = rayEnemies(camera.position, _fwd, w.t);
+      const eye0 = aimEye();
+      const w = rayWorld(eye0, _fwd, 120);
+      const hit = rayEnemies(eye0, _fwd, w.t);
       if (hit) { target = hit.e; targetT = 1.2; }
       targetT -= dt;
       if (target && target.alive && targetT > 0 && !target.def.boss) {
@@ -126,11 +127,13 @@ const hud = (() => {
         el.tHp.className = target.hpType === 'armor' ? 'armor' : '';
       } else el.target.hidden = true;
       el.cross.classList.toggle('on-enemy', !!hit);
+      // top-down: the crosshair is the reticle where you aim (the mouse cursor on desktop)
+      const ret = !IS_TOUCH && TD.mouse.has ? { x: TD.mouse.x, y: TD.mouse.y } : project(TD.aimPoint);
+      if (ret) { el.cross.style.left = ret.x + 'px'; el.cross.style.top = ret.y + 'px'; reticle = ret; }
       if (g) {
-        const px = Math.tan((g.melee ? 0.6 : spreadFor(g)) * Math.PI / 180) / Math.tan(camera.fov * Math.PI / 360) * window.innerHeight / 2;
         crossKick = Math.max(0, crossKick - dt * 40);
-        el.cross.style.setProperty('--gap', (clamp(px, 3, 70) + crossKick) + 'px');
-        el.cross.style.opacity = player.adsK > 0.85 && g.type === 'sniper' ? 0 : 1;
+        el.cross.style.setProperty('--gap', ((g.melee ? 10 : clamp(4 + spreadFor(g) * 4, 4, 30)) + crossKick) + 'px');
+        el.cross.style.opacity = 1;
       }
 
       const boss = enemies.find((e) => e.alive && e.def.boss);
@@ -209,7 +212,8 @@ const hud = (() => {
       }
 
       // hit marker
-      const cx = W / 2, cy = H / 2;
+      const cx = reticle.x, cy = reticle.y;
+      const me = project(player.center()) || { x: W / 2, y: H / 2 };
       if (marker > 0) {
         marker -= dt;
         octx.strokeStyle = markerKind === 2 ? '#ff3b2a' : markerKind === 1 ? '#ffd23a' : '#ffffff';
@@ -225,37 +229,30 @@ const hud = (() => {
         const h = hurtArcs[i];
         h.t -= dt * 1.2;
         if (h.t <= 0) { hurtArcs.splice(i, 1); continue; }
-        let rel = h.a - player.yaw; rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+        const rel = Math.atan2(Math.sin(h.a), Math.cos(h.a)); // relative to the camera, which always faces north
         const ang = -Math.PI / 2 - rel;
         octx.strokeStyle = `rgba(255,50,30,${h.t})`;
         octx.lineWidth = 7;
-        octx.beginPath(); octx.arc(cx, cy, Math.min(W, H) * 0.2, ang - 0.3, ang + 0.3); octx.stroke();
+        octx.beginPath(); octx.arc(me.x, me.y, Math.min(W, H) * 0.14, ang - 0.3, ang + 0.3); octx.stroke();
       }
 
-      // compass
-      const portrait = H > W;
-      const cw = portrait ? Math.min(240, W - 60) : Math.min(IS_TOUCH ? 300 : 380, W * 0.36), cxl = (W - cw) / 2;
-      const cyc = SAFE.top + (portrait ? 104 : 22);
-      // a thin inked rule with fading ends instead of a solid bar
-      const grad = octx.createLinearGradient(cxl, 0, cxl + cw, 0);
-      grad.addColorStop(0, 'rgba(255,243,220,0)'); grad.addColorStop(0.15, 'rgba(255,243,220,0.75)');
-      grad.addColorStop(0.85, 'rgba(255,243,220,0.75)'); grad.addColorStop(1, 'rgba(255,243,220,0)');
-      octx.fillStyle = 'rgba(28,17,10,0.5)'; octx.fillRect(cxl, cyc + 9, cw, 4);
-      octx.fillStyle = grad; octx.fillRect(cxl, cyc + 10, cw, 2);
-      octx.lineWidth = 3; octx.strokeStyle = '#1c110a';
-      const k = cw / (Math.PI * 0.9);
-      const mark = (a, label, color, size) => {
-        let rel = a - player.yaw; rel = Math.atan2(Math.sin(rel), Math.cos(rel));
-        const x = cx - rel * k;
-        if (x < cxl + 6 || x > cxl + cw - 6) return;
-        if (label) { octx.font = `${size}px Bangers, Impact, sans-serif`; octx.textAlign = 'center'; octx.strokeText(label, x, cyc + 6); octx.fillStyle = color; octx.fillText(label, x, cyc + 6); }
-        else { octx.fillStyle = color; octx.beginPath(); octx.moveTo(x, cyc + 9); octx.lineTo(x - 5, cyc); octx.lineTo(x + 5, cyc); octx.fill(); }
+      // off-screen markers: arrows at the screen edge toward enemies, good loot and the chest
+      const edge = (p, color, size) => {
+        const v = p.clone().project(camera);
+        let x = (v.x + 1) / 2 * W, y = (1 - v.y) / 2 * H;
+        if (v.z < 1 && x > 20 && x < W - 20 && y > 20 && y < H - 20) return; // on screen
+        if (v.z > 1) { x = W - x; y = H - y; }
+        const dx = x - me.x, dy = y - me.y, a = Math.atan2(dy, dx);
+        const m = 26, k2 = Math.min(Math.abs(dx) > 1e-3 ? ((dx > 0 ? W - m : m) - me.x) / dx : Infinity, Math.abs(dy) > 1e-3 ? ((dy > 0 ? H - m : m) - me.y) / dy : Infinity);
+        const ex = me.x + dx * k2, ey = me.y + dy * k2;
+        octx.save(); octx.translate(ex, ey); octx.rotate(a);
+        octx.fillStyle = color; octx.strokeStyle = '#1c110a'; octx.lineWidth = 2;
+        octx.beginPath(); octx.moveTo(size, 0); octx.lineTo(-size * 0.6, size * 0.7); octx.lineTo(-size * 0.6, -size * 0.7); octx.closePath(); octx.fill(); octx.stroke();
+        octx.restore();
       };
-      mark(0, 'N', '#ffd23a', 18); mark(Math.PI, 'S', '#fff3dc', 16); mark(-Math.PI / 2, 'E', '#fff3dc', 16); mark(Math.PI / 2, 'W', '#fff3dc', 16);
-      for (let i = 0; i < 8; i++) mark(i * Math.PI / 4 + Math.PI / 8, '·', 'rgba(255,243,220,0.6)', 18);
-      for (const e of enemies) if (e.alive) mark(Math.atan2(-(e.pos.x - player.pos.x), -(e.pos.z - player.pos.z)), null, e.def.boss ? '#ff8a1c' : '#ff3b2a');
-      for (const d of drops) if (d.kind === 'item' && d.item.rarity >= 2) mark(Math.atan2(-(d.pos.x - player.pos.x), -(d.pos.z - player.pos.z)), '◆', RARITY[d.item.rarity].css, 14);
-      if (game.chest && !game.chest.opened) mark(Math.atan2(-(game.chest.pos.x - player.pos.x), -(game.chest.pos.z - player.pos.z)), '▣', '#ffd23a', 16);
+      for (const e of enemies) if (e.alive) edge(e.pos, e.def.boss ? '#ff8a1c' : '#ff3b2a', e.def.boss ? 13 : 9);
+      for (const d of drops) if (d.kind === 'item' && d.item.rarity >= 2) edge(d.pos, RARITY[d.item.rarity].css, 9);
+      if (game.chest && !game.chest.opened) edge(game.chest.pos, '#ffd23a', 11);
     },
   };
 })();
