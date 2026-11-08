@@ -98,13 +98,14 @@ function tdAim(dt) {
   } else if (Math.hypot(player.vel.x, player.vel.z) > 1.5) {
     want = eye.clone().add(_ta.set(player.vel.x, 0, player.vel.z).normalize().multiplyScalar(10)); // face where you're going
   }
-  // melee assist: an axe swing or kick turns toward an enemy within reach near where you aim
+  // a strike faces its target the whole way through; a kick turns to whoever is close in front
   const g = player.gun();
-  if ((g && g.melee && player.meleeT > 0) || player.kickT > 0) {
+  if (player.meleeT > 0 && player.strikeTarget && player.strikeTarget.alive) { want = enemyCenter(player.strikeTarget, new THREE.Vector3()); TD.target = player.strikeTarget; TD.exact = false; }
+  else if (player.kickT > 0 && !player.countered) {
     _ta.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
-    const e = tdTarget(_ta, 1.1, (g && g.reach || 2.7) + 1.2);
+    const e = tdTarget(_ta, 1.1, 3.5);
     if (e) { want = enemyCenter(e, new THREE.Vector3()); TD.target = e; TD.exact = false; }
-  }
+  } else if (player.dodgeT > 0) want = null;
   let dy = 0;
   if (want) {
     const dx = want.x - eye.x, dz = want.z - eye.z, dh = Math.hypot(dx, dz);
@@ -135,20 +136,12 @@ function tdAim(dt) {
 // rifle and the axe in the right hand, animated with the shared clips.
 const GAIT_PLAYER_AXE = { fwd: [['Walk Forward rifle', 1.25], ['Unarmed Run Forward 2', 1.6]], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.8], idle: 'Unarmed Idle' };
 // Each combo move plays one of the enemy axe clips, timed so its blow lands when the swing does.
-// (The three uploaded axe clips give five moves: each half of the two-blow combo clip, the spin,
-// and the overhead chop, standing or leaping.)
-const TD_SWINGS = {
-  slash: { clip: 'Standing Melee Combo Attack Ver. 3', start: 0.3, hit: 1.03, end: 1.35, trail: [[0.86, 1.14]] },
-  backhand: { clip: 'Standing Melee Combo Attack Ver. 3', start: 1.3, hit: 1.78, end: 2.25, trail: [[1.58, 1.95]] },
-  spin: { clip: 'Standing Melee Attack 360 High', start: 0.3, hit: 1.08, end: 1.6, trail: [[0.7, 1.35]] },
-  chop: { clip: 'Standing Melee Attack Downward', start: 0.2, hit: 0.84, end: 1.3, trail: [[0.58, 0.98]] },
-  leap: { clip: 'Standing Melee Attack Downward', start: 0.1, hit: 0.84, end: 1.35, trail: [[0.5, 1.0]] },
-};
+// (Each move's clip, and where in it the blow lands, is in AXE_SET in js/arsenal.js.)
 RIG_LOOKS.player = { bases: ['player'] };
 function buildPlayerBody() {
   if (TD.body || !RIG.base[RIG_LOOKS.player.bases[0]]) return;
   const { root, rig } = makeRigEnemy('player', {});
-  const ar = rigGun('ringmaster'), axe = rigGun('axe');
+  const ar = null, axe = rigGun('axe'); // axe only
   if (ar) pinToBone(rig.bones.rhand, ar.group, 1, handAlign(rig.bones.rhand));
   if (axe) pinToBone(rig.bones.rhand, axe.group, 1, handAlign(rig.bones.rhand));
   if (axe) rig.blade = axe.blade;
@@ -164,11 +157,11 @@ function buildPlayerBody() {
 function tdSetWeapon(g) {
   const B = TD.body;
   if (!B || !g) return;
-  if (B.ar) B.ar.group.visible = !g.melee;
-  if (B.axe) B.axe.group.visible = !!g.melee;
-  B.pe.def.ai = g.melee ? 'melee' : 'ranged';
-  B.pe.gait = g.melee ? GAIT_PLAYER_AXE : null;
-  B.pe.aiming = !g.melee;
+  if (B.ar) B.ar.group.visible = false; // axe only (decisions.md 2026-11-09)
+  if (B.axe) B.axe.group.visible = true;
+  B.pe.def.ai = 'melee';
+  B.pe.gait = GAIT_PLAYER_AXE;
+  B.pe.aiming = false;
 }
 // The rifle's muzzle on the body, for where shots leave.
 function tdMuzzle(out) {
@@ -186,24 +179,26 @@ function updatePlayerBody(dt) {
   pe.yaw = player.yaw + Math.PI; // the body model faces +Z
   pe.burstLeft = g && !g.melee && player.vmKick > 0.05 ? 1 : 0; // walking and shooting
   pe.flinchT = Math.max(0, pe.flinchT - dt);
-  // a new axe swing: play its clip
+  // a new strike: play its stretch of its clip over the strike's length (the blow lands on time)
   if (player.meleeT > B.meleeT + 1e-4) {
-    const S = TD_SWINGS[axeMove().name];
+    const S = axeMove();
     pe.state = 'swing';
     pe.atk = { clip: S.clip, start: S.start, hits: [S.hit], end: S.end, trail: S.trail };
-    rigOnce(R, S.clip, (S.hit - S.start) / Math.max(0.05, player.meleeHitT), S.start, S.end, 0.06);
+    rigOnce(R, S.clip, (S.end - S.start) / Math.max(0.1, player.meleeDur), S.start, S.end, 0.06);
   }
   B.meleeT = player.meleeT;
+  // a counter is a roundhouse kick, a plain kick a front kick
   if (player.kickT > B.kickT + 1e-4) {
     pe.state = 'swing'; pe.atk = null;
-    rigOnce(R, 'Mma Kick 1', (0.73 - 0.3) / (player.kickDur * 0.4), 0.3, 1.2, 0.05);
+    if (player.countered) rigOnce(R, 'Roundhouse Kick', (1.0 - 0.45) / 0.18, 0.45, 1.5, 0.04);
+    else rigOnce(R, 'Mma Kick 1', (0.73 - 0.3) / (player.kickDur * 0.4), 0.3, 1.2, 0.05);
   }
   B.kickT = player.kickT;
-  if (pe.state === 'swing' && player.meleeT <= 0 && player.kickT <= 0) { pe.state = 'move'; pe.atk = null; }
-  // reloading plays on the upper body
-  if (player.reloadT > 0 && !B.reloading) { B.reloading = true; rigUpper(R, 'Reload walking', 3.9 / Math.max(0.3, player.reloadDur), 0.2, 4.1); }
-  if (player.reloadT <= 0) B.reloading = false;
-  pe.reloadT = B.reloading ? 1 : 0;
+  // a dodge: a fast sidestep
+  if (player.dodgeT > 0 && !B.dodging) { B.dodging = true; pe.state = 'swing'; pe.atk = null; rigOnce(R, 'Goalkeeper Sidestep', 2.6, 0, Infinity, 0.04); }
+  if (player.dodgeT <= 0) B.dodging = false;
+  if (pe.state === 'swing' && player.meleeT <= 0 && player.kickT <= 0 && player.dodgeT <= 0) { pe.state = 'move'; pe.atk = null; }
+  pe.reloadT = 0;
   animateRig(pe, dt);
   if (player.downed) B.root.rotation.x = -0.5; // slumped
   updateBlobShadows();

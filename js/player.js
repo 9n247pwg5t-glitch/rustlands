@@ -58,6 +58,7 @@ const player = {
   hurt(amount, srcPos, elem) {
     if (amount > 4 && Math.random() < 0.5) bloodSplat(this.pos, 0.7, 'spatter'); // the player bleeds too
     if (!this.alive || this.invuln > 0 || game.state !== 'play') return;
+    this.flow = 0; // getting hit breaks your momentum
     amount *= damageTakenScale();
     if (srcPos) hud.hurtFrom(srcPos);
     if (this.downed) return;
@@ -105,13 +106,13 @@ function resetPlayer() {
   Object.assign(player, {
     level: 1, xp: 0, cash: 0, hp: 100, maxHp: 100, shield: 0, shieldDelayT: 0,
     weapons: [], cur: 0,
-    ammo: { ar: 180, pistol: 0 },
+    ammo: { ar: 0, pistol: 0 },
     grenades: 0, alive: true, downed: false, downT: 0, invuln: 1,
     reloadT: 0, swapT: 0, fireCd: 0, burstLeft: 0, skillCd: 0, hyperSpin: 0, meleeT: 0, meleeCd: 0,
-    combo: 0, comboT: -9, kickT: 0, kickCd: 0, kickDur: 0.42,
+    combo: 0, comboT: -9, kickT: 0, kickCd: 0, kickDur: 0.42, flow: 0, flowT: 0, dodgeT: 0, dodgeCd: 0, strikeTarget: null, leaping: false,
     stats: { kills: 0, crits: 0, shots: 0, damage: 0 },
     // the arsenal (js/arsenal.js): rifle and axe, built from level, mods and skills
-    mods: { ar: {}, melee: {} }, stash: [], skills: {}, skillPoints: 0, buffs: {},
+    mods: { melee: {} }, stash: [], skills: {}, skillPoints: 0, buffs: {},
   });
   buildWeapons();
   player.shieldItem = levelShield();

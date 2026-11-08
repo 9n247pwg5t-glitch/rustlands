@@ -6,7 +6,9 @@ and Playwright (for the browser step).
 
 1. **Animations** (Mixamo, "without skin"): `node convert.mjs <dir of .fbx> ../models/enemy-anims.json`
    keeps bone rotations and the hips' height, drops travel across the floor, thins keys.
-   `node peaks.mjs "Hook" "Mma Kick 1" ...` prints when each punch or kick reaches furthest forward
+   New clips can also be converted on their own (`node convert.mjs <dir> new.json`) and merged into
+   `enemy-anims.json` with their hipsY scaled by the ratio of the two files' `restHipsY` (that's how the
+   2026-11-09 axe clips were added). `node peaks.mjs "Hook" "Mma Kick 1" ...` prints when each punch or kick reaches furthest forward
    (used for the impact times in `js/rigs.js`). `node gait.mjs "Rifle Run" ...` measures each movement
    clip's real ground speed from its planted feet and whether it turns (e.g. a run that circles).
 2. **Characters** (Mixamo, "with skin"): serve this folder's parent over HTTP, then

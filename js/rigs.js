@@ -49,7 +49,7 @@ const RIG_LOOKS = {
 // sockets are where the hand grips it and where shots leave. `size` scales the model in the fist.
 // All weapons use lower-detail copies (-td, made with tools/optimize.mjs) since the
 // top-down view shows them small; the full models were for first-person close-ups.
-const GUN_FILES = { pistol: 'gun-pistol-td', rifle: 'gun-rifle-td', shotgun: 'gun-shotgun-td', axe: 'gun-axe-td', ringmaster: 'player-ar-td' };
+const GUN_FILES = { pistol: 'gun-pistol-td', rifle: 'gun-rifle-td', shotgun: 'gun-shotgun-td', axe: 'gun-axe-td' };
 const GUN_SOCKETS = {
   pistol: { grip: [0, -0.035, -0.052], muzzle: [0, 0.034, 0.282], size: 0.9 },
   rifle: { grip: [0, -0.03, -0.042], muzzle: [0, 0.046, 0.66], size: 0.8 },
@@ -239,7 +239,7 @@ const RIG_DETAIL = `{
     float rim = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
     outgoingLight *= 1.0 - smoothstep(0.02, 0.12, crease) * 0.25; // painted folds from the normal map
     outgoingLight += diffuseColor.rgb * smoothstep(0.5, 0.72, rim) * 0.3; // a cartoon rim light
-    outgoingLight = mix(outgoingLight, vec3(0.1, 0.05, 0.12), smoothstep(0.8, 0.93, rim) * 0.85); // an inked edge
+    outgoingLight = mix(outgoingLight, vec3(0.08, 0.04, 0.1), smoothstep(0.74, 0.88, rim) * 0.92); // a bold inked edge
   }
   #include <output_fragment>`;
 function rigDetail(sh) { sh.fragmentShader = sh.fragmentShader.replace('#include <output_fragment>', RIG_DETAIL); }

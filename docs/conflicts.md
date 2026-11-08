@@ -48,9 +48,10 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
   draws about 250 draw calls and 300k triangles (lower-detail -td character and weapon models, no
   shadow maps, at most 24 enemies alive, 6 bodies on the ground); this needs checking on the actual
   iPhone.
-- **Horde numbers are placeholders.** Wave sizes (12 + 7 per wave, up to 80), the mix (mostly
-  Psychos), pack sizes, the on-screen caps (24 on phones, 34 on desktop) and the weaker Psycho
-  (44 health, 11 damage) are first-pass (`buildWave`, `updateWaves` in `js/main.js`).
+- **Combat and wave numbers are placeholders.** Wave sizes (8 + 4 per wave, up to 40), the mix
+  (mostly Psychos), pack sizes (2-4), the on-screen caps (11 on phones, 14 on desktop), enemy health
+  (a Psycho takes about three axe hits), attack tokens (1-3), the counter window (0.75 s), dodge
+  and leap distances (`js/main.js`, `js/enemies.js`, `js/arsenal.js`).
 - **Objectives are wave-based only.** The bible imagines explorable zones with branching paths,
   optional discoveries and a culminating objective; stage objectives are just "clear N waves" so far.
 - **Placeholder progression numbers.** Stage rewards (first clear: $300 × level scale and 60% of a
@@ -93,8 +94,8 @@ and axe, toggled). Still open or placeholder:
   in `js/fparms.js`).
 - Enemy leap slam range, damage and cooldown (`startLeap` in `js/enemies.js`).
 - Difficulty values (`DIFFICULTY` in `js/enemies.js`), the XP curve, the shield scaling with level.
-- Leftover gun code (gun loot, player projectiles, the turret, grenades) is still in `js/player.js`
-  and `js/loot.js` but unused by the player.
+- Leftover gun code (the rifle, gun loot, player projectiles, the turret, grenades, ammo) is still in
+  `js/player.js`, `js/loot.js` and `js/topdown.js` but unused by the player.
 - The touch controls for switching (tap the corner button, hold to reload) and the KICK button.
 - The starting assault rifle is named "Ringmaster HA15", the name its uploaded model came with
   (`STARTER_AR` in `js/loot.js`).

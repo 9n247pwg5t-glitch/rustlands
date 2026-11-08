@@ -52,25 +52,23 @@ const stageUnlocked = (i) => i === 0 || !!(campaign.save.stages[STAGES[i - 1].id
 function snapshotPlayer() {
   return {
     level: player.level, xp: player.xp, cash: player.cash, cur: player.cur, grenades: player.grenades, ammo: player.ammo,
-    mods: player.mods, stash: player.stash, skills: player.skills, skillPoints: player.skillPoints, arMag: player.weapons[0] && player.weapons[0].inMag,
+    mods: player.mods, stash: player.stash, skills: player.skills, skillPoints: player.skillPoints,
   };
 }
 function savePlayer() { campaign.save.player = JSON.parse(JSON.stringify(snapshotPlayer())); return writeSave(); }
 function restorePlayer(p) {
   resetPlayer();
   if (!p) return;
-  Object.assign(player, { level: p.level, xp: p.xp, cash: p.cash, cur: p.cur === 1 ? 1 : 0, grenades: 0, skillPoints: p.skillPoints || 0 });
+  Object.assign(player, { level: p.level, xp: p.xp, cash: p.cash, cur: 0, grenades: 0, skillPoints: p.skillPoints || 0 });
   player.mods = { ar: Object.assign({}, p.mods && p.mods.ar), melee: Object.assign({}, p.mods && p.mods.melee) };
   player.skills = Object.assign({}, p.skills);
   refundRetiredSkills();
   player.stash = Array.isArray(p.stash) ? p.stash.slice(0, BAG_MAX) : [];
-  Object.assign(player.ammo, p.ammo);
   // new items must not reuse the ids of saved ones
   for (const m of [...Object.values(player.mods.ar), ...Object.values(player.mods.melee), ...player.stash]) if (m && m.id >= _itemId) _itemId = m.id + 1;
+  scrapRetiredMods(); // axe only since 2026-11-09: rifle mods become cash
   player.shieldItem = levelShield();
   buildWeapons();
-  if (p.arMag != null) player.weapons[0].inMag = Math.min(p.arMag, player.weapons[0].mag);
-  else player.ammo.ar = Math.max(player.ammo.ar || 0, 180); // a save from the axe-only build had no rifle ammo
   player.recomputeMaxHp();
   player.hp = player.maxHp;
   player.shield = player.shieldMax();

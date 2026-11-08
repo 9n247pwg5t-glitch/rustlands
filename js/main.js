@@ -41,8 +41,9 @@ const game = {
 function buildWave(w) {
   const list = [];
   const boss = w % 5 === 0;
-  // hordes (decisions.md 2026-11-08): big waves, mostly axe-wielding rushers, a few gunners behind
-  const n = Math.min(Math.round((12 + w * 7) * DIFFICULTY.waveSize), 80);
+  // packs (decisions.md 2026-11-09): mostly axe-wielders, a few gunners behind; fewer than the old
+  // hordes, since each now takes a few hits and only a few come at you at once
+  const n = Math.min(Math.round((8 + w * 4) * DIFFICULTY.waveSize), 40);
   const pool = [['psycho', 12], ['bandit', 2.5], ['suicide', w >= 2 ? 2.5 : 0], ['marauder', w >= 3 ? 1.2 : 0]].filter((p) => p[1] > 0);
   for (let i = 0; i < (boss ? Math.floor(n * 0.5) : n); i++) list.push(weighted(pool));
   const badass = w >= 3 ? 1 + Math.floor((w - 3) / 3) : 0;
@@ -99,7 +100,7 @@ function startWave() {
   SFX.wave();
   game.pack = null;
   game.starsLeft = 1 + Math.floor(game.wave / 2);
-  hud.banner(game.waveLabel(), game.wave % 5 === 0 ? 'Krag the Scrapjaw has entered the arena' : 'A horde of ' + game.waveTotal + ' incoming');
+  hud.banner(game.waveLabel(), game.wave % 5 === 0 ? 'Krag the Scrapjaw has entered the arena' : game.waveTotal + ' incoming');
 }
 // ---------------------------------------------------------------------------
 // Carnage (decisions.md 2026-11-08): kills in quick succession build a streak that multiplies XP
@@ -107,7 +108,7 @@ function startWave() {
 // the sky) or a Frenzy (faster, harder hits that heal). Every wave also has a few Star enemies:
 // bigger, tougher, worth far more. The last kill of a wave plays in slow motion. All placeholder
 // tuning; the call-out lines are generic placeholders, not approved slogans.
-const STREAK_WINDOW = 3.5;
+const STREAK_WINDOW = 7; // kills take a few hits each, so the window is generous
 const STREAK_MILESTONES = { 5: ['RATINGS UP!', ''], 10: ['PRIME TIME!', 'Sponsor drop incoming'], 15: ['FRENZY!', 'Hit harder, swing faster, heal on hit'], 25: ['SPONSORED!', 'Sponsor drop incoming'], 40: ['GOING VIRAL!', 'Sponsor drop incoming'], 60: ['SERIES FINALE!', 'Sponsor drop incoming'] };
 function carnageKill(e) {
   game.streak = game.streakT > 0 ? game.streak + 1 : 1;
@@ -157,12 +158,12 @@ function updateWaves(dt) {
   const alive = enemies.filter((e) => e.alive).length;
   game.spawnT -= dt;
   // how many at once: phones draw fewer
-  const maxAlive = IS_TOUCH ? Math.min(14 + game.wave * 2, 24) : Math.min(18 + game.wave * 3, 34);
+  const maxAlive = IS_TOUCH ? Math.min(7 + game.wave, 11) : Math.min(8 + game.wave * 1.5, 14);
   if (game.toSpawn.length && game.spawnT <= 0 && alive < maxAlive) {
     // they come in packs, each pack from one spot just off screen
-    if (!game.pack || game.pack.left <= 0) game.pack = { at: hordeSpawnPoint(), left: randi(3, 7) };
+    if (!game.pack || game.pack.left <= 0) game.pack = { at: hordeSpawnPoint(), left: randi(2, 4) };
     game.pack.left--;
-    game.spawnT = game.pack.left > 0 ? rand(0.1, 0.28) : rand(1.0, 2.2);
+    game.spawnT = game.pack.left > 0 ? rand(0.25, 0.5) : rand(2.5, 4.5);
     const key = game.toSpawn.shift();
     const a = game.pack.at, p = a.clone();
     for (let k = 0; k < 8; k++) { const x = a.x + rand(-2.5, 2.5), z = a.z + rand(-2.5, 2.5); if (navWalkable(x, z)) { p.set(x, 0, z); break; } }
@@ -185,13 +186,12 @@ function dropLoot(e) {
   const p = enemyCenter(e, new THREE.Vector3());
   const lvl = e.level;
   const luck = (e.def.badass ? 0.8 : 0) + game.wave * 0.03;
-  // loot is rifle and axe mods (js/arsenal.js)
+  // loot is axe mods (js/arsenal.js)
   if (e.def.boss) {
     spawnDrop('item', p, { item: genMod(lvl, { rarity: Math.random() < 0.45 ? 4 : 3 }) });
     spawnDrop('item', p, { item: genMod(lvl, { luck: 2 }) });
     spawnDrop('item', p, { item: genMod(lvl, { luck: 2 }) });
     for (let i = 0; i < 6; i++) spawnDrop('cash', p, { amount: Math.round(rand(10, 20) * levelScale(lvl)) });
-    for (let i = 0; i < 3; i++) spawnDrop('ammo', p, { ammo: 'ar' });
     spawnDrop('health', p);
     return;
   }
@@ -201,7 +201,6 @@ function dropLoot(e) {
   }
   if (Math.random() < (e.def.badass ? 0.8 : 0.1)) spawnDrop('item', p, { item: genMod(lvl, { luck }) });
   if (Math.random() < 0.55) spawnDrop('cash', p, { amount: Math.round(rand(3, 8) * levelScale(lvl) * (e.def.badass ? 4 : 1) * game.streakMult) });
-  if (Math.random() < 0.38) spawnDrop('ammo', p, { ammo: 'ar' });
   if (Math.random() < DIFFICULTY.healthDrop) spawnDrop('health', p);
 }
 
@@ -241,7 +240,6 @@ function openChest() {
   spawnDrop('item', p, { item: genMod(lvl, { luck, rarity: c.boss ? (Math.random() < 0.3 ? 4 : 3) : undefined }) });
   spawnDrop('item', p, { item: genMod(lvl, { luck }) });
   for (let i = 0; i < 3; i++) spawnDrop('cash', p, { amount: Math.round(rand(6, 12) * levelScale(lvl)) });
-  spawnDrop('ammo', p, { ammo: 'ar' }); spawnDrop('ammo', p, { ammo: 'ar' });
 }
 
 const AMMO_PICK = { pistol: 24, smg: 48, ar: 36, shotgun: 8, sniper: 4, rocket: 2 };
@@ -317,7 +315,7 @@ function updateInteraction(dt) {
     if (d.kind === 'item' || d.t < 0.4) continue;
     const dist = d.pos.distanceTo(player.center());
     if (dist < 4 && d.grounded) {
-      const willTake = d.kind === 'cash' || (d.kind === 'ammo') || (d.kind === 'health' && player.hp < player.maxHp) || (d.kind === 'grenade' && player.grenades < player.maxGrenades);
+      const willTake = d.kind === 'cash' || (d.kind === 'health' && player.hp < player.maxHp) || (d.kind === 'grenade' && player.grenades < player.maxGrenades);
       if (willTake) d.pos.lerp(player.center(), Math.min(1, dt * 6));
     }
     if (dist < 1.4 && tryAutoPickup(d)) removeDrop(d);
@@ -397,7 +395,9 @@ function updatePlayer(dt) {
   const fx = 0, fz = -1, rx = 1, rz = 0;
   const wx = (fx * mz + rx * mx) * speed, wz = (fz * mz + rz * mx) * speed;
   const a = player.grounded ? 1 - Math.exp(-12 * dt) : 1 - Math.exp(-2.5 * dt);
-  player.vel.x = lerp(player.vel.x, wx, a); player.vel.z = lerp(player.vel.z, wz, a);
+  // strikes glide toward their target and dodges dash: they take over the movement
+  if (player.forceVel) { player.vel.x = player.forceVel.x; player.vel.z = player.forceVel.z; }
+  else { player.vel.x = lerp(player.vel.x, wx, a); player.vel.z = lerp(player.vel.z, wz, a); }
   if (input.jumpPressed && player.grounded && !player.downed) { player.vel.y = 8.2; player.grounded = false; SFX.jump(); }
   player.vel.y -= 22 * dt;
   player.pos.addScaledVector(player.vel, dt);
@@ -545,14 +545,10 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   switch (e.code) {
-    case 'Space': input.jumpPressed = true; e.preventDefault(); break;
+    case 'Space': dodge(); e.preventDefault(); break;
     case 'KeyJ': TD.mouseFire = true; input.firePressed = true; break;
     case 'KeyE': interact(); break;
-    case 'KeyR': startReload(); break;
-    case 'KeyQ': toggleWeapon(); break;
-    case 'Digit1': switchWeapon(0); break;
-    case 'Digit2': switchWeapon(1); break;
-    case 'KeyF': case 'KeyV': doMelee(); break;
+    case 'KeyF': case 'KeyV': case 'KeyQ': counter(); break;
     case 'KeyK': openSkills(); break;
     case 'KeyI': case 'Tab': e.preventDefault(); openGear(); break;
     case 'KeyN': if (game.phase === 'intermission') game.interT = 0; else if (game.phase === 'complete') finishStage(true); break;
@@ -561,7 +557,6 @@ window.addEventListener('keydown', (e) => {
   }
 });
 window.addEventListener('keyup', (e) => { input.keys[e.code] = false; if (e.code === 'KeyJ') TD.mouseFire = false; });
-window.addEventListener('wheel', (e) => { if (game.state === 'play' && Math.abs(e.deltaY) > 4) toggleWeapon(); }, { passive: true });
 window.addEventListener('blur', () => { input.keys = Object.create(null); input.fire = false; if (game.state === 'play' && !IS_TOUCH) pauseGame(); });
 
 // ---------------------------------------------------------------------------
@@ -571,8 +566,8 @@ window.addEventListener('blur', () => { input.keys = Object.create(null); input.
 //    or swing; an enemy near the aim line is locked onto
 //  - FIRE / SWING: hold to shoot the rifle, or tap (keep tapping, or hold) for the axe's three-move
 //    combo, at the nearest enemy in front when the aim stick isn't held
-//  - corner button: tap to switch rifle <-> axe, hold to reload
-//  - KICK: kick
+//  - corner button: COUNTER (lights up with "!" when an enemy is about to strike), else a kick
+//  - DODGE: a quick dash
 const touchEl = $('touch');
 const stickBase = $('stickBase'), stickKnob = $('stickKnob'), aimBase = $('aimBase'), aimKnob = $('aimKnob');
 const fireBtn = $('fireBtn'), wheelBtn = $('wheelBtn'), wheelEl = $('wheel');
@@ -587,26 +582,22 @@ function fireStart(p) { if (p.decided) return; p.decided = 'fire'; TD.fireBtn = 
 // ----- the corner button shows the weapon and its ammo and switches; the kick button its cooldown;
 // the fire button reads FIRE or SWING (and the axe combo's next move)
 function updateWheelButton() {
-  const g = player.gun();
-  if (!g) return;
-  const other = player.weapons[player.cur === 0 ? 1 : 0];
-  $('wbName').textContent = g.label;
-  $('wbAmmo').textContent = g.melee ? '⚔' : player.reloadT > 0 ? '··' : g.inMag;
-  $('wbPool').textContent = (g.melee ? '' : player.ammo[g.ammo] + ' · ') + '⇄ ' + (other ? other.label.toUpperCase() : '');
-  wheelBtn.style.borderColor = RARITY[g.rarity].css;
-  wheelBtn.classList.toggle('empty', !g.melee && g.inMag <= Math.ceil(g.mag * 0.2));
-  $('kickBtn').classList.toggle('cool', player.kickCd > 0);
-  const label = g.melee ? 'SWING' : 'FIRE';
-  if ($('fireLabel').textContent !== label) $('fireLabel').textContent = label;
-  const hint = g.melee ? (player.meleeT > 0 || player.comboT > -COMBO_WINDOW ? axeMove((player.combo + 1) % 3).name : 'combo') : 'auto-aim';
+  // the corner button counters (lit up, with a "!", when an enemy can be countered) or kicks
+  const th = counterThreat();
+  wheelBtn.classList.toggle('threat', !!th);
+  const big = th ? '!' : '🦶';
+  if ($('wbAmmo').textContent !== big) $('wbAmmo').textContent = big;
+  $('wbPool').textContent = th ? 'counter now' : player.kickCd > 0 ? '' : 'kick';
+  $('kickBtn').classList.toggle('cool', (player.dodgeCd || 0) > 0);
+  const hint = player.flow >= 2 ? player.flow + ' hits' : (player.meleeT > 0 || player.comboT > -COMBO_WINDOW ? axeMove((player.combo + 1) % 3).name : 'combo');
   if ($('fireHint').textContent !== hint) $('fireHint').textContent = hint;
 }
 function openWheel() { /* no weapon wheel: the axe is the only weapon */ }
 
 function touchAct(act, btn) {
   if (game.state !== 'play') return;
-  if (act === 'jump') input.jumpPressed = true;
-  else if (act === 'kick') doMelee();
+  if (act === 'jump') dodge(); // the JUMP button is DODGE now
+  else if (act === 'kick') dodge(); // the KICK slot is DODGE now
   else if (act === 'use') interact();
 }
 touchEl.addEventListener('pointerdown', (e) => {
@@ -621,11 +612,10 @@ touchEl.addEventListener('pointerdown', (e) => {
     btn.classList.add('down');
     fireStart(p);
   } else if (btn && btn.dataset.act === 'wheel') {
-    // tap: switch weapons; hold: reload
+    // COUNTER (or a kick when there's nothing to counter)
     btn.classList.add('down');
-    const p = { kind: 'swap', btn, t0: now, done: false };
-    p.timer = setTimeout(() => { if (pointers.get(e.pointerId) === p && game.state === 'play') { p.done = true; startReload(); } }, 380);
-    pointers.set(e.pointerId, p);
+    if (game.state === 'play') counter();
+    pointers.set(e.pointerId, { kind: 'btn', btn });
   } else if (btn) {
     btn.classList.add('down');
     touchAct(btn.dataset.act, btn);
@@ -672,9 +662,6 @@ function endPointer(e) {
   else if (p.kind === 'fire') {
     TD.fireBtn = false;
     input.fire = false;
-  } else if (p.kind === 'swap') {
-    clearTimeout(p.timer);
-    if (!p.done && game.state === 'play') toggleWeapon();
   }
 }
 touchEl.addEventListener('pointerup', endPointer);

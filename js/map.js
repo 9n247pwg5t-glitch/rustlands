@@ -149,12 +149,12 @@ async function buildStageMap(data, gltf) {
   worlds.arena.objects.push(group);
   group.visible = WORLD.id === 'arena';
 
-  // colliders, and the game's own props: health and ammo vending machines by the store and red barrels by the pumps
+  // colliders, and the game's own props: a health vending machine by the store and red barrels by the pumps
   intoArena(() => {
     for (const b of data.boxes) boxCols.push({ minX: b[0], minZ: b[1], maxX: b[2], maxZ: b[3], minY: b[4], maxY: b[5], ref: null });
     for (const s of data.spheres) sphCols.push({ x: s[0], y: s[1], z: s[2], r: s[3], top: s[4] });
     const e = data.points.StoreEntrance;
-    if (e) { buildVending(e[0] + 4.2, e[2] - 1.6, Math.PI, 'health'); buildVending(e[0] - 4.2, e[2] - 1.6, Math.PI, 'ammo'); }
+    if (e) buildVending(e[0] + 4.2, e[2] - 1.6, Math.PI, 'health');
     for (const [x, z] of [[-12.5, -13], [12.5, -5], [-4, -3.5], [4.5, -14.5], [-20, 2], [18, -18]]) if (navWalkable(x, z)) buildBarrel(x, z);
   });
   // a shorter view on phones: the fog hides where the draw distance ends
@@ -185,7 +185,7 @@ function sharedMat(m) {
   if (!s) { s = addCutaway(m.clone()); s.color.setRGB(1, 1, 1); s.vertexColors = true; s.name = 'merged:' + m.name; _sharedMats.set(k, s); }
   return s;
 }
-const MAP_INK = addCutaway(new THREE.LineBasicMaterial({ color: 0x2a1530, transparent: true, opacity: 0.7 }));
+const MAP_INK = addCutaway(new THREE.LineBasicMaterial({ color: 0x1c0e20, transparent: true, opacity: 0.88 }));
 const MAP_NO_SHADOW = /^(Terrain|Road|GasStation_Lot|Bounds_|Blood|Graffiti|Pond$|PowerLines)/;
 function mergeStatics(root, group, cache) {
   root.updateMatrixWorld(true);

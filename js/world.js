@@ -64,9 +64,9 @@ scene.add(sky);
 // ---------------------------------------------------------------------------
 // Lights
 // cartoon lighting: warm sun, cool violet fill from below, so shadows read purple, not grey
-const hemi = new THREE.HemisphereLight(0xe4f4ff, 0x8a6aa8, 0.72);
+const hemi = new THREE.HemisphereLight(0xe4f4ff, 0x8a6aa8, 0.66);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffecd0, 0.8);
+const sun = new THREE.DirectionalLight(0xffecd0, 0.7);
 sun.castShadow = !IS_TOUCH;
 sun.shadow.mapSize.set(IS_TOUCH ? 1024 : 2048, IS_TOUCH ? 1024 : 2048);
 const SC = 45;
@@ -112,7 +112,16 @@ const gradTex = softRamp(0.58);
 THREE.ShaderChunk.dithering_fragment = `{
   float cartoonL = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
   vec3 cc = clamp(mix(vec3(cartoonL), gl_FragColor.rgb, 1.3), 0.0, 1.0);
-  gl_FragColor.rgb = mix(cc, cc * cc * (3.0 - 2.0 * cc), 0.3); // a little punch
+  cc = mix(cc, cc * cc * (3.0 - 2.0 * cc), 0.3);
+  // grit (decisions.md 2026-11-09): shadows lose a little colour, comic halftone dots in the
+  // darker tones, and a fine static film grain
+  float gl2 = dot(cc, vec3(0.299, 0.587, 0.114));
+  cc = mix(vec3(gl2), cc, 0.82 + 0.18 * smoothstep(0.15, 0.55, gl2));
+  vec2 hp = mat2(0.707, -0.707, 0.707, 0.707) * gl_FragCoord.xy / 4.5;
+  float ht = smoothstep(0.5, 0.12, gl2);
+  cc *= 1.0 - ht * 0.28 * step(length(fract(hp) - 0.5), 0.15 + 0.3 * ht);
+  cc += (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.04;
+  gl_FragColor.rgb = cc; // a little punch
 }
 ` + THREE.ShaderChunk.dithering_fragment;
 // Top-down cutaway: world materials hide everything above the player's head within a radius of
@@ -495,7 +504,7 @@ function collideBody(p, radius, height, vy = 0) {
 // Effects
 const fx = { particles: [], tracers: [], blasts: [], debris: [], rings: [] };
 const PGEO = new THREE.BoxGeometry(1, 1, 1);
-const MAX_PARTICLES = IS_TOUCH ? 140 : 420; // each particle is a draw call
+const MAX_PARTICLES = IS_TOUCH ? 70 : 300; // each particle is a draw call
 
 function particle(pos, vel, color, size, life, grav = 1, additive = false) {
   let p;

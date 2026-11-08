@@ -25,6 +25,7 @@ window.addEventListener('resize', readSafe);
 const hud = (() => {
   const nums = [], hurtArcs = [], logs = [];
   let marker = 0, markerKind = 0, bannerT = 0, xpFloat = 0, xpFloatT = 0;
+  const pops = [];
   let target = null, targetT = 0, crossKick = 0, reticle = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   const el = {
     wave: $('waveLabel'), waveSub: $('waveSub'), cash: $('cash'),
@@ -53,6 +54,8 @@ const hud = (() => {
       nums.push({ pos: pos.clone().add(new THREE.Vector3(rand(-0.3, 0.3), 0, rand(-0.3, 0.3))), vx: rand(-30, 30), t: 0, life: crit ? 1.1 : 0.85, text: Math.round(amount).toLocaleString(), color, crit, effect });
       if (nums.length > 60) nums.shift();
     },
+    // a word popping up over the player (COUNTER!)
+    popText(text, color) { pops.push({ text, color, t: 0.9 }); },
     hitMarker(crit, kill) { marker = kill ? 0.32 : 0.22; markerKind = kill ? 2 : crit ? 1 : 0; crossKick = kill ? 9 : crit ? 6 : 3; },
     targetHit(e) { target = e; targetT = 2.5; },
     hurtFrom(src) { hurtArcs.push({ a: Math.atan2(-(src.x - player.pos.x), -(src.z - player.pos.z)), t: 1 }); if (hurtArcs.length > 8) hurtArcs.shift(); },
@@ -106,11 +109,11 @@ const hud = (() => {
         el.gunName.textContent = g.name;
         el.gunName.style.color = RARITY[g.rarity].css;
         el.gunSub.innerHTML = g.element !== 'none' ? `${g.sub.split(' · ')[0]} · <span style="color:${ELEM[g.element].css}">${ELEM[g.element].label}</span>` : g.sub;
-        el.mag.textContent = g.melee ? (p.comboT > -COMBO_WINDOW || p.meleeT > 0 ? '⚔'.repeat((p.combo || 0) + 1) : '⚔') : (p.reloadT > 0 ? '··' : g.inMag);
+        el.mag.textContent = (p.flow || 0) >= 2 ? p.flow + ' HITS' : '⚔';
         el.mag.classList.toggle('empty', !g.melee && g.inMag <= Math.ceil(g.mag * 0.2));
       }
       // the rifle's ammo pool, or the kick cooldown with the axe; the two weapon slots
-      if (g) el.pool.textContent = g.melee ? (p.kickCd > 0 ? 'kick ' + p.kickCd.toFixed(1) : 'kick ready') : p.ammo[g.ammo];
+      if (g) el.pool.textContent = counterThreat() ? 'COUNTER NOW (F)' : (p.dodgeCd > 0 ? '' : 'dodge ready');
       let sh = '';
       for (let i = 0; i < p.weapons.length; i++) {
         const w = p.weapons[i];
@@ -234,6 +237,16 @@ const hud = (() => {
         octx.stroke();
       }
 
+      // pop-up words over the player
+      for (let i = pops.length - 1; i >= 0; i--) {
+        const q = pops[i]; q.t -= dt;
+        if (q.t <= 0) { pops.splice(i, 1); continue; }
+        const k = 1 - q.t / 0.9, sc = k < 0.15 ? 0.6 + k / 0.15 * 0.6 : 1.2 - Math.min(0.2, (k - 0.15));
+        octx.font = `${Math.round(30 * sc)}px Bangers, Impact, sans-serif`; octx.textAlign = 'center';
+        octx.globalAlpha = Math.min(1, q.t * 3); octx.lineWidth = 5; octx.strokeStyle = '#1c110a';
+        octx.strokeText(q.text, me.x, me.y - 70 - k * 30); octx.fillStyle = q.color; octx.fillText(q.text, me.x, me.y - 70 - k * 30);
+        octx.globalAlpha = 1;
+      }
       // damage direction arcs
       for (let i = hurtArcs.length - 1; i >= 0; i--) {
         const h = hurtArcs[i];

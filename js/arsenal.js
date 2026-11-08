@@ -1,20 +1,15 @@
 'use strict';
-// The player's arsenal (docs/decisions.md, 2026-11-06): an assault rifle and an axe, toggled
-// between, plus a kick. The axe swings in a three-move combo (slash, backhand, overhead chop).
-// Loot is modifications for the rifle and the axe; levelling up earns skill points for the
-// Assault Rifle and Melee trees. Both weapons are rebuilt from the player's level, fitted mods and
-// learned skills whenever one of those changes. Mod and skill names and every number here are
-// placeholders to tune.
+// The player's arsenal (docs/decisions.md, 2026-11-09): the axe only. Combat is single-target and
+// auto-targeted, in the style of free-flow brawlers: each strike goes to one enemy (the one you
+// push toward, else the one you're locked on to, else the nearest), closing the distance with a
+// leap if it's a few strides away. Hits in a row without getting hit build Momentum (more damage).
+// An enemy about to strike shows a "!" - COUNTER then knocks it down. DODGE dashes out of the way
+// with a moment of invulnerability. Loot is axe modifications; levelling up earns skill points for
+// the Melee tree. Mod and skill names and every number here are placeholders to tune.
 
 // ---------------------------------------------------------------------------
 // Mods: one per slot. `stats` are fractions (0.12 = +12%).
 const MOD_SLOTS = {
-  ar: {
-    barrel: { label: 'Barrel', main: 'dmg', side: ['acc', 'crit'], elem: true },
-    mag: { label: 'Magazine', main: 'mag', side: ['reload', 'dmg'] },
-    optic: { label: 'Optic', main: 'crit', side: ['acc', 'adsAcc'] },
-    stock: { label: 'Stock', main: 'recoil', side: ['rate', 'acc'] },
-  },
   melee: {
     head: { label: 'Axe Head', main: 'dmg', side: ['crit', 'reach'], elem: true },
     handle: { label: 'Handle', main: 'speed', side: ['reach', 'dmg'] },
@@ -23,27 +18,19 @@ const MOD_SLOTS = {
 };
 const MOD_STATS = {
   dmg: { label: 'Damage', base: 0.1 },
-  acc: { label: 'Accuracy', base: 0.1 },
-  mag: { label: 'Magazine size', base: 0.15 },
-  reload: { label: 'Reload speed', base: 0.1 },
-  adsAcc: { label: 'Aimed accuracy', base: 0.12 },
-  recoil: { label: 'Recoil reduction', base: 0.15 },
-  rate: { label: 'Fire rate', base: 0.07 },
   crit: { label: 'Crit damage', base: 0.12 },
   speed: { label: 'Swing speed', base: 0.1 },
   reach: { label: 'Reach', base: 0.08 },
   leech: { label: 'Health per hit', base: 0.012 }, // of max health
 };
 const MOD_NAMES = {
-  barrel: ['Heavy', 'Rifled', 'Ported', 'Long'], mag: ['Extended', 'Drum', 'Quick-Release', 'Stacked'],
-  optic: ['Red Dot', 'Holo', 'Marksman', 'Reflex'], stock: ['Padded', 'Braced', 'Skeleton', 'Folding'],
   head: ['Serrated', 'Hooked', 'Weighted', 'Bearded'], handle: ['Wrapped', 'Balanced', 'Long', 'Grip-Taped'],
   charm: ['Rabbit Foot', 'Bell', 'Lucky Die', 'Rubber Nose'],
 };
 
 function genMod(level, opts = {}) {
-  const weapon = opts.weapon || (Math.random() < 0.55 ? 'ar' : 'melee');
-  const slot = opts.slot || pick(Object.keys(MOD_SLOTS[weapon]));
+  const weapon = 'melee';
+  const slot = opts.slot && MOD_SLOTS[weapon][opts.slot] ? opts.slot : pick(Object.keys(MOD_SLOTS[weapon]));
   const S = MOD_SLOTS[weapon][slot];
   const r = opts.rarity != null ? opts.rarity : rollRarity(opts.luck || 0);
   const lv = 1 + (level - 1) * 0.015; // later mods are a little stronger
@@ -64,31 +51,19 @@ function genMod(level, opts = {}) {
 // ---------------------------------------------------------------------------
 // The Melee skill tree. Each rank costs one point; deeper tiers open at a player level.
 const SKILL_TREES = {
-  ar: {
-    label: 'Assault Rifle',
-    skills: [
-      { id: 'arDmg', name: 'Hollow Points', max: 5, tier: 1, desc: (r) => `+${6 * r}% rifle damage` },
-      { id: 'arAcc', name: 'Steady Hands', max: 5, tier: 1, desc: (r) => `+${8 * r}% rifle accuracy, -${8 * r}% recoil` },
-      { id: 'arMag', name: 'Deep Pockets', max: 3, tier: 1, desc: (r) => `+${10 * r}% magazine size` },
-      { id: 'arReload', name: 'Fast Hands', max: 3, tier: 2, desc: (r) => `+${10 * r}% reload speed` },
-      { id: 'arRate', name: 'Trigger Happy', max: 3, tier: 2, desc: (r) => `+${6 * r}% fire rate` },
-      { id: 'arCrit', name: 'Headhunter', max: 3, tier: 2, desc: (r) => `+${15 * r}% critical hit damage` },
-      { id: 'arCap', name: 'Overdrive', max: 1, tier: 3, desc: () => 'Rifle kills give +30% fire rate and +15% damage for 5 seconds' },
-    ],
-  },
   melee: {
     label: 'Melee',
     skills: [
       { id: 'mDmg', name: 'Heavy Swings', max: 5, tier: 1, desc: (r) => `+${8 * r}% axe damage` },
       { id: 'mSpeed', name: 'Quick Swings', max: 3, tier: 1, desc: (r) => `+${8 * r}% swing speed` },
       { id: 'mLeech', name: 'Bloodthirst', max: 3, tier: 1, desc: (r) => `Axe hits heal ${r}% of max health` },
-      { id: 'mKick', name: 'Steel Toes', max: 3, tier: 1, desc: (r) => `Kicks deal +${40 * r}% damage and shove ${25 * r}% further` },
-      { id: 'mFinish', name: 'Finisher', max: 3, tier: 2, desc: (r) => `The combo's overhead chop deals +${20 * r}% damage` },
+      { id: 'mKick', name: 'Steel Toes', max: 3, tier: 1, desc: (r) => `Counters and kicks deal +${40 * r}% damage` },
+      { id: 'mFinish', name: 'Finisher', max: 3, tier: 2, desc: (r) => `The third hit of a combo deals +${20 * r}% damage` },
       { id: 'mArmor', name: 'Thick Skin', max: 3, tier: 2, desc: (r) => `Take ${6 * r}% less damage` },
       { id: 'mExec', name: 'Executioner', max: 3, tier: 2, desc: (r) => `+${20 * r}% axe damage to enemies under 30% health` },
-      { id: 'mCleave', name: 'Cleave', max: 1, tier: 2, desc: () => 'Swings hit every enemy in the arc, not just the nearest' },
+      { id: 'mFlow', name: 'Momentum', max: 1, tier: 2, desc: () => 'Hits in a row build up to +50% damage (instead of +25%)' },
       { id: 'mCap', name: 'Berserk', max: 1, tier: 3, desc: () => 'Axe kills give +25% axe damage and +20% move speed for 6 seconds' },
-      { id: 'mQuake', name: 'Earthsplitter', max: 1, tier: 3, desc: () => 'The overhead chop sends a shockwave that hits everyone close by' },
+      { id: 'mCounter', name: 'Counter Master', max: 1, tier: 3, desc: () => 'Counters deal triple damage' },
     ],
   },
 };
@@ -108,60 +83,47 @@ function learnSkill(id) {
   SFX.levelUp();
   return true;
 }
-// Points spent on skills that no longer exist come back.
+// Points spent on skills that no longer exist (the rifle tree, Cleave, Earthsplitter) come back.
 function refundRetiredSkills() {
   for (const id of Object.keys(player.skills)) if (!SKILL_BY_ID[id]) { player.skillPoints += player.skills[id]; delete player.skills[id]; }
 }
+// Rifle mods from older saves are scrapped for cash.
+function scrapRetiredMods() {
+  let cash = 0;
+  for (const m of Object.values(player.mods.ar || {})) if (m) cash += Math.round((m.value || 10) * 0.6);
+  const keep = [];
+  for (const m of player.stash) { if (m.weapon === 'melee') keep.push(m); else cash += Math.round((m.value || 10) * 0.6); }
+  player.stash = keep;
+  delete player.mods.ar;
+  if (cash) { player.cash += cash; hud.log('Rifle mods scrapped: +$' + cash, '#9fff6a'); }
+}
 
 // ---------------------------------------------------------------------------
-// Building the weapons
+// The axe
 const modSum = (w, k) => Object.values(player.mods[w] || {}).reduce((t, m) => t + ((m && m.stats[k]) || 0), 0);
 const modElem = (w) => { for (const m of Object.values(player.mods[w] || {})) if (m && m.element !== 'none') return m; return null; };
 const bestRarity = (w) => Math.max(0, ...Object.values(player.mods[w] || {}).map((m) => (m ? m.rarity : 0)));
-const axeOf = () => player.weapons.find((w) => w && w.melee);
+const axeOf = () => player.weapons[0];
 
 function buildWeapons() {
   const L = player.level, ls = levelScale(L);
-  const old = player.weapons || [];
-  // assault rifle
-  const buffAr = player.buffs && player.buffs.overdrive > 0, frenzy = player.buffs && player.buffs.frenzy > 0 ? 1.3 : 1;
-  const T = TYPES.ar;
-  const ar = {
-    id: 'ar', kind: 'gun', type: 'ar', model: 'ringmaster', mfr: 'vladof', label: 'Rifle', name: STARTER_AR.name, level: L,
-    rarity: bestRarity('ar'), ammo: 'ar', auto: true, pellets: 1, zoom: T.zoom, special: null,
-    damage: 14 * ls * T.dmg * (1 + modSum('ar', 'dmg') + rank('arDmg') * 0.06) * (buffAr ? 1.15 : 1) * frenzy,
-    rate: T.rate * (1 + modSum('ar', 'rate') + rank('arRate') * 0.06) * (buffAr ? 1.3 : 1) * frenzy,
-    mag: Math.round(T.mag * (1 + modSum('ar', 'mag') + rank('arMag') * 0.1)),
-    reload: T.reload / (1 + modSum('ar', 'reload') + rank('arReload') * 0.1),
-    spread: T.spread / (1 + modSum('ar', 'acc') + rank('arAcc') * 0.08),
-    adsAcc: 1 + modSum('ar', 'adsAcc'),
-    kick: T.kick * Math.max(0.3, 1 - modSum('ar', 'recoil') - rank('arAcc') * 0.08),
-    crit: 2 * (1 + modSum('ar', 'crit') + rank('arCrit') * 0.15),
-    element: 'none',
-  };
-  const ae = modElem('ar');
-  if (ae) { ar.element = ae.element; ar.elemChance = ae.elemChance; ar.elemDps = ar.damage * 0.6 * (ae.element === 'fire' ? 1.2 : ae.element === 'shock' ? 1 : 0.8); ar.damage *= 0.92; }
-  ar.sub = 'Assault rifle' + (ar.element !== 'none' ? ' · ' + ELEM[ar.element].label : '');
-  const o = old.find((x) => x && x.id === 'ar');
-  ar.inMag = o ? Math.min(o.inMag, ar.mag) : ar.mag;
-  // axe
-  const buff = player.buffs && player.buffs.berserk > 0;
+  const buff = player.buffs && player.buffs.berserk > 0, frenzy = player.buffs && player.buffs.frenzy > 0 ? 1.3 : 1;
   const axe = {
     id: 'axe', kind: 'gun', type: 'melee', melee: true, model: 'axe', mfr: 'jakobs', label: 'Axe', name: 'Axe', level: L,
     rarity: bestRarity('melee'), ammo: null, auto: true, pellets: 1, special: null, kick: 0, zoom: 1, inMag: 1,
     damage: 70 * ls * (1 + modSum('melee', 'dmg') + rank('mDmg') * 0.08) * (buff ? 1.25 : 1) * frenzy,
     rate: 1.35 * (1 + modSum('melee', 'speed') + rank('mSpeed') * 0.08) * frenzy,
-    reach: 2.7 * (1 + modSum('melee', 'reach')),
+    reach: 2.5 * (1 + modSum('melee', 'reach')),
     critChance: 0.08 + modSum('melee', 'crit') * 0.5, crit: 1.8 * (1 + modSum('melee', 'crit')),
     leech: modSum('melee', 'leech') + rank('mLeech') * 0.01 + (frenzy > 1 ? 0.012 : 0),
-    exec: rank('mExec') * 0.2, cleave: rank('mCleave') > 0, finisher: 1.7 + rank('mFinish') * 0.2, quake: rank('mQuake') > 0,
+    exec: rank('mExec') * 0.2, finisher: 1.0 + rank('mFinish') * 0.2, flowMax: rank('mFlow') ? 0.5 : 0.25,
     element: 'none',
   };
   const me = modElem('melee');
   if (me) { axe.element = me.element; axe.elemChance = me.elemChance + 0.15; axe.elemDps = axe.damage * 0.35; }
   axe.sub = 'Melee' + (axe.element !== 'none' ? ' · ' + ELEM[axe.element].label : '');
-  player.weapons = [ar, axe];
-  if (!(player.cur >= 0 && player.cur < 2)) player.cur = 0;
+  player.weapons = [axe];
+  player.cur = 0;
 }
 
 // Fit a mod in its slot; returns the one it replaces (or null).
@@ -174,91 +136,104 @@ function equipMod(m) {
 }
 
 // ---------------------------------------------------------------------------
-// Swinging: three-move combos. Swinging again soon after a swing ends moves on to the next move;
-// waiting starts over. Each combo is a random pick from a few strings of moves (never the same one
-// twice in a row), and its third move is the finisher (the axe's finisher damage, bigger shake,
-// Earthsplitter). Each move has its own length, the moment it lands, its arc (cosine of the half
-// angle it reaches; -1 is all the way round), how many it can hit and its damage.
+// Moves. Each plays a stretch of one of the axe clips (js/topdown.js) - `start`, `hit`, `end` in
+// clip seconds - over `dur` real seconds at base swing speed; `dmg` is its damage multiplier.
+// A combo is three strikes; the third is a heavy finisher. Strikes chained within COMBO_WINDOW of
+// each other continue the combo; otherwise a new one (a random string) starts.
 const AXE_SET = {
-  slash: { name: 'slash', len: 1.0, hit: 0.42, arc: 0.45, multi: 1, dmg: 1 }, // diagonal cut
-  backhand: { name: 'backhand', len: 0.95, hit: 0.42, arc: 0.2, multi: 2, dmg: 1 }, // the swing back: a wide arc, through two
-  spin: { name: 'spin', len: 1.15, hit: 0.52, arc: -1, multi: 99, dmg: 0.85, reach: 0.9 }, // a full turn: everyone around
-  chop: { name: 'chop', len: 1.25, hit: 0.5, arc: 0.55, multi: 1, dmg: 1.15 }, // straight down, overhead
-  leap: { name: 'leap', len: 1.3, hit: 0.55, arc: 0.4, multi: 3, dmg: 1.15, lunge: 7.5, quakeR: 2.6 }, // a jump forward into a chop
+  slash: { name: 'slash', clip: 'Standing Melee Combo Attack Ver. 3', start: 0.3, hit: 1.03, end: 1.35, dur: 0.55, dmg: 1, trail: [[0.86, 1.14]] },
+  backhand: { name: 'backhand', clip: 'Standing Melee Combo Attack Ver. 3', start: 1.3, hit: 1.78, end: 2.25, dur: 0.55, dmg: 1, trail: [[1.58, 1.95]] },
+  cleaver: { name: 'cleaver', clip: 'Standing Melee Combo Attack Ver. 2', start: 0.4, hit: 0.95, end: 1.3, dur: 0.52, dmg: 1, trail: [[0.75, 1.1]] },
+  hook: { name: 'hook', clip: 'Standing Melee Combo Attack Ver. 2', start: 1.3, hit: 1.66, end: 1.95, dur: 0.45, dmg: 0.9, trail: [[1.5, 1.8]] },
+  overhead: { name: 'overhead', clip: 'Standing Melee Combo Attack Ver. 2', start: 1.95, hit: 2.6, end: 3.2, dur: 0.78, dmg: 1.7, heavy: true, trail: [[2.3, 2.75]] },
+  chop: { name: 'chop', clip: 'Standing Melee Attack Downward', start: 0.2, hit: 0.84, end: 1.3, dur: 0.72, dmg: 1.6, heavy: true, trail: [[0.58, 0.98]] },
+  chop2: { name: 'chop2', clip: 'Standing Melee Attack Downward 2', start: 0.25, hit: 0.83, end: 1.35, dur: 0.72, dmg: 1.6, heavy: true, trail: [[0.6, 0.95]] },
+  spin: { name: 'spin', clip: 'Standing Melee Attack 360 High', start: 0.3, hit: 1.08, end: 1.6, dur: 0.75, dmg: 1.6, heavy: true, trail: [[0.7, 1.35]] },
+  // the gap-closer: a running leap onto a target a few strides away
+  leap: { name: 'leap', clip: 'Standing Melee Run Jump Attack', start: 0.5, hit: 1.7, end: 2.35, dur: 0.85, dmg: 1.3, leap: true, trail: [[1.4, 1.85]] },
 };
 const AXE_COMBOS = [
-  ['slash', 'backhand', 'chop'], ['backhand', 'slash', 'spin'], ['slash', 'spin', 'leap'],
-  ['backhand', 'chop', 'spin'], ['spin', 'slash', 'leap'], ['slash', 'backhand', 'leap'],
+  ['slash', 'backhand', 'overhead'], ['cleaver', 'hook', 'chop'], ['slash', 'cleaver', 'chop2'],
+  ['backhand', 'hook', 'spin'], ['cleaver', 'slash', 'overhead'], ['hook', 'backhand', 'chop2'],
 ];
-const axeMove = (step = player.combo || 0) => AXE_SET[(player.comboSeq || AXE_COMBOS[0])[step]];
-// kept for code that names the moves in order
-const AXE_COMBO = { get length() { return 3; } };
-const COMBO_WINDOW = 0.65; // seconds after a swing ends to chain the next
-function meleeSwing() {
-  const g = player.gun();
-  if (!g || !g.melee) return false;
-  if (!g || player.meleeCd > 0 || player.kickT > 0 || !player.alive || player.downed || game.mode === 'hub') return false;
-  const chained = player.comboT > -COMBO_WINDOW && player.meleeT <= 0;
-  player.combo = chained ? ((player.combo || 0) + 1) % 3 : 0;
-  if (player.combo === 0) {
-    const last = player.comboSeq;
-    do player.comboSeq = pick(AXE_COMBOS); while (player.comboSeq === last);
-  }
-  const M = axeMove();
-  // the leap: a hop forward toward where you aim
-  if (M.lunge && player.grounded) {
-    camBasis();
-    player.vel.x += _fwd.x * M.lunge; player.vel.z += _fwd.z * M.lunge; player.vel.y = 5.2; player.grounded = false;
-  }
-  const dur = clamp(0.62 / g.rate * 1.35, 0.32, 0.6) * M.len;
-  player.meleeCd = dur * 0.92;
-  player.meleeT = player.meleeDur = dur;
-  player.meleeHitT = dur * M.hit;
-  player.meleeHit = false;
-  SFX.chop(false);
-  enemiesReactToSwing(g.reach * (M.reach || 1)); // some see it coming
-  return true;
-}
-function resolveMeleeHit() {
-  const g = axeOf(), M = axeMove();
-  const finisher = (player.combo || 0) === 2;
-  camBasis();
-  _fwd.y = 0; _fwd.normalize(); // swings and kicks sweep level
-  const c = new THREE.Vector3(), hits = [];
+const COMBO_WINDOW = 0.75; // seconds after a strike ends to chain the next
+const STRIKE_RANGE = 9; // how far a strike looks for a target (beyond reach, it leaps)
+const axeMove = (step = player.combo || 0) => (player.leaping ? AXE_SET.leap : AXE_SET[(player.comboSeq || AXE_COMBOS[0])[step]]);
+const AXE_COMBO = { get length() { return 3; } }; // (kept for older code that counts the moves)
+
+// Who a strike goes to: the enemy nearest the direction you're pushing (if you are), else the one
+// you're locked on to, else the nearest in front, else the nearest.
+const _sv = new THREE.Vector3();
+function strikeTarget() {
+  const mx = input.touchMove.x + ((input.keys.KeyD || input.keys.ArrowRight) ? 1 : 0) - ((input.keys.KeyA || input.keys.ArrowLeft) ? 1 : 0);
+  const mz = -input.touchMove.y - ((input.keys.KeyW || input.keys.ArrowUp) ? 1 : 0) + ((input.keys.KeyS || input.keys.ArrowDown) ? 1 : 0);
+  const push = Math.hypot(mx, mz) > 0.3;
+  let best = null, bs = Infinity;
   for (const e of enemies) {
     if (!e.alive) continue;
-    enemyCenter(e, c);
-    const d = c.clone().sub(aimEye()); d.y *= 0.3;
-    const dist = d.length();
-    if (dist > g.reach * (M.reach || 1) + e.radius) continue;
-    if (M.arc > -1 && d.normalize().dot(_fwd) < (g.cleave ? Math.min(0.2, M.arc) : M.arc)) continue;
-    hits.push([dist, e]);
+    const dx = e.pos.x - player.pos.x, dz = e.pos.z - player.pos.z, d = Math.hypot(dx, dz);
+    if (d > STRIKE_RANGE || Math.abs(e.pos.y - player.pos.y) > 2.5) continue;
+    let s = d;
+    if (push) s += (1 - (dx * mx + dz * mz) / (d * Math.hypot(mx, mz) || 1)) * 9; // the way you push
+    else if (e === TD.lock) s -= 2.5; // stick with your target
+    else s += (1 - (dx * -Math.sin(player.yaw) + dz * -Math.cos(player.yaw)) / (d || 1)) * 2.5; // in front
+    if (s < bs && lineOfSight(aimEye(_sv), enemyCenter(e, new THREE.Vector3()))) { bs = s; best = e; }
   }
-  hits.sort((a, b) => a[0] - b[0]);
-  // the backhand sweeps through two, the spin through everyone; Cleave hits everything in the arc
-  const targets = g.cleave ? hits : hits.slice(0, M.multi);
-  for (const [, e] of targets) axeHit(e, g, M.dmg * (finisher ? g.finisher : 1), finisher ? 14 : 9);
-  // the leap lands with a small shockwave
-  if (M.quakeR) {
-    const at = player.pos.clone().addScaledVector(_fwd, 1.2); at.y = groundAt(at.x, at.z);
-    ringFx(at, M.quakeR, 0xc9a070, 0.35);
-    burst(at.clone().setY(at.y + 0.2), 0xc9a070, 12, 5, 0.12, 0.5, 0.5);
-    for (const e of enemies) if (e.alive && !targets.some(([, t]) => t === e) && e.pos.distanceTo(at) < M.quakeR) { axeHit(e, g, 0.4, 10); e.flinchT = Math.max(e.flinchT, 0.5); }
-    game.shake(0.3);
+  return best;
+}
+
+function meleeSwing() {
+  const g = axeOf();
+  if (!g || player.meleeCd > 0 || player.kickT > 0 || player.dodgeT > 0 || !player.alive || player.downed || game.mode === 'hub') return false;
+  const tgt = strikeTarget();
+  if (tgt) TD.lock = tgt;
+  player.strikeTarget = tgt;
+  const dist = tgt ? Math.hypot(tgt.pos.x - player.pos.x, tgt.pos.z - player.pos.z) : 0;
+  player.leaping = !!tgt && dist > g.reach + tgt.radius + 1.2;
+  if (!player.leaping) {
+    const chained = player.comboT > -COMBO_WINDOW && player.meleeT <= 0;
+    player.combo = chained ? ((player.combo || 0) + 1) % 3 : 0;
+    if (player.combo === 0) { const last = player.comboSeq; do player.comboSeq = pick(AXE_COMBOS); while (player.comboSeq === last); }
+  } else player.combo = 0;
+  const M = axeMove();
+  const dur = M.dur * 1.35 / g.rate;
+  player.meleeCd = dur * 0.9;
+  player.meleeT = player.meleeDur = dur;
+  player.meleeHitT = dur * (M.hit - M.start) / (M.end - M.start);
+  player.meleeHit = false;
+  SFX.chop(false);
+  enemiesReactToSwing(g.reach); // some see it coming
+  return true;
+}
+// The blow lands: on the target only, if it's still in reach (a dodge makes it miss).
+function resolveMeleeHit() {
+  const g = axeOf(), M = axeMove();
+  const heavy = M.heavy || (player.combo || 0) === 2;
+  let e = player.strikeTarget;
+  const c = new THREE.Vector3();
+  camBasis();
+  _fwd.y = 0; _fwd.normalize();
+  const inReach = (x) => {
+    if (!x || !x.alive) return false;
+    enemyCenter(x, c);
+    const dx = c.x - player.pos.x, dz = c.z - player.pos.z, d = Math.hypot(dx, dz);
+    return d < g.reach + x.radius + 0.4 && (dx * _fwd.x + dz * _fwd.z) / (d || 1) > 0.1;
+  };
+  if (!inReach(e)) {
+    // no target (or it got away): the nearest enemy right in front instead, if any
+    e = null; let bd = Infinity;
+    for (const x of enemies) if (inReach(x)) { const d = x.pos.distanceTo(player.pos); if (d < bd) { bd = d; e = x; } }
   }
-  // Earthsplitter: the chop's shockwave
-  if (finisher && g.quake) {
-    const at = player.pos.clone().addScaledVector(_fwd.clone().setY(0).normalize(), 1.8);
-    at.y = groundAt(at.x, at.z);
-    ringFx(at, 4.5, 0xc9a070, 0.4);
-    burst(at.clone().setY(at.y + 0.2), 0xc9a070, 18, 6, 0.14, 0.6, 0.5);
-    for (const e of enemies) if (e.alive && !targets.some(([, t]) => t === e) && e.pos.distanceTo(at) < 4.5) axeHit(e, g, 0.6, 7);
-  }
-  if (targets.length) {
-    SFX.chop(true);
-    game.shake(finisher ? 0.45 : 0.22);
-    game.hitstop = Math.max(game.hitstop, finisher ? 0.09 : 0.05);
-  } else if (finisher) { game.shake(0.12); }
+  if (!e) { player.whiffs = (player.whiffs || 0) + 1; return; }
+  const flow = 1 + Math.min(player.flow || 0, 20) / 20 * g.flowMax;
+  axeHit(e, g, M.dmg * flow * (heavy ? g.finisher : 1), heavy ? 12 : 6);
+  player.flow = (player.flow || 0) + 1;
+  player.flowT = 3;
+  // a heavy blow staggers
+  if (heavy && e.alive && !e.def.boss) { e.flinchT = Math.max(e.flinchT, 0.7); if (e.state === 'swing') e.state = 'move'; }
+  SFX.chop(true);
+  game.shake(heavy ? 0.4 : 0.18);
+  game.hitstop = Math.max(game.hitstop, heavy ? 0.08 : 0.045);
 }
 function axeHit(e, g, mult, shove) {
   const crit = Math.random() < g.critChance;
@@ -274,20 +249,56 @@ function axeHit(e, g, mult, shove) {
   if (!e.alive) onPlayerKill('axe');
 }
 
+// COUNTER: when an enemy close by is about to strike (its "!" is up), knock it down and take no
+// hit. With nobody to counter it's a kick, which shoves and staggers whoever is in front.
+function counterThreat() {
+  let best = null, bt = Infinity;
+  for (const e of enemies) {
+    if (!e.alive || !(e.threat > 0)) continue;
+    const d = Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z);
+    if (d < 4.2 && e.threat < bt) { bt = e.threat; best = e; }
+  }
+  return best;
+}
+function counter() {
+  const e = counterThreat();
+  if (!e) return kick();
+  if (player.kickCd > 0.6 || !player.alive || player.downed || game.mode === 'hub') return false;
+  const g = axeOf(), k = rank('mKick');
+  player.yaw = Math.atan2(-(e.pos.x - player.pos.x), -(e.pos.z - player.pos.z));
+  player.meleeT = 0; player.kickCd = 0.35; player.kickT = player.kickDur = 0.42; player.kickHit = true; player.countered = true;
+  player.invuln = Math.max(player.invuln, 0.45);
+  camBasis(); _fwd.y = 0; _fwd.normalize();
+  const dealt = damageEnemy(e, g.damage * 0.6 * (1 + k * 0.4) * (rank('mCounter') ? 3 : 1), 'none', { fromPlayer: true, dir: _fwd.clone() });
+  player.stats.damage += dealt;
+  e.threat = 0;
+  if (e.alive && !e.def.boss) {
+    e.vel.addScaledVector(_fwd, 9); e.vy = 3; e.grounded = false;
+    if (e.rig) { e.state = 'down'; e.stateT = 1.6; rigOnce(e.rig, 'Getting Up', 1.3, 0, Infinity, 0.05); }
+    e.attackCd = 1.5; e.engaged = false; e.backoffT = 0;
+  } else if (e.alive) e.state = 'move';
+  player.flow = (player.flow || 0) + 1; player.flowT = 3;
+  hud.hitMarker(true, !e.alive);
+  if (!e.alive) onPlayerKill('kick');
+  hud.popText('COUNTER!', '#4fc6ff');
+  SFX.hit(true); game.shake(0.35); game.hitstop = Math.max(game.hitstop, 0.12);
+  return true;
+}
+
 // The kick: a front kick that shoves enemies back and staggers them.
 function kick() {
   if (player.kickCd > 0 || (player.meleeT > 0 && !player.meleeHit) || !player.alive || player.downed || game.mode === 'hub') return false;
   player.meleeT = 0; // a kick cuts short the recovery of a swing that has landed
   player.kickCd = 1.1;
   player.kickT = player.kickDur = 0.42;
-  player.kickHit = false;
+  player.kickHit = false; player.countered = false;
   SFX.swing();
   return true;
 }
 function resolveKick() {
   const g = axeOf(), k = rank('mKick');
   camBasis();
-  _fwd.y = 0; _fwd.normalize(); // swings and kicks sweep level
+  _fwd.y = 0; _fwd.normalize();
   const c = new THREE.Vector3();
   let any = false;
   for (const e of enemies) {
@@ -295,28 +306,54 @@ function resolveKick() {
     enemyCenter(e, c);
     const d = c.clone().sub(aimEye()); d.y *= 0.3;
     if (d.length() > 2.4 + e.radius || d.normalize().dot(_fwd) < 0.5) continue;
-    const dealt = damageEnemy(e, g.damage * 0.35 * (1 + k * 0.4), 'none', { fromPlayer: true, dir: _fwd.clone() });
+    const dealt = damageEnemy(e, g.damage * 0.3 * (1 + k * 0.4), 'none', { fromPlayer: true, dir: _fwd.clone() });
     player.stats.damage += dealt;
-    e.vel.addScaledVector(_fwd.clone().setY(0).normalize(), 15 * (1 + k * 0.25));
+    e.vel.addScaledVector(_fwd, 12 * (1 + k * 0.25));
     e.flinchT = Math.max(e.flinchT, 0.6); // staggered
-    // a kick breaks an attack (a leap in the air can't be stopped) and knocks a body off its feet
-    if (e.alive && !e.def.boss && e.state !== 'leap') {
-      if (e.grounded) { e.vy = 3.5; e.grounded = false; }
-      if (e.rig && e.state !== 'down') { e.state = 'down'; e.stateT = 1.5; rigOnce(e.rig, 'Getting Up', 1.4, 0, Infinity, 0.05); }
-      else if (e.state === 'swing') e.state = 'move';
-    }
+    if (e.state === 'swing' && !e.def.boss) e.state = 'move';
     hud.hitMarker(false, !e.alive);
     if (!e.alive) onPlayerKill('kick');
     any = true;
+    break; // one at a time
   }
   if (any) { SFX.hit(false); game.shake(0.25); game.hitstop = Math.max(game.hitstop, 0.04); }
 }
+
+// DODGE: a quick dash the way you're pushing (or away from whoever is closest), briefly untouchable.
+function dodge() {
+  if (player.dodgeCd > 0 || (player.meleeT > 0 && !player.meleeHit) || !player.alive || player.downed || game.mode === 'hub') return false;
+  let dx = input.touchMove.x + ((input.keys.KeyD || input.keys.ArrowRight) ? 1 : 0) - ((input.keys.KeyA || input.keys.ArrowLeft) ? 1 : 0);
+  let dz = -input.touchMove.y - ((input.keys.KeyW || input.keys.ArrowUp) ? 1 : 0) + ((input.keys.KeyS || input.keys.ArrowDown) ? 1 : 0);
+  if (Math.hypot(dx, dz) < 0.3) {
+    const e = counterThreat() || TD.lock;
+    if (e && e.alive) { dx = player.pos.x - e.pos.x; dz = player.pos.z - e.pos.z; } else { dx = Math.sin(player.yaw); dz = Math.cos(player.yaw); }
+  }
+  const l = Math.hypot(dx, dz) || 1;
+  player.dodgeDir = new THREE.Vector3(dx / l, 0, dz / l);
+  player.meleeT = 0; player.kickT = 0;
+  player.dodgeT = 0.26; player.dodgeCd = 0.6;
+  player.invuln = Math.max(player.invuln, 0.34);
+  SFX.swing();
+  return true;
+}
+
 function updatePlayerMelee(dt) {
-  player.meleeCd -= dt; player.kickCd -= dt;
+  player.meleeCd -= dt; player.kickCd -= dt; player.dodgeCd = (player.dodgeCd || 0) - dt;
+  player.forceVel = null;
+  if ((player.flowT = (player.flowT || 0) - dt) <= 0) player.flow = 0;
+  if (player.dodgeT > 0) { player.dodgeT -= dt; player.forceVel = player.dodgeDir.clone().multiplyScalar(15); }
   if (player.meleeT > 0) {
     player.meleeT -= dt;
+    // glide in to the target so the blow lands at reach (the leap covers the most ground)
+    const e = player.strikeTarget;
+    if (e && e.alive && !player.meleeHit) {
+      const dx = e.pos.x - player.pos.x, dz = e.pos.z - player.pos.z, d = Math.hypot(dx, dz);
+      const stop = axeOf().reach * 0.65 + e.radius, toHit = Math.max(0.06, player.meleeHitT - (player.meleeDur - player.meleeT));
+      if (d > stop) { const v = Math.min((d - stop) / toHit, player.leaping ? 22 : 11); player.forceVel = new THREE.Vector3(dx / d * v, 0, dz / d * v); }
+      else player.forceVel = new THREE.Vector3(0, 0, 0);
+    } else if (!player.meleeHit) player.forceVel = new THREE.Vector3(-Math.sin(player.yaw) * 2, 0, -Math.cos(player.yaw) * 2);
     if (!player.meleeHit && player.meleeDur - player.meleeT >= player.meleeHitT) { player.meleeHit = true; resolveMeleeHit(); }
-    if (player.meleeT <= 0) player.comboT = 0;
+    if (player.meleeT <= 0) { player.comboT = 0; player.leaping = false; }
   } else player.comboT = (player.comboT || 0) - dt;
   if (player.kickT > 0) {
     player.kickT -= dt;
@@ -327,12 +364,11 @@ function updatePlayerMelee(dt) {
 // Kill-triggered skills.
 function onPlayerKill(by) {
   player.buffs = player.buffs || {};
-  if (by === 'ar' && rank('arCap')) { const was = player.buffs.overdrive > 0; player.buffs.overdrive = 5; if (!was) { buildWeapons(); hud.log('Overdrive!', '#ffd23a'); } return; }
-  if (by !== 'ar' && rank('mCap')) { const was = player.buffs.berserk > 0; player.buffs.berserk = 6; if (!was) { buildWeapons(); hud.log('Berserk!', '#ff5a3a'); } }
+  if (rank('mCap')) { const was = player.buffs.berserk > 0; player.buffs.berserk = 6; if (!was) { buildWeapons(); hud.log('Berserk!', '#ff5a3a'); } }
 }
 function updateBuffs(dt) {
   if (!player.buffs) return;
-  for (const k of ['berserk', 'overdrive', 'frenzy']) {
+  for (const k of ['berserk', 'frenzy']) {
     if (!(player.buffs[k] > 0)) continue;
     player.buffs[k] -= dt;
     if (player.buffs[k] <= 0) buildWeapons();
@@ -397,7 +433,7 @@ function closeSkills() {
 // up but not fitted. Picking up a mod fits it when its slot is empty, otherwise it goes in the bag.
 // From here a mod can be fitted (the one it replaces goes to the bag), taken off, or scrapped for cash.
 const BAG_MAX = 30;
-const WEAPON_LABEL = { ar: 'Assault Rifle', melee: 'Axe' };
+const WEAPON_LABEL = { melee: 'Axe' };
 let gearFrom = null, gearSel = null; // gearSel: { mod, where: 'bag' | 'fitted' }
 const scrapValue = (m) => Math.round((m.value || 10) * 0.6);
 function takeMod(m) {
@@ -445,7 +481,7 @@ function renderGear() {
     } else { b.innerHTML = `<i></i><b>empty</b>`; b.children[0].textContent = slotLabel; b.disabled = true; }
     return b;
   };
-  for (const w of ['ar', 'melee']) {
+  for (const w of ['melee']) {
     const col = document.createElement('div');
     col.className = 'tree';
     col.innerHTML = `<div class="tree-title">${WEAPON_LABEL[w]}</div>`;

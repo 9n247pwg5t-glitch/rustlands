@@ -143,6 +143,8 @@
   #streak .sbar { height: 5px; margin-top: 4px; background: rgba(28, 17, 10, 0.6); }
   #streak .sbar i { display: block; height: 100%; background: #ff3b2a; transform-origin: right; }
   #streak.bump b { animation: pop 0.3s cubic-bezier(.2, 1.6, .4, 1); }
+  /* grit: a dark vignette around the edges (static, cheap) */
+  #game::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 1; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(20,8,16,0.45) 100%); }
   #game.frenzy::after { content: ""; position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 120px rgba(255, 30, 30, 0.55); }
   #banner { position: absolute; left: 0; right: 0; top: 30%; text-align: center; padding-inline: 16px; }
   #bTitle { font: clamp(40px, 7vw, 76px)/1 var(--display); color: var(--hazard); letter-spacing: 0.05em; -webkit-text-stroke: 2px var(--ink); text-shadow: 5px 5px 0 var(--ink); transform: rotate(-3deg); text-wrap: balance; }
@@ -257,7 +259,7 @@
   #fireBtn span { font-size: 25px; }
   #fireBtn small { font: 600 11px/1 var(--body); letter-spacing: 0.08em; opacity: 0.85; }
   #fireBtn.ads { background: rgba(255, 138, 28, 0.85); box-shadow: 0 0 0 4px rgba(255, 210, 58, 0.6), 2px 2px 0 var(--ink); }
-  .tb[data-act="kick"] { width: 60px; height: 60px; right: calc(222px + var(--sar)); bottom: calc(26px + var(--sab)); font-size: 15px; }
+  .tb[data-act="kick"] { width: 70px; height: 70px; right: calc(22px + var(--sar)); bottom: calc(114px + var(--sab)); font-size: 15px; }
   .tb[data-act="kick"].cool { opacity: 0.45; }
   .tb[data-act="jump"] { width: 64px; height: 64px; right: calc(24px + var(--sar)); bottom: calc(118px + var(--sab)); font-size: 16px; }
   .tb[data-act="use"] { width: 64px; height: 64px; right: calc(232px + var(--sar)); bottom: calc(140px + var(--sab)); border-color: var(--hazard); background: rgba(255, 210, 58, 0.85); color: var(--ink); font-size: 17px; }
@@ -267,6 +269,8 @@
   #wheelBtn small { font: 600 11px/1 var(--body); opacity: 0.8; }
   #wheelBtn.empty b { color: #ff6a5a; }
   #wheelBtn.down { background: rgba(255, 210, 58, 0.35); }
+  #wheelBtn.threat { background: rgba(79, 198, 255, 0.85); border-color: #fff; animation: skPulse 0.4s ease-in-out infinite; }
+  #wheelBtn.threat b { color: var(--ink); }
   #wheel { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 50%, rgba(28, 17, 10, 0.6), rgba(28, 17, 10, 0.25) 60%); }
   .whint { position: absolute; transform: translate(-50%, -50%); font: 600 12px/1.2 var(--body); letter-spacing: 0.12em; text-align: center; color: var(--paper); opacity: 0.8; }
   .wslot { position: absolute; width: 74px; height: 74px; margin: -37px 0 0 -37px; border-radius: 50%; border: 3px solid rgba(255, 243, 220, 0.4); background: rgba(28, 17, 10, 0.85); color: var(--paper); display: grid; place-items: center; align-content: center; text-align: center; box-shadow: 2px 2px 0 var(--ink); transition: transform 0.08s; }
@@ -361,11 +365,11 @@
 <div id="touch" hidden>
   <div id="stickBase" hidden><div id="stickKnob"></div></div>
   <div id="aimBase" hidden><div id="aimKnob"></div></div>
-  <div class="tb" data-act="fire" id="fireBtn"><span id="fireLabel">FIRE</span><small id="fireHint">◀ AIM</small></div>
-  <div class="tb" data-act="kick" id="kickBtn">KICK</div>
-  <div class="tb" data-act="jump">JUMP</div>
+  <div class="tb" data-act="fire" id="fireBtn"><span id="fireLabel">STRIKE</span><small id="fireHint">combo</small></div>
+  <div class="tb" data-act="kick" id="kickBtn">DODGE</div>
+  <div class="tb" data-act="jump" hidden>JUMP</div>
   <div class="tb" data-act="use" id="useBtn" hidden>USE</div>
-  <div id="wheelBtn" data-act="wheel"><i id="wbName">RIFLE</i><b id="wbAmmo">30</b><small id="wbPool">⇄ AXE</small></div>
+  <div id="wheelBtn" data-act="wheel"><i id="wbName">COUNTER</i><b id="wbAmmo">🦶</b><small id="wbPool">kick</small></div>
   <div id="wheel" hidden></div>
 </div>
 
@@ -381,15 +385,14 @@
     <div class="controls" id="ctlDesktop">
       <div><b>WASD</b>Move (up is north)</div><div><b>CLICK / J</b>Shoot or swing (aims itself at the nearest enemy)</div>
       <div><b>SHIFT</b>Sprint</div><div><b>SPACE</b>Jump</div>
-      <div><b>Q · 1/2 · WHEEL</b>Switch rifle ⇄ axe</div><div><b>R</b>Reload</div>
-      <div><b>CLICK ×3</b>Axe: slash, backhand, overhead chop</div><div><b>E</b>Pick up · open · buy</div>
-      <div><b>F</b>Kick (shoves and staggers)</div><div><b>K / I</b>Skills / Gear (your mods)</div>
+      <div><b>CLICK / J</b>Strike (goes to the enemy you push toward; leaps to far ones)</div><div><b>E</b>Pick up · open · buy</div>
+      <div><b>F</b>Counter when you see "!" (else a kick)</div><div><b>SPACE</b>Dodge</div><div><b>K / I</b>Skills / Gear (your mods)</div>
       <div><b>N</b>Skip to next wave / leave a cleared stage</div><div><b>ESC</b>Pause</div>
     </div>
     <div class="controls" id="ctlTouch" hidden>
       <div><b>LEFT</b>Drag to move, push all the way to sprint</div>
-      <div><b>FIRE / SWING</b>Aims itself at the nearest enemy</div><div><b>RIGHT</b>Optional: drag to aim by hand, push all the way to fire</div><div><b>JUMP</b>Jump</div>
-      <div><b>CORNER</b>Tap to switch rifle ⇄ axe, hold to reload</div><div><b>KICK</b>Shoves enemies back and breaks their attacks</div>
+      <div><b>STRIKE</b>Hits the enemy you push toward (or your target); leaps to far ones</div><div><b>COUNTER</b>Tap when an enemy shows "!" to knock it down</div>
+      <div><b>DODGE</b>A quick dash, briefly untouchable</div>
     </div>
     <div class="legend">
       <span style="color:#e9e6df">Common</span><span style="color:#42e04f">Uncommon</span><span style="color:#3e8eff">Rare</span><span style="color:#b552ff">Epic</span><span style="color:#ff8a1c">Legendary</span>

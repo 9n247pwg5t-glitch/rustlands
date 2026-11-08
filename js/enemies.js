@@ -9,12 +9,12 @@ const DIFFICULTY = {
 };
 
 const ENEMY_DEFS = {
-  bandit: { name: 'Bandit', body: 'human', hp: 52, shield: 0, hpType: 'flesh', speed: 4.4, xp: 10, ai: 'ranged', dmg: 6, burst: 4, burstGap: 0.14, cd: [0.9, 1.7], projSpeed: 80, spread: 0.05, range: [9, 24], scale: 1, look: { shirt: 0xb3753a, pants: 0x4a3b2e, skin: 0xe0a77a, mask: 0xe8e2d0, weapon: 'gun' } },
-  marauder: { name: 'Marauder', body: 'human', hp: 58, shield: 45, hpType: 'flesh', speed: 4.2, xp: 16, ai: 'ranged', dmg: 7, burst: 5, burstGap: 0.11, cd: [1.0, 1.8], projSpeed: 88, spread: 0.045, range: [10, 26], scale: 1.05, look: { shirt: 0x3f5b7a, pants: 0x2e2e33, skin: 0xd09a72, mask: 0x30302c, weapon: 'gun', goggles: true } },
-  psycho: { name: 'Psycho', body: 'human', hp: 44, shield: 0, hpType: 'flesh', speed: 7.0, xp: 8, ai: 'melee', dmg: 11, scale: 1, look: { shirt: null, pants: 0x6b2a20, skin: 0xe6b08a, mask: 0xf3efe2, weapon: 'axe', stripes: true } },
-  suicide: { name: 'Suicide Psycho', body: 'human', hp: 34, shield: 0, hpType: 'flesh', speed: 8.4, xp: 10, ai: 'suicide', dmg: 36, scale: 0.95, look: { shirt: null, pants: 0x3a3a3a, skin: 0xe6b08a, mask: 0xd13a2a, weapon: 'bomb' } },
-  nomad: { name: 'Badass Nomad', body: 'human', hp: 230, shield: 90, hpType: 'armor', speed: 3.3, xp: 70, ai: 'ranged', dmg: 4.5, burst: 10, burstGap: 0.07, cd: [1.2, 1.9], projSpeed: 90, spread: 0.075, range: [6, 18], scale: 1.4, badass: true, look: { shirt: 0x5a4a3a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x222222, weapon: 'gun', armor: true } },
-  boss: { name: 'Krag the Scrapjaw', body: 'human', hp: 2600, shield: 900, hpType: 'armor', speed: 3.8, xp: 600, ai: 'boss', dmg: 22, projSpeed: 30, scale: 2.4, boss: true, look: { shirt: 0x6a3a2a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x8a8a8a, weapon: 'hammer', armor: true, jaw: true } },
+  bandit: { name: 'Bandit', body: 'human', hp: 120, shield: 0, hpType: 'flesh', speed: 4.4, xp: 10, ai: 'ranged', dmg: 6, burst: 4, burstGap: 0.14, cd: [0.9, 1.7], projSpeed: 80, spread: 0.05, range: [9, 24], scale: 1, look: { shirt: 0xb3753a, pants: 0x4a3b2e, skin: 0xe0a77a, mask: 0xe8e2d0, weapon: 'gun' } },
+  marauder: { name: 'Marauder', body: 'human', hp: 130, shield: 45, hpType: 'flesh', speed: 4.2, xp: 16, ai: 'ranged', dmg: 7, burst: 5, burstGap: 0.11, cd: [1.0, 1.8], projSpeed: 88, spread: 0.045, range: [10, 26], scale: 1.05, look: { shirt: 0x3f5b7a, pants: 0x2e2e33, skin: 0xd09a72, mask: 0x30302c, weapon: 'gun', goggles: true } },
+  psycho: { name: 'Psycho', body: 'human', hp: 150, shield: 0, hpType: 'flesh', speed: 7.0, xp: 8, ai: 'melee', dmg: 11, scale: 1, look: { shirt: null, pants: 0x6b2a20, skin: 0xe6b08a, mask: 0xf3efe2, weapon: 'axe', stripes: true } },
+  suicide: { name: 'Suicide Psycho', body: 'human', hp: 55, shield: 0, hpType: 'flesh', speed: 8.4, xp: 10, ai: 'suicide', dmg: 36, scale: 0.95, look: { shirt: null, pants: 0x3a3a3a, skin: 0xe6b08a, mask: 0xd13a2a, weapon: 'bomb' } },
+  nomad: { name: 'Badass Nomad', body: 'human', hp: 520, shield: 90, hpType: 'armor', speed: 3.3, xp: 70, ai: 'ranged', dmg: 4.5, burst: 10, burstGap: 0.07, cd: [1.2, 1.9], projSpeed: 90, spread: 0.075, range: [6, 18], scale: 1.4, badass: true, look: { shirt: 0x5a4a3a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x222222, weapon: 'gun', armor: true } },
+  boss: { name: 'Krag the Scrapjaw', body: 'human', hp: 5200, shield: 900, hpType: 'armor', speed: 3.8, xp: 600, ai: 'boss', dmg: 22, projSpeed: 30, scale: 2.4, boss: true, look: { shirt: 0x6a3a2a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x8a8a8a, weapon: 'hammer', armor: true, jaw: true } },
 };
 
 // How a gunner fires the weapon it carries (from its type's numbers): rifles use the type's own
@@ -110,7 +110,7 @@ function spawnEnemy(key, level, pos) {
     bossPhase: 0, bossAttackT: 4, summoned: false,
     chase: new THREE.Vector3(), direct: true, directCheck: 0, stuckT: 0, unstickT: 0, unstickDir: new THREE.Vector3(), flinchT: 0,
     speedK: rand(0.82, 1.1), // a horde doesn't move in lockstep
-    engaged: false, waitT: 0, backoffT: 0, orbitAng: null, orbitR: rand(4.6, 6.8), orbitDir: Math.random() < 0.5 ? -1 : 1,
+    engaged: false, waitT: 0, backoffT: 0, orbitAng: null, orbitR: rand(6, 8.5), orbitDir: Math.random() < 0.5 ? -1 : 1,
     tac: null, tacT: 0, spot: null, prefDist: 0, moveShoot: false, retreatCd: rand(3, 6), noLosT: 0,
     path: null, pathT: 0, pathI: 0, pathGoal: new THREE.Vector3(),
   };
@@ -233,6 +233,7 @@ const _bp2 = new THREE.Vector3();
 function killEnemy(e, opts = {}) {
   if (!e.alive) return;
   e.alive = false;
+  e.threat = 0; if (e.warn) e.warn.visible = false;
   const center = enemyCenter(e, new THREE.Vector3());
   const violent = opts.explosive || opts.crit || opts.overkill;
   if (e.rig) rigDie(e, violent);
@@ -418,7 +419,7 @@ function tacticsFrame(dt = 1 / 60) {
   // Pack tactics (decisions.md 2026-11-08): only a few axe-wielders hold an attack token at once;
   // the rest ring the player and wait. Openings (the player reloading, mid-swing or down) let one
   // more in, and every few seconds a pincer sends two in together from opposite sides.
-  tactics.maxEngaged = Math.min(2 + Math.floor(game.wave / 2), 5) + (player.reloadT > 0 || player.meleeT > 0 || player.downed ? 1 : 0);
+  tactics.maxEngaged = Math.min(1 + Math.floor(game.wave / 2), 3) + (player.downed ? 1 : 0);
   tactics.surgeT = (tactics.surgeT == null ? 6 : tactics.surgeT) - dt;
   let shooters = 0, engaged = 0, gunners = 0, movers = 0, slot = 0;
   const waiting = [];
@@ -446,7 +447,7 @@ function tacticsFrame(dt = 1 / 60) {
   for (const e of waiting) { if (engaged >= tactics.maxEngaged) break; e.engaged = true; e.waited = 0; engaged++; }
   // the pincer: two from opposite sides at once
   if (tactics.surgeT <= 0) {
-    tactics.surgeT = rand(5, 8.5);
+    tactics.surgeT = rand(9, 14);
     const rest = waiting.filter((e) => !e.engaged);
     if (rest.length >= 2) {
       const a = rest[0], aa = Math.atan2(a.pos.x - player.pos.x, a.pos.z - player.pos.z);
@@ -722,18 +723,16 @@ function afterMeleeAttack(e) {
 
 // The player starts a swing: an axe-wielder in front of them may sidestep or hop back out of it.
 function enemiesReactToSwing(reach) {
-  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
-  for (const e of enemies) {
-    if (!e.alive || !e.rig || e.def.ai !== 'melee' || e.state !== 'move' || e.def.boss || !(e.grounded)) continue;
-    const dx = e.pos.x - player.pos.x, dz = e.pos.z - player.pos.z, d = Math.hypot(dx, dz);
-    if (d > reach + 1.2 || (dx * fx + dz * fz) / (d || 1) < 0.3) continue;
-    if ((e.dodgeCd || 0) > 0 || Math.random() > Math.min(0.45, 0.2 + game.wave * 0.05)) continue;
-    e.dodgeCd = rand(3, 5);
-    const side = Math.random() < 0.5 ? 1 : -1;
-    e.state = 'dash'; e.stateT = 0.45; e.dashSpeed = 7.5;
-    e.dashDir.set(-fz * side + dx / d * 0.6, 0, fx * side + dz / d * 0.6).normalize();
-    rigOnce(e.rig, 'Goalkeeper Sidestep', 1.8, 0, Infinity, 0.05);
-  }
+  // only the one being struck, now and then, and never once the player has a flow going
+  const e = player.strikeTarget;
+  if (!e || !e.alive || !e.rig || e.def.ai !== 'melee' || e.state !== 'move' || e.def.boss || !e.grounded || (player.flow || 0) >= 3) return;
+  const dx = e.pos.x - player.pos.x, dz = e.pos.z - player.pos.z, d = Math.hypot(dx, dz) || 1;
+  if (d > reach + 1.5 || (e.dodgeCd || 0) > 0 || Math.random() > Math.min(0.3, 0.12 + game.wave * 0.03)) return;
+  e.dodgeCd = rand(4, 7);
+  const side = Math.random() < 0.5 ? 1 : -1;
+  e.state = 'dash'; e.stateT = 0.45; e.dashSpeed = 7.5;
+  e.dashDir.set(-dz / d * side + dx / d * 0.5, 0, dx / d * side + dz / d * 0.5).normalize();
+  rigOnce(e.rig, 'Goalkeeper Sidestep', 1.8, 0, Infinity, 0.05);
 }
 
 // The blade glints (a flash of light at the edge) a moment before an axe blow lands.
@@ -765,6 +764,7 @@ function startLeap(e, tgt, dist, fwd) {
 function updateLeap(e, dt, tgt, dist, fwd) {
   e.leapT += dt;
   e.faceLock = true;
+  e.threat = !e.leapLanded && dist < 7 ? Math.max(0.05, e.leapDur - e.leapT) : 0; // counterable in the air
   if (!e.leapLanded) {
     _want.copy(e.leapV);
     if (e.glintHit < 0 && e.leapT > e.leapDur - 0.3) { e.glintHit = 0; axeGlint(e, dist); }
@@ -810,6 +810,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
 
   // attacks already under way
   e.faceLock = false;
+  e.threat = 0;
   if (e.state === 'leap') return updateLeap(e, dt, tgt, dist, fwd);
   if (e.state === 'swing' && e.rig) {
     const a = e.atk, t = rigTime(e.rig);
@@ -826,6 +827,8 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     e.faceLock = (toHit >= 0 && toHit < 0.16) || sinceHit < 0.3;
     // the tell: the blade flashes and the swinger yells just before the blow comes
     if (a.axe && toHit > 0 && toHit < 0.34 && e.glintHit !== e.atkHit) { e.glintHit = e.atkHit; axeGlint(e, dist); }
+    // the counter window: from a little before the blow until it lands ("!" over the head)
+    e.threat = toHit > 0 && toHit < 0.75 && dist < 4.2 ? toHit : 0;
     while (e.atkHit < a.hits.length && t >= a.hits[e.atkHit]) {
       const connect = dist < 2.4 * e.def.scale && !tgt.isTurret;
       if (a.axe) SFX.chop(connect); else SFX.swing();
@@ -913,7 +916,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   e.orbitAng += e.orbitDir * dt * (sp * 0.18) / e.orbitR;
   if (Math.random() < dt * 0.15) e.orbitDir = -e.orbitDir;
   e.feintT = (e.feintT || 0) - dt;
-  if (e.feintT < -2 && dist < 9 && Math.random() < dt * 0.35) e.feintT = 0.7;
+  if (e.feintT < -3 && dist < 10 && Math.random() < dt * 0.15) e.feintT = 0.7;
   const R = e.orbitR - (e.feintT > 0 ? Math.sin(e.feintT / 0.7 * Math.PI) * 1.8 : 0);
   let ox = tgt.pos.x + Math.sin(e.orbitAng) * R, oz = tgt.pos.z + Math.cos(e.orbitAng) * R;
   if (!navWalkable(ox, oz) || !inBounds(ox, oz, 3)) { e.orbitDir = -e.orbitDir; e.orbitAng += e.orbitDir * 0.3; }
@@ -929,6 +932,14 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   return false;
 }
 
+// The "!" over an enemy about to strike: yellow, turning red just before the blow (COUNTER now).
+const WARN_TEX = [0xffd23a, 0xff3b2a].map((col) => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.font = 'bold 54px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 8; g.strokeStyle = '#1c110a'; g.strokeText('!', 32, 34); g.fillStyle = '#' + col.toString(16).padStart(6, '0'); g.fillText('!', 32, 34); return new THREE.CanvasTexture(c); });
+function updateWarning(e) {
+  const on = e.threat > 0 && e.alive;
+  if (!e.warn) { if (!on) return; e.warn = new THREE.Sprite(new THREE.SpriteMaterial({ map: WARN_TEX[0], depthTest: false })); e.warn.renderOrder = 7; e.warn.position.y = 2.4; e.model.root.add(e.warn); }
+  e.warn.visible = on;
+  if (on) { e.warn.material.map = WARN_TEX[e.threat < 0.3 ? 1 : 0]; e.warn.scale.setScalar(e.threat < 0.3 ? 0.85 : 0.65); }
+}
 function updateEnemy(e, dt) {
   e.t += dt; e.sinceHit += dt; e.flash -= dt;
   // the badly wounded leave a trail of drips
@@ -976,6 +987,7 @@ function updateEnemy(e, dt) {
     updateBoss(e, dt, tgt, dist, fwd, side, sp, chase);
   }
 
+  updateWarning(e);
   // personal space: steer away from nearby enemies so they don't bunch up (not mid-attack)
   if (e.state === 'move') {
     const room = e.def.ai === 'ranged' ? 3.2 : 1.8;
