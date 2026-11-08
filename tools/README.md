@@ -50,3 +50,6 @@ marker nodes (`PlayerSpawn`, `EnemySpawn_N`, `Loot_*`, `StoreEntrance`...) and `
    spheres for rocks, a 1 m navigation grid and the marker points.
 3. `js/map.js` loads both (`loadStageMap(name)`); it merges static meshes by material into 128 m
    cells and draws scatter as instanced 80 m tiles with per-kind draw distances.
+
+The map's graffiti texture (`models/map-clown-station-T_Graffiti.webp`) had its "HA HA HA" blood lettering (the top-left
+patch, 510 × 262 px of the 1024 px texture) erased by hand after conversion; redo that if the map is re-converted.

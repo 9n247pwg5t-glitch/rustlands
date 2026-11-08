@@ -233,12 +233,13 @@ function capTexture(tex) {
 // Character and weapon shading on top of the cel bands: four light steps (the world uses three),
 // ink-dark creases wherever the normal map bends the surface away from the mesh (folds, seams,
 // muscle), and a thin rim of light along the silhouette.
-const rigGradTex = softRamp(0.5); // cartoon style: smooth soft shading (js/world.js)
+const rigGradTex = softRamp(0.55); // cartoon two-tone shading (js/world.js)
 const RIG_DETAIL = `{
     float crease = 1.0 - clamp(dot(normal, geometryNormal), 0.0, 1.0);
     float rim = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
-    outgoingLight *= 1.0 - smoothstep(0.02, 0.12, crease) * 0.15;
-    outgoingLight += diffuseColor.rgb * smoothstep(0.55, 0.9, rim) * 0.35; // a soft cartoon rim light
+    outgoingLight *= 1.0 - smoothstep(0.02, 0.12, crease) * 0.25; // painted folds from the normal map
+    outgoingLight += diffuseColor.rgb * smoothstep(0.5, 0.72, rim) * 0.3; // a cartoon rim light
+    outgoingLight = mix(outgoingLight, vec3(0.1, 0.05, 0.12), smoothstep(0.8, 0.93, rim) * 0.85); // an inked edge
   }
   #include <output_fragment>`;
 function rigDetail(sh) { sh.fragmentShader = sh.fragmentShader.replace('#include <output_fragment>', RIG_DETAIL); }

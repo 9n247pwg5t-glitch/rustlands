@@ -37,7 +37,7 @@ const hud = (() => {
     ffyl: $('ffyl'), ffylFill: $('ffylFill'),
     prompt: $('prompt'), card: $('card'), banner: $('banner'), bTitle: $('bTitle'), bSub: $('bSub'),
     log: $('log'), hurt: $('vHurt'), shield: $('vShield'), low: $('vLow'), xpPop: $('xpPop'),
-    cross: $('crosshair'), game: $('game'),
+    cross: $('crosshair'), game: $('game'), streak: $('streak'), sN: $('sN'), sM: $('sM'), sBar: $('sBar'),
   };
   let hurtA = 0, shieldA = 0;
 
@@ -58,6 +58,16 @@ const hud = (() => {
     hurtFrom(src) { hurtArcs.push({ a: Math.atan2(-(src.x - player.pos.x), -(src.z - player.pos.z)), t: 1 }); if (hurtArcs.length > 8) hurtArcs.shift(); },
     flash(kind, k = 1) { if (kind === 'hurt') hurtA = Math.max(hurtA, k * 0.8); else shieldA = 0.9; },
     floatXp(n) { xpFloat += n; xpFloatT = 1.4; },
+    streak(n, t, mult, frenzy) {
+      const on = n >= 2;
+      el.streak.hidden = !on;
+      el.game.classList.toggle('frenzy', !!frenzy);
+      if (!on) return;
+      const txt = '×' + n;
+      if (el.sN.textContent !== txt) { el.sN.textContent = txt; el.streak.classList.remove('bump'); void el.streak.offsetWidth; el.streak.classList.add('bump'); }
+      el.sM.textContent = mult > 1 ? 'CARNAGE · ' + mult.toFixed(2) + '× XP & CASH' : 'CARNAGE';
+      el.sBar.style.transform = `scaleX(${clamp(t, 0, 1)})`;
+    },
     banner(title, sub) { el.bTitle.textContent = title; el.bSub.textContent = sub || ''; el.banner.hidden = false; el.banner.classList.remove('pop'); void el.banner.offsetWidth; el.banner.classList.add('pop'); bannerT = 2.6; },
     log(text, color = '#fff3dc') {
       const d = document.createElement('div');

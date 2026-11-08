@@ -4,7 +4,8 @@
 
 const game = {
   state: 'menu', mode: 'menu', wave: 0, phase: 'intermission', interT: 0,
-  toSpawn: [], spawnT: 0, enemyLevel: 1, chest: null, shakeAmt: 0, hitstop: 0,
+  toSpawn: [], spawnT: 0, enemyLevel: 1, chest: null, shakeAmt: 0, hitstop: 0, slowmo: 0,
+  streak: 0, streakT: 0, streakMult: 1, starsLeft: 0,
   waveStartKills: 0, waveTotal: 0, waveKilled: 0,
 
   waveLabel() {
@@ -26,7 +27,8 @@ const game = {
     this.waveKilled++;
     if (!opts.noXp) {
       player.stats.kills++;
-      player.addXp(e.def.xp * (1 + (e.level - 1) * 0.3));
+      carnageKill(e);
+      player.addXp(e.def.xp * (1 + (e.level - 1) * 0.3) * this.streakMult);
       dropLoot(e);
     }
     if (player.downed && opts.fromPlayer) player.secondWind();
@@ -96,9 +98,44 @@ function startWave() {
   game.spawnT = 1;
   SFX.wave();
   game.pack = null;
+  game.starsLeft = 1 + Math.floor(game.wave / 2);
   hud.banner(game.waveLabel(), game.wave % 5 === 0 ? 'Krag the Scrapjaw has entered the arena' : 'A horde of ' + game.waveTotal + ' incoming');
 }
+// ---------------------------------------------------------------------------
+// Carnage (decisions.md 2026-11-08): kills in quick succession build a streak that multiplies XP
+// and cash. Milestones are called out like a broadcast, and some bring a sponsor drop (loot from
+// the sky) or a Frenzy (faster, harder hits that heal). Every wave also has a few Star enemies:
+// bigger, tougher, worth far more. The last kill of a wave plays in slow motion. All placeholder
+// tuning; the call-out lines are generic placeholders, not approved slogans.
+const STREAK_WINDOW = 3.5;
+const STREAK_MILESTONES = { 5: ['RATINGS UP!', ''], 10: ['PRIME TIME!', 'Sponsor drop incoming'], 15: ['FRENZY!', 'Hit harder, swing faster, heal on hit'], 25: ['SPONSORED!', 'Sponsor drop incoming'], 40: ['GOING VIRAL!', 'Sponsor drop incoming'], 60: ['SERIES FINALE!', 'Sponsor drop incoming'] };
+function carnageKill(e) {
+  game.streak = game.streakT > 0 ? game.streak + 1 : 1;
+  game.streakT = STREAK_WINDOW;
+  game.streakMult = Math.min(3, 1 + Math.floor(game.streak / 5) * 0.25);
+  game.bestStreak = Math.max(game.bestStreak || 0, game.streak);
+  const m = STREAK_MILESTONES[game.streak];
+  if (m) {
+    hud.banner(m[0], m[1]); SFX.levelUp();
+    if (game.streak === 15) { player.buffs = player.buffs || {}; player.buffs.frenzy = 7; buildWeapons(); }
+    else if (m[1]) sponsorDrop();
+  }
+  if (e.star) hud.log('Star down! ×' + game.streakMult.toFixed(2) + ' carnage', '#ffd23a');
+}
+function sponsorDrop() {
+  const p = player.pos.clone().add(new THREE.Vector3(rand(-3, 3), 9, rand(-3, 3)));
+  const lvl = Math.max(game.enemyLevel, player.level);
+  const d = spawnDrop('item', p, { item: genMod(lvl, { luck: 1.5 + game.streak / 20, rarity: game.streak >= 40 ? weighted([[3, 2], [4, 1]]) : undefined }) });
+  d.vel.set(0, -4, 0);
+  spawnDrop('health', p.clone().add(new THREE.Vector3(1, 0, 0))).vel.set(0, -4, 0);
+  for (const c of [0xff3b6b, 0xffd23a, 0x4fc6ff, 0x9fff6a]) burst(p.clone().setY(player.pos.y + 4), c, 10, 6, 0.12, 1.2, 0.6, true); // confetti
+}
+function updateCarnage(dt) {
+  if (game.streakT > 0) { game.streakT -= dt; if (game.streakT <= 0) { game.streak = 0; game.streakMult = 1; } }
+  hud.streak(game.streak, game.streakT / STREAK_WINDOW, game.streakMult, player.buffs && player.buffs.frenzy > 0);
+}
 function endWave() {
+  game.slowmo = 1.1; // the last kill, in slow motion
   spawnChest(game.wave % 5 === 0);
   if (campaign.stage && game.wave >= campaign.stage.waves) { stageCleared(); savePlayer(); return; }
   game.phase = 'intermission';
@@ -131,9 +168,12 @@ function updateWaves(dt) {
     for (let k = 0; k < 8; k++) { const x = a.x + rand(-2.5, 2.5), z = a.z + rand(-2.5, 2.5); if (navWalkable(x, z)) { p.set(x, 0, z); break; } }
     p.y = groundAt(p.x, p.z);
     const lvl = game.enemyLevel + (key === 'boss' ? 1 : 0);
-    spawnEnemy(key, lvl, p);
+    const e = spawnEnemy(key, lvl, p);
+    // Star enemies: about one or two a wave, more later
+    if (key !== 'boss' && (game.starsLeft || 0) > 0 && Math.random() < game.starsLeft / (game.toSpawn.length + 1)) { game.starsLeft--; makeStar(e); }
   }
   unstickEnemies(dt);
+  updateCarnage(dt);
   // purge dead
   for (let i = enemies.length - 1; i >= 0; i--) if (!enemies[i].alive) enemies.splice(i, 1);
   if (!game.toSpawn.length && enemies.length === 0) endWave();
@@ -155,8 +195,12 @@ function dropLoot(e) {
     spawnDrop('health', p);
     return;
   }
+  if (e.star) { // a star always drops something good, and a pile of cash
+    spawnDrop('item', p, { item: genMod(lvl, { rarity: weighted([[2, 5], [3, 3], [4, 1]]) }) });
+    for (let i = 0; i < 4; i++) spawnDrop('cash', p, { amount: Math.round(rand(8, 14) * levelScale(lvl) * game.streakMult) });
+  }
   if (Math.random() < (e.def.badass ? 0.8 : 0.1)) spawnDrop('item', p, { item: genMod(lvl, { luck }) });
-  if (Math.random() < 0.55) spawnDrop('cash', p, { amount: Math.round(rand(3, 8) * levelScale(lvl) * (e.def.badass ? 4 : 1)) });
+  if (Math.random() < 0.55) spawnDrop('cash', p, { amount: Math.round(rand(3, 8) * levelScale(lvl) * (e.def.badass ? 4 : 1) * game.streakMult) });
   if (Math.random() < 0.38) spawnDrop('ammo', p, { ammo: 'ar' });
   if (Math.random() < DIFFICULTY.healthDrop) spawnDrop('health', p);
 }
@@ -234,8 +278,12 @@ function tryAutoPickup(d) {
 function pickupItem(d) {
   const it = d.item;
   if (it.kind === 'mod') {
-    const old = equipMod(it);
-    if (old) spawnDrop('item', player.pos.clone().setY(player.pos.y + 1), { item: old }).vel.set(0, 3, 0);
+    const where = takeMod(it);
+    if (!where) { hud.log('Your bag is full: scrap some mods (GEAR)', '#ff6a5a'); SFX.deny(); return; }
+    SFX.pickup();
+    hud.log((where === 'fitted' ? 'Fitted ' : 'Bagged ') + it.name, RARITY[it.rarity].css);
+    removeDrop(d);
+    return;
   } else if (it.kind === 'gun') {
     const empty = player.weapons.indexOf(null);
     if (empty >= 0) { player.weapons[empty] = it; if (!player.gun()) { player.cur = empty; setViewmodel(); } }
@@ -289,7 +337,7 @@ function updateInteraction(dt) {
     const full = it.kind === 'gun' && player.weapons.indexOf(null) < 0;
     focus = { kind: 'drop', d: best };
     hud.showCard(it, cmp);
-    hud.showPrompt(`${USE_KEY}${it.kind === 'mod' ? (cmp ? 'Swap in this mod' : 'Fit this mod') : it.kind === 'shield' ? 'Equip shield' : full ? 'Swap for ' + cmp.name : 'Pick up'}`);
+    hud.showPrompt(`${USE_KEY}${it.kind === 'mod' ? (cmp ? (player.stash.length >= BAG_MAX ? 'Bag full' : 'Take (to bag)') : 'Fit this mod') : it.kind === 'shield' ? 'Equip shield' : full ? 'Swap for ' + cmp.name : 'Pick up'}`);
     return;
   }
   hud.showCard(null);
@@ -382,7 +430,7 @@ const assist = { current: null };
 
 // ---------------------------------------------------------------------------
 // Screens
-const screens = { menu: $('menu'), stages: $('stages'), brief: $('brief'), results: $('results'), pause: $('pause'), dead: $('dead'), skills: $('skills') };
+const screens = { menu: $('menu'), stages: $('stages'), brief: $('brief'), results: $('results'), pause: $('pause'), dead: $('dead'), skills: $('skills'), gear: $('gear') };
 const MENU_SCREENS = ['menu', 'stages', 'brief', 'results'];
 function show(name) {
   for (const k in screens) screens[k].hidden = k !== name;
@@ -414,7 +462,7 @@ function startGame() {
   clearStageWorld();
   readyPlayer(stageSpawn(), stageSpawnYaw());
   hud.reset();
-  Object.assign(game, { mode: 'stage', wave: 0, phase: 'intermission', interT: 6, toSpawn: [], waveTotal: 0, waveKilled: 0, enemyLevel: 1 });
+  Object.assign(game, { mode: 'stage', wave: 0, phase: 'intermission', interT: 6, toSpawn: [], waveTotal: 0, waveKilled: 0, enemyLevel: 1, streak: 0, streakT: 0, streakMult: 1, bestStreak: 0, slowmo: 0 });
   game.state = 'play';
   show(null);
   lockPointer();
@@ -468,6 +516,9 @@ $('btnLeave').addEventListener('click', leaveStage);
 $('btnRespawn').addEventListener('click', respawn);
 $('btnLeave2').addEventListener('click', leaveStage);
 $('skillBtn').addEventListener('click', openSkills);
+$('gearBtn').addEventListener('click', openGear);
+$('btnPauseGear').addEventListener('click', openGear);
+$('btnGearDone').addEventListener('click', closeGear);
 $('btnPauseSkills').addEventListener('click', openSkills);
 $('btnSkillsDone').addEventListener('click', closeSkills);
 $('btnMainMenu').addEventListener('click', () => { savePlayer(); game.mode = 'menu'; showMainMenu(); });
@@ -503,6 +554,7 @@ window.addEventListener('keydown', (e) => {
     case 'Digit2': switchWeapon(1); break;
     case 'KeyF': case 'KeyV': doMelee(); break;
     case 'KeyK': openSkills(); break;
+    case 'KeyI': case 'Tab': e.preventDefault(); openGear(); break;
     case 'KeyN': if (game.phase === 'intermission') game.interT = 0; else if (game.phase === 'complete') finishStage(true); break;
     case 'KeyM': $('btnMute').textContent = SFX.toggleMute() ? 'Sound: off' : 'Sound: on'; break;
     case 'KeyP': case 'Escape': pauseGame(); break;
@@ -693,6 +745,7 @@ function frame(now) {
   let dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (game.hitstop > 0) { game.hitstop -= dt; dt *= 0.12; }
+  if (game.slowmo > 0) { game.slowmo -= dt; dt *= 0.3; }
   if (game.state === 'play') update(dt);
   else if (game.state === 'menu') updateMenu(dt);
   renderer.clear();

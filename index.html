@@ -137,6 +137,13 @@
   .card-perk { font: 500 14px/1.25 var(--body); margin-top: 6px; color: #d9cbb2; }
   .card-red { font: 600 15px/1.25 var(--body); margin-top: 6px; color: #ff4a3a; font-style: italic; }
 
+  #streak { position: absolute; right: calc(16px + var(--sar)); top: calc(70px + var(--sat)); text-align: right; transform: rotate(3deg); }
+  #streak b { display: block; font: 54px/0.9 var(--display); color: #ff3b2a; -webkit-text-stroke: 2px var(--ink); text-shadow: 4px 4px 0 var(--ink); }
+  #streak small { display: block; font: 700 13px/1.2 var(--body); letter-spacing: 0.08em; text-shadow: 2px 2px 0 var(--ink); }
+  #streak .sbar { height: 5px; margin-top: 4px; background: rgba(28, 17, 10, 0.6); }
+  #streak .sbar i { display: block; height: 100%; background: #ff3b2a; transform-origin: right; }
+  #streak.bump b { animation: pop 0.3s cubic-bezier(.2, 1.6, .4, 1); }
+  #game.frenzy::after { content: ""; position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 120px rgba(255, 30, 30, 0.55); }
   #banner { position: absolute; left: 0; right: 0; top: 30%; text-align: center; padding-inline: 16px; }
   #bTitle { font: clamp(40px, 7vw, 76px)/1 var(--display); color: var(--hazard); letter-spacing: 0.05em; -webkit-text-stroke: 2px var(--ink); text-shadow: 5px 5px 0 var(--ink); transform: rotate(-3deg); text-wrap: balance; }
   #bSub { font: 700 18px/1.2 var(--body); letter-spacing: 0.08em; text-transform: uppercase; text-shadow: 2px 2px 0 var(--ink); margin-top: 8px; }
@@ -163,7 +170,21 @@
   #skillBtn { pointer-events: auto; margin-left: 4px; min-width: 34px; height: 30px; padding: 0 6px; font: 18px/1 var(--display); color: var(--paper); background: var(--panel); border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); cursor: pointer; }
   #skillBtn.has { color: var(--ink); background: var(--hazard); animation: skPulse 1.2s ease-in-out infinite; }
   @keyframes skPulse { 50% { transform: scale(1.12); } }
-  #skills { background: rgba(28, 17, 10, 0.88); }
+  #skills, #gear { background: rgba(28, 17, 10, 0.88); }
+  #gearBtn { pointer-events: auto; margin-left: 4px; min-width: 34px; height: 30px; padding: 0 6px; font: 18px/1 var(--display); color: var(--paper); background: var(--panel); border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--ink); cursor: pointer; }
+  #gear .panel { max-height: 100%; overflow-y: auto; }
+  .gslots { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .tree.bag { grid-column: 1 / -1; }
+  .bagn { font: 700 14px/1 var(--body); color: var(--paper); opacity: 0.8; }
+  .gtile { pointer-events: auto; display: grid; gap: 3px; text-align: left; padding: 8px 10px; min-height: 64px; color: var(--paper); font: inherit; background: rgba(28, 17, 10, 0.6); border: 2px solid rgba(255, 243, 220, 0.25); cursor: pointer; }
+  .gtile i { font: 700 11px/1 var(--body); font-style: normal; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; }
+  .gtile b { font: 16px/1.05 var(--display); letter-spacing: 0.04em; font-weight: 400; }
+  .gtile small { font: 600 12px/1.2 var(--body); opacity: 0.85; }
+  .gtile.empty { opacity: 0.45; cursor: default; }
+  .gtile.sel { background: rgba(255, 210, 58, 0.18); box-shadow: 0 0 0 2px var(--hazard); }
+  #gearDetail { position: fixed; inset: 0; z-index: 20; display: grid; gap: 10px; place-content: center; justify-items: center; padding: 16px; background: rgba(28, 17, 10, 0.6); pointer-events: auto; }
+  #gearDetail .card { max-width: 340px; width: 100%; padding: 12px 14px; text-align: left; background: rgba(28, 17, 10, 0.9); border: 3px solid var(--paper); box-shadow: 5px 5px 0 var(--ink); }
+  #gearDetail[hidden] { display: none; }
   .trees { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 16px; width: 100%; }
   .tree { display: grid; gap: 8px; padding: 12px; background: var(--panel); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--ink); text-align: left; }
   .tree-title { font: 28px/1 var(--display); color: var(--hazard); letter-spacing: 0.05em; text-shadow: 2px 2px 0 var(--ink); }
@@ -317,12 +338,13 @@
   <div id="prompt" hidden></div>
   <div id="card" hidden></div>
   <div id="banner" hidden><div id="bTitle"></div><div id="bSub"></div></div>
+  <div id="streak" hidden><b id="sN"></b><small id="sM"></small><div class="sbar"><i id="sBar"></i></div></div>
 
   <div class="bl">
     <div class="bar"><div class="fill" id="shieldFill"></div><div class="txt"><i>SHIELD</i><span id="shieldTxt"></span></div></div>
     <div class="bar hp"><div class="fill" id="hpFill"></div><div class="txt"><i>HEALTH</i><span id="hpTxt"></span></div></div>
   </div>
-  <div class="bc"><div id="lvl">1</div><div class="xpbar"><div id="xpFill"></div></div><button id="skillBtn" aria-label="Skills">★</button></div>
+  <div class="bc"><div id="lvl">1</div><div class="xpbar"><div id="xpFill"></div></div><button id="skillBtn" aria-label="Skills">★</button><button id="gearBtn" aria-label="Gear">⚙</button></div>
   <div id="xpPop" hidden></div>
   <div class="br">
     <div class="kit" hidden>
@@ -361,7 +383,7 @@
       <div><b>SHIFT</b>Sprint</div><div><b>SPACE</b>Jump</div>
       <div><b>Q · 1/2 · WHEEL</b>Switch rifle ⇄ axe</div><div><b>R</b>Reload</div>
       <div><b>CLICK ×3</b>Axe: slash, backhand, overhead chop</div><div><b>E</b>Pick up · open · buy</div>
-      <div><b>F</b>Kick (shoves and staggers)</div><div><b>K</b>Skills</div>
+      <div><b>F</b>Kick (shoves and staggers)</div><div><b>K / I</b>Skills / Gear (your mods)</div>
       <div><b>N</b>Skip to next wave / leave a cleared stage</div><div><b>ESC</b>Pause</div>
     </div>
     <div class="controls" id="ctlTouch" hidden>
@@ -420,6 +442,16 @@
   </div>
 </div>
 
+<div id="gear" class="screen" hidden>
+  <div class="panel wide">
+    <h2>GEAR</h2>
+    <div class="note">Tap a mod to see it. Fit mods from your bag, or scrap the ones you don't need.</div>
+    <div id="gearBody" class="trees"></div>
+    <div id="gearDetail" hidden></div>
+    <div class="row"><button class="btn" id="btnGearDone">DONE</button></div>
+  </div>
+</div>
+
 <div id="pause" class="screen" hidden>
   <div class="panel">
     <h2>PAUSED</h2>
@@ -427,6 +459,7 @@
       <button class="btn" id="btnResume">RESUME</button>
       <button class="btn alt" id="btnRestart">RESTART STAGE</button>
       <button class="btn alt" id="btnLeave">LEAVE STAGE</button>
+      <button class="btn alt" id="btnPauseGear">GEAR</button>
       <button class="btn alt" id="btnPauseSkills">SKILLS</button>
       <button class="btn alt" id="btnMainMenu" hidden>MAIN MENU</button>
       <button class="btn alt" id="btnMute">Sound: on</button>

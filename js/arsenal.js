@@ -124,13 +124,13 @@ function buildWeapons() {
   const L = player.level, ls = levelScale(L);
   const old = player.weapons || [];
   // assault rifle
-  const buffAr = player.buffs && player.buffs.overdrive > 0;
+  const buffAr = player.buffs && player.buffs.overdrive > 0, frenzy = player.buffs && player.buffs.frenzy > 0 ? 1.3 : 1;
   const T = TYPES.ar;
   const ar = {
     id: 'ar', kind: 'gun', type: 'ar', model: 'ringmaster', mfr: 'vladof', label: 'Rifle', name: STARTER_AR.name, level: L,
     rarity: bestRarity('ar'), ammo: 'ar', auto: true, pellets: 1, zoom: T.zoom, special: null,
-    damage: 14 * ls * T.dmg * (1 + modSum('ar', 'dmg') + rank('arDmg') * 0.06) * (buffAr ? 1.15 : 1),
-    rate: T.rate * (1 + modSum('ar', 'rate') + rank('arRate') * 0.06) * (buffAr ? 1.3 : 1),
+    damage: 14 * ls * T.dmg * (1 + modSum('ar', 'dmg') + rank('arDmg') * 0.06) * (buffAr ? 1.15 : 1) * frenzy,
+    rate: T.rate * (1 + modSum('ar', 'rate') + rank('arRate') * 0.06) * (buffAr ? 1.3 : 1) * frenzy,
     mag: Math.round(T.mag * (1 + modSum('ar', 'mag') + rank('arMag') * 0.1)),
     reload: T.reload / (1 + modSum('ar', 'reload') + rank('arReload') * 0.1),
     spread: T.spread / (1 + modSum('ar', 'acc') + rank('arAcc') * 0.08),
@@ -149,11 +149,11 @@ function buildWeapons() {
   const axe = {
     id: 'axe', kind: 'gun', type: 'melee', melee: true, model: 'axe', mfr: 'jakobs', label: 'Axe', name: 'Axe', level: L,
     rarity: bestRarity('melee'), ammo: null, auto: true, pellets: 1, special: null, kick: 0, zoom: 1, inMag: 1,
-    damage: 70 * ls * (1 + modSum('melee', 'dmg') + rank('mDmg') * 0.08) * (buff ? 1.25 : 1),
-    rate: 1.35 * (1 + modSum('melee', 'speed') + rank('mSpeed') * 0.08),
+    damage: 70 * ls * (1 + modSum('melee', 'dmg') + rank('mDmg') * 0.08) * (buff ? 1.25 : 1) * frenzy,
+    rate: 1.35 * (1 + modSum('melee', 'speed') + rank('mSpeed') * 0.08) * frenzy,
     reach: 2.7 * (1 + modSum('melee', 'reach')),
     critChance: 0.08 + modSum('melee', 'crit') * 0.5, crit: 1.8 * (1 + modSum('melee', 'crit')),
-    leech: modSum('melee', 'leech') + rank('mLeech') * 0.01,
+    leech: modSum('melee', 'leech') + rank('mLeech') * 0.01 + (frenzy > 1 ? 0.012 : 0),
     exec: rank('mExec') * 0.2, cleave: rank('mCleave') > 0, finisher: 1.7 + rank('mFinish') * 0.2, quake: rank('mQuake') > 0,
     element: 'none',
   };
@@ -216,6 +216,7 @@ function meleeSwing() {
   player.meleeHitT = dur * M.hit;
   player.meleeHit = false;
   SFX.chop(false);
+  enemiesReactToSwing(g.reach * (M.reach || 1)); // some see it coming
   return true;
 }
 function resolveMeleeHit() {
@@ -331,7 +332,7 @@ function onPlayerKill(by) {
 }
 function updateBuffs(dt) {
   if (!player.buffs) return;
-  for (const k of ['berserk', 'overdrive']) {
+  for (const k of ['berserk', 'overdrive', 'frenzy']) {
     if (!(player.buffs[k] > 0)) continue;
     player.buffs[k] -= dt;
     if (player.buffs[k] <= 0) buildWeapons();
@@ -389,4 +390,106 @@ function closeSkills() {
   game.state = 'play';
   show(null);
   lockPointer();
+}
+
+// ---------------------------------------------------------------------------
+// Gear screen (decisions.md 2026-11-08): what's fitted to each weapon, and the bag of mods picked
+// up but not fitted. Picking up a mod fits it when its slot is empty, otherwise it goes in the bag.
+// From here a mod can be fitted (the one it replaces goes to the bag), taken off, or scrapped for cash.
+const BAG_MAX = 30;
+const WEAPON_LABEL = { ar: 'Assault Rifle', melee: 'Axe' };
+let gearFrom = null, gearSel = null; // gearSel: { mod, where: 'bag' | 'fitted' }
+const scrapValue = (m) => Math.round((m.value || 10) * 0.6);
+function takeMod(m) {
+  const mods = player.mods[m.weapon] || (player.mods[m.weapon] = {});
+  if (!mods[m.slot]) { equipMod(m); return 'fitted'; }
+  if (player.stash.length >= BAG_MAX) return null;
+  player.stash.push(m);
+  return 'bag';
+}
+function gearFit(m) {
+  const i = player.stash.indexOf(m);
+  if (i < 0) return;
+  player.stash.splice(i, 1);
+  const old = equipMod(m);
+  if (old) player.stash.push(old);
+  SFX.pickup();
+}
+function gearUnfit(m) {
+  if (player.stash.length >= BAG_MAX) { hud.log('Your bag is full', '#ff6a5a'); return; }
+  delete player.mods[m.weapon][m.slot];
+  buildWeapons();
+  player.stash.push(m);
+}
+function gearScrap(m) {
+  const i = player.stash.indexOf(m);
+  if (i < 0) return;
+  player.stash.splice(i, 1);
+  player.cash += scrapValue(m);
+  SFX.cash();
+}
+function renderGear() {
+  const el = $('gearBody');
+  el.textContent = '';
+  const tile = (m, where, slotLabel) => {
+    const b = document.createElement('button');
+    b.className = 'gtile' + (m ? '' : ' empty') + (gearSel && gearSel.mod === m && m ? ' sel' : '');
+    if (m) {
+      b.style.borderColor = RARITY[m.rarity].css;
+      const stat = Object.entries(m.stats).map(([k, v]) => (k === 'leech' ? '+' + (v * 100).toFixed(1) + '% ' : '+' + Math.round(v * 100) + '% ') + MOD_STATS[k].label.toLowerCase()).join(', ');
+      b.innerHTML = `<i></i><b></b><small></small>`;
+      b.children[0].textContent = slotLabel || (WEAPON_LABEL[m.weapon] + ' · ' + MOD_SLOTS[m.weapon][m.slot].label);
+      b.children[1].textContent = m.name; b.children[1].style.color = RARITY[m.rarity].css;
+      b.children[2].textContent = stat + (m.element !== 'none' ? ' · ' + ELEM[m.element].label : '');
+      b.addEventListener('click', () => { gearSel = { mod: m, where }; renderGear(); });
+    } else { b.innerHTML = `<i></i><b>empty</b>`; b.children[0].textContent = slotLabel; b.disabled = true; }
+    return b;
+  };
+  for (const w of ['ar', 'melee']) {
+    const col = document.createElement('div');
+    col.className = 'tree';
+    col.innerHTML = `<div class="tree-title">${WEAPON_LABEL[w]}</div>`;
+    const grid = document.createElement('div'); grid.className = 'gslots';
+    for (const [slot, S] of Object.entries(MOD_SLOTS[w])) grid.append(tile(player.mods[w][slot], 'fitted', S.label));
+    col.append(grid);
+    el.append(col);
+  }
+  const bag = document.createElement('div');
+  bag.className = 'tree bag';
+  bag.innerHTML = `<div class="tree-title">Bag <span class="bagn">${player.stash.length} / ${BAG_MAX}</span></div>`;
+  const grid = document.createElement('div'); grid.className = 'gslots';
+  const sorted = player.stash.slice().sort((a, b) => b.rarity - a.rarity || (a.weapon > b.weapon ? 1 : -1));
+  for (const m of sorted) grid.append(tile(m, 'bag'));
+  if (!sorted.length) grid.innerHTML = '<div class="note">Mods you pick up for a filled slot go here.</div>';
+  bag.append(grid);
+  el.append(bag);
+  // the selected mod: its card against what's fitted, and what can be done with it
+  const det = $('gearDetail');
+  if (!gearSel || (gearSel.where === 'bag' ? !player.stash.includes(gearSel.mod) : player.mods[gearSel.mod.weapon][gearSel.mod.slot] !== gearSel.mod)) gearSel = null;
+  det.hidden = !gearSel;
+  if (!gearSel) return;
+  const m = gearSel.mod, cur = player.mods[m.weapon][m.slot];
+  det.innerHTML = `<div class="card" style="border-color:${RARITY[m.rarity].css}">${itemCardHTML(m, gearSel.where === 'bag' ? cur : null)}</div><div class="row"></div>`;
+  const row = det.children[1];
+  const btn = (label, fn, alt) => { const b = document.createElement('button'); b.className = 'btn' + (alt ? ' alt' : ''); b.textContent = label; b.addEventListener('click', () => { fn(); renderGear(); }); row.append(b); };
+  if (gearSel.where === 'bag') {
+    btn(cur ? 'FIT (SWAP)' : 'FIT', () => { gearFit(m); gearSel = null; });
+    btn('SCRAP $' + scrapValue(m), () => { gearScrap(m); gearSel = null; }, true);
+  } else btn('TAKE OFF', () => { gearUnfit(m); gearSel = null; }, true);
+  btn('CLOSE', () => { gearSel = null; }, true);
+}
+function openGear() {
+  if (game.state !== 'play' && game.state !== 'paused') return;
+  gearFrom = game.state;
+  game.state = 'paused';
+  input.fire = false;
+  gearSel = null;
+  renderGear();
+  show('gear');
+}
+function closeGear() {
+  if (typeof savePlayer === 'function' && campaign.save) savePlayer();
+  if (gearFrom === 'paused') { show('pause'); return; }
+  game.state = 'play';
+  show(null);
 }

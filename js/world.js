@@ -63,9 +63,10 @@ scene.add(sky);
 
 // ---------------------------------------------------------------------------
 // Lights
-const hemi = new THREE.HemisphereLight(0xdcefff, 0xc08a5c, 0.75); // brighter, softer fill for the cartoon look
+// cartoon lighting: warm sun, cool violet fill from below, so shadows read purple, not grey
+const hemi = new THREE.HemisphereLight(0xe4f4ff, 0x8a6aa8, 0.72);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff0d8, 1.0);
+const sun = new THREE.DirectionalLight(0xffecd0, 0.8);
 sun.castShadow = !IS_TOUCH;
 sun.shadow.mapSize.set(IS_TOUCH ? 1024 : 2048, IS_TOUCH ? 1024 : 2048);
 const SC = 45;
@@ -93,22 +94,25 @@ function flashAt(pos, color, intensity, range, dur) {
 // side stays bright and colourful (a soft ramp instead of hard bands), there are no ink outlines,
 // and every built-in material's final colour gets a saturation and brightness lift (below).
 const INK = false;
+// Two cartoon tones (shade and light) with a soft edge between them, like painted cel animation
+// but without hard steps.
 function softRamp(floor) {
   const n = 64, d = new Uint8Array(n * 4);
   for (let i = 0; i < n; i++) {
-    const x = i / (n - 1), s = x * x * (3 - 2 * x);
-    const v = Math.round(255 * (floor + (1 - floor) * Math.pow(s, 0.8)));
+    const x = i / (n - 1), t = clamp((x - 0.3) / 0.28, 0, 1), s = t * t * (3 - 2 * t);
+    const v = Math.round(255 * (floor + (1 - floor) * (0.12 * x + 0.88 * s)));
     d.set([v, v, v, 255], i * 4);
   }
   const t = new THREE.DataTexture(d, n, 1, THREE.RGBAFormat);
   t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true;
   return t;
 }
-const gradTex = softRamp(0.48);
+const gradTex = softRamp(0.58);
 // the colour lift, at the end of every built-in material's fragment shader
 THREE.ShaderChunk.dithering_fragment = `{
   float cartoonL = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
-  gl_FragColor.rgb = max(mix(vec3(cartoonL), gl_FragColor.rgb, 1.28), 0.0) * 1.04;
+  vec3 cc = clamp(mix(vec3(cartoonL), gl_FragColor.rgb, 1.3), 0.0, 1.0);
+  gl_FragColor.rgb = mix(cc, cc * cc * (3.0 - 2.0 * cc), 0.3); // a little punch
 }
 ` + THREE.ShaderChunk.dithering_fragment;
 // Top-down cutaway: world materials hide everything above the player's head within a radius of

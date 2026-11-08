@@ -185,6 +185,7 @@ function sharedMat(m) {
   if (!s) { s = addCutaway(m.clone()); s.color.setRGB(1, 1, 1); s.vertexColors = true; s.name = 'merged:' + m.name; _sharedMats.set(k, s); }
   return s;
 }
+const MAP_INK = addCutaway(new THREE.LineBasicMaterial({ color: 0x2a1530, transparent: true, opacity: 0.7 }));
 const MAP_NO_SHADOW = /^(Terrain|Road|GasStation_Lot|Bounds_|Blood|Graffiti|Pond$|PowerLines)/;
 function mergeStatics(root, group, cache) {
   root.updateMatrixWorld(true);
@@ -196,7 +197,8 @@ function mergeStatics(root, group, cache) {
     if (o.material.name === 'Invisible') continue;
     const mat = mapMaterial(o.material, cache);
     let top = o; while (top.parent && top.parent !== root) top = top.parent;
-    const cast = !IS_TOUCH && !MAP_NO_SHADOW.test(top.name) && !mat.transparent; // no map shadows on phones
+    const prop = !MAP_NO_SHADOW.test(top.name) && !mat.transparent;
+    const cast = !IS_TOUCH && prop; // no map shadows on phones
     const geo = o.geometry, P = geo.attributes.position, idx = geo.index;
     const nTri = (idx ? idx.count : P.count) / 3;
     const vi = (k) => (idx ? idx.getX(k) : k);
@@ -205,9 +207,9 @@ function mergeStatics(root, group, cache) {
       _v.set(0, 0, 0);
       for (let k = 0; k < 3; k++) { const i = vi(t * 3 + k); _v.x += attrComp(P, i, 0); _v.y += attrComp(P, i, 1); _v.z += attrComp(P, i, 2); }
       _v.divideScalar(3).applyMatrix4(o.matrixWorld);
-      const key = matKey(mat) + (cast ? 's' : 'n') + Math.floor(_v.x / MAP_CELL) + ',' + Math.floor(_v.z / MAP_CELL);
+      const key = matKey(mat) + (cast ? 's' : 'n') + (prop ? 'p' : '') + Math.floor(_v.x / MAP_CELL) + ',' + Math.floor(_v.z / MAP_CELL);
       let b = buckets.get(key);
-      if (!b) buckets.set(key, (b = { mat: sharedMat(mat), cast, parts: new Map() }));
+      if (!b) buckets.set(key, (b = { mat: sharedMat(mat), cast, prop, parts: new Map() }));
       let part = b.parts.get(o);
       if (!part) b.parts.set(o, (part = []));
       part.push(t);
@@ -251,6 +253,13 @@ function mergeStatics(root, group, cache) {
     m.castShadow = b.cast; m.receiveShadow = true;
     group.add(m);
     MAP.cells.push(m);
+    // cartoon line art: ink along the creases and silhouettes of buildings and props
+    if (b.prop) {
+      const lines = new THREE.LineSegments(new THREE.EdgesGeometry(g, 38), MAP_INK);
+      lines.geometry.computeBoundingSphere();
+      group.add(lines);
+      MAP.cells.push(lines);
+    }
   }
   root.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
 }

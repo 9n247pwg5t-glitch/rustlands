@@ -52,7 +52,7 @@ const stageUnlocked = (i) => i === 0 || !!(campaign.save.stages[STAGES[i - 1].id
 function snapshotPlayer() {
   return {
     level: player.level, xp: player.xp, cash: player.cash, cur: player.cur, grenades: player.grenades, ammo: player.ammo,
-    mods: player.mods, skills: player.skills, skillPoints: player.skillPoints, arMag: player.weapons[0] && player.weapons[0].inMag,
+    mods: player.mods, stash: player.stash, skills: player.skills, skillPoints: player.skillPoints, arMag: player.weapons[0] && player.weapons[0].inMag,
   };
 }
 function savePlayer() { campaign.save.player = JSON.parse(JSON.stringify(snapshotPlayer())); return writeSave(); }
@@ -63,9 +63,10 @@ function restorePlayer(p) {
   player.mods = { ar: Object.assign({}, p.mods && p.mods.ar), melee: Object.assign({}, p.mods && p.mods.melee) };
   player.skills = Object.assign({}, p.skills);
   refundRetiredSkills();
+  player.stash = Array.isArray(p.stash) ? p.stash.slice(0, BAG_MAX) : [];
   Object.assign(player.ammo, p.ammo);
   // new items must not reuse the ids of saved ones
-  for (const m of [...Object.values(player.mods.ar), ...Object.values(player.mods.melee)]) if (m && m.id >= _itemId) _itemId = m.id + 1;
+  for (const m of [...Object.values(player.mods.ar), ...Object.values(player.mods.melee), ...player.stash]) if (m && m.id >= _itemId) _itemId = m.id + 1;
   player.shieldItem = levelShield();
   buildWeapons();
   if (p.arMag != null) player.weapons[0].inMag = Math.min(p.arMag, player.weapons[0].mag);

@@ -22,6 +22,11 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
   - Enemy terms "Psycho", "Badass", "Marauder", "Nomad"; the downed-state banner "Fight For Your
     Life" / "Second Wind" (`js/player.js`, README).
 
+- **Map art names.** The uploaded map's graffiti texture includes a "DR. GIGGLES' TRAVELING
+  CARNIVAL" sign: a name that came with the asset, not an approved one.
+- **Carnage call-outs.** The streak milestone lines (RATINGS UP!, PRIME TIME!, FRENZY!, SPONSORED!,
+  GOING VIRAL!, SERIES FINALE!) and "Star" enemies are placeholders (`STREAK_MILESTONES` in `js/main.js`).
+
 ## Structure (§7, §8)
 
 - **Only one playable stage, and it's a stand-in.** The campaign flow exists (`js/stages.js`):

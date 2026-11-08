@@ -110,7 +110,7 @@ function spawnEnemy(key, level, pos) {
     bossPhase: 0, bossAttackT: 4, summoned: false,
     chase: new THREE.Vector3(), direct: true, directCheck: 0, stuckT: 0, unstickT: 0, unstickDir: new THREE.Vector3(), flinchT: 0,
     speedK: rand(0.82, 1.1), // a horde doesn't move in lockstep
-    engaged: false, waitT: 0, backoffT: 0, orbitAng: null, orbitR: rand(5, 8), orbitDir: Math.random() < 0.5 ? -1 : 1,
+    engaged: false, waitT: 0, backoffT: 0, orbitAng: null, orbitR: rand(4.6, 6.8), orbitDir: Math.random() < 0.5 ? -1 : 1,
     tac: null, tacT: 0, spot: null, prefDist: 0, moveShoot: false, retreatCd: rand(3, 6), noLosT: 0,
     path: null, pathT: 0, pathI: 0, pathGoal: new THREE.Vector3(),
   };
@@ -128,7 +128,19 @@ function spawnEnemy(key, level, pos) {
   return e;
 }
 
-function enemyName(e) { return e.def.name; }
+function enemyName(e) { return (e.star ? '★ Star ' : '') + e.def.name; }
+// A Star: bigger, three times the health, worth five times the XP, a gold star over its head.
+const STAR_TEX = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.font = '56px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 6; g.strokeStyle = '#2a1530'; g.strokeText('★', 32, 34); g.fillStyle = '#ffd23a'; g.fillText('★', 32, 34); return new THREE.CanvasTexture(c); })();
+function makeStar(e) {
+  e.star = true;
+  e.def = Object.assign({}, e.def, { scale: e.def.scale * 1.22, xp: e.def.xp * 5 });
+  e.maxHp *= 3; e.hp = e.maxHp; e.maxShield *= 2; e.shield = e.maxShield;
+  e.radius *= 1.2; e.height *= 1.22;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: STAR_TEX, depthTest: false }));
+  s.scale.setScalar(0.7); s.position.y = 2.35; s.renderOrder = 6;
+  e.model.root.add(s);
+  hud.log('A Star has entered the show', '#ffd23a');
+}
 
 // Hit spheres in world space: [x, y, z, r, isCrit]
 const _sph = [];
@@ -397,13 +409,17 @@ function chaseDir(e, tgt, fwd, side, dt) {
 // ---------------------------------------------------------------------------
 // Tactics. Gunners pick their own firing spot around the player (their preferred range, spread
 // apart, off to the player's sides, near cover), hold it while strafing, move on after a while and
-// fall back to cover to recharge. Melee enemies come as a horde: all of them press in at once,
-// surrounding the player. Only a few gunners fire at once.
+// fall back to cover to recharge. Melee enemies hunt as a pack: a few attack while the rest ring
+// the player, pincers come from opposite sides, and openings are punished. Only a few gunners fire at once.
 const tactics = { shooters: 0, maxShooters: 2, engaged: 0, maxEngaged: 2, movers: 0, maxMovers: 2 };
 function tacticsFrame(dt = 1 / 60) {
   if (tactics.nadeT > 0) tactics.nadeT -= dt;
   tactics.maxShooters = Math.min(7, 4 + Math.floor(game.wave / 2));
-  tactics.maxEngaged = 999; // hordes: every melee enemy comes straight in (no taking turns)
+  // Pack tactics (decisions.md 2026-11-08): only a few axe-wielders hold an attack token at once;
+  // the rest ring the player and wait. Openings (the player reloading, mid-swing or down) let one
+  // more in, and every few seconds a pincer sends two in together from opposite sides.
+  tactics.maxEngaged = Math.min(2 + Math.floor(game.wave / 2), 5) + (player.reloadT > 0 || player.meleeT > 0 || player.downed ? 1 : 0);
+  tactics.surgeT = (tactics.surgeT == null ? 6 : tactics.surgeT) - dt;
   let shooters = 0, engaged = 0, gunners = 0, movers = 0, slot = 0;
   const waiting = [];
   for (const e of enemies) {
@@ -413,12 +429,33 @@ function tacticsFrame(dt = 1 / 60) {
     if (e.def.ai === 'melee' && e.engaged) e.slot = slot++; // approach angles, so the engaged ones surround
     const ai = e.def.ai;
     if (ai === 'melee') {
+      // badly hurt: give up the token and back off to the ring
+      if (e.engaged && e.hp < e.maxHp * 0.25 && !e.fled && e.state === 'move') { e.fled = true; e.engaged = false; e.backoffT = 1.4; }
       if (e.engaged) engaged++;
-      else if (!(e.waitT > 0) && e.state !== 'taunt') waiting.push(e);
+      else if (!(e.waitT > 0) && e.state !== 'taunt' && !(e.backoffT > 0)) waiting.push(e);
     }
   }
-  waiting.sort((a, b) => a.pos.distanceToSquared(player.pos) - b.pos.distanceToSquared(player.pos));
-  for (const e of waiting) { if (engaged >= tactics.maxEngaged) break; e.engaged = true; engaged++; }
+  // who goes next: close ones, ones behind the player (out of their sight), ones that have waited longest
+  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  for (const e of waiting) {
+    const dx = e.pos.x - player.pos.x, dz = e.pos.z - player.pos.z, d = Math.hypot(dx, dz) || 1;
+    e.waited = (e.waited || 0) + dt;
+    e.pick = d + ((dx * fx + dz * fz) / d > 0.4 ? 5 : 0) - Math.min(e.waited, 6) * 0.8;
+  }
+  waiting.sort((a, b) => a.pick - b.pick);
+  for (const e of waiting) { if (engaged >= tactics.maxEngaged) break; e.engaged = true; e.waited = 0; engaged++; }
+  // the pincer: two from opposite sides at once
+  if (tactics.surgeT <= 0) {
+    tactics.surgeT = rand(5, 8.5);
+    const rest = waiting.filter((e) => !e.engaged);
+    if (rest.length >= 2) {
+      const a = rest[0], aa = Math.atan2(a.pos.x - player.pos.x, a.pos.z - player.pos.z);
+      let b = null, best = 0;
+      for (const e of rest.slice(1)) { let d = Math.atan2(e.pos.x - player.pos.x, e.pos.z - player.pos.z) - aa; d = Math.abs(Math.atan2(Math.sin(d), Math.cos(d))); if (d > best) { best = d; b = e; } }
+      for (const e of [a, b]) if (e) { e.engaged = true; e.waited = 0; e.attackCd = 0; engaged++; }
+      if (b && Math.random() < 0.6) SFX.yell(0.8);
+    }
+  }
   tactics.shooters = shooters; tactics.engaged = engaged;
   // bounding overwatch: only a couple of gunners relocate at once while the rest hold and fire
   tactics.movers = movers; tactics.maxMovers = 2 + Math.floor(gunners / 8);
@@ -679,7 +716,24 @@ function afterMeleeAttack(e) {
   // a psycho that drew blood sometimes stops to gloat (an opening for the player)
   if (e.landed && e.rig && Math.random() < 0.3) { e.landed = false; e.state = 'taunt'; e.stateT = rigTaunt(e) * 0.8; e.tauntCd = rand(4, 7); return; }
   e.landed = false;
-  if (Math.random() < 0.08) e.backoffT = rand(0.5, 0.8); // rarely: a horde keeps pressing
+  // after a combo, usually step back out to the ring and let someone else take a turn
+  if (Math.random() < 0.6) e.backoffT = rand(0.6, 1.1);
+}
+
+// The player starts a swing: an axe-wielder in front of them may sidestep or hop back out of it.
+function enemiesReactToSwing(reach) {
+  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  for (const e of enemies) {
+    if (!e.alive || !e.rig || e.def.ai !== 'melee' || e.state !== 'move' || e.def.boss || !(e.grounded)) continue;
+    const dx = e.pos.x - player.pos.x, dz = e.pos.z - player.pos.z, d = Math.hypot(dx, dz);
+    if (d > reach + 1.2 || (dx * fx + dz * fz) / (d || 1) < 0.3) continue;
+    if ((e.dodgeCd || 0) > 0 || Math.random() > Math.min(0.45, 0.2 + game.wave * 0.05)) continue;
+    e.dodgeCd = rand(3, 5);
+    const side = Math.random() < 0.5 ? 1 : -1;
+    e.state = 'dash'; e.stateT = 0.45; e.dashSpeed = 7.5;
+    e.dashDir.set(-fz * side + dx / d * 0.6, 0, fx * side + dz / d * 0.6).normalize();
+    rigOnce(e.rig, 'Goalkeeper Sidestep', 1.8, 0, Infinity, 0.05);
+  }
 }
 
 // The blade glints (a flash of light at the edge) a moment before an axe blow lands.
@@ -751,7 +805,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     killEnemy(e, { selfDestruct: true, explosive: true, noXp: true });
     return true;
   }
-  e.attackCd -= dt; e.dashCd -= dt; e.tauntCd -= dt; e.waitT -= dt;
+  e.attackCd -= dt; e.dashCd -= dt; e.tauntCd -= dt; e.waitT -= dt; e.dodgeCd -= dt;
   e.leapCd = (e.leapCd == null ? rand(2, 5) : e.leapCd) - dt;
 
   // attacks already under way
@@ -815,7 +869,8 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     return false;
   }
 
-  const engaged = e.engaged || ai === 'suicide' || dist < 3.2 || tgt.isTurret || player.downed;
+  // (walk right up to a waiting one and it fights back)
+  const engaged = e.engaged || ai === 'suicide' || dist < 2.5 || tgt.isTurret || player.downed;
   if (engaged) {
     // a target on the move is cut off: run at where it's heading (when the way is clear), straight
     // in; a slow one is approached on a curve from further out
@@ -853,10 +908,14 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     return false;
   }
 
-  // waiting for a turn: circle the player at a distance
+  // waiting for a turn: ring the player, sidestepping around them, now and then feinting a step in
   if (e.orbitAng == null) e.orbitAng = Math.atan2(e.pos.x - tgt.pos.x, e.pos.z - tgt.pos.z);
-  e.orbitAng += e.orbitDir * dt * (sp * 0.4) / e.orbitR;
-  let ox = tgt.pos.x + Math.sin(e.orbitAng) * e.orbitR, oz = tgt.pos.z + Math.cos(e.orbitAng) * e.orbitR;
+  e.orbitAng += e.orbitDir * dt * (sp * 0.18) / e.orbitR;
+  if (Math.random() < dt * 0.15) e.orbitDir = -e.orbitDir;
+  e.feintT = (e.feintT || 0) - dt;
+  if (e.feintT < -2 && dist < 9 && Math.random() < dt * 0.35) e.feintT = 0.7;
+  const R = e.orbitR - (e.feintT > 0 ? Math.sin(e.feintT / 0.7 * Math.PI) * 1.8 : 0);
+  let ox = tgt.pos.x + Math.sin(e.orbitAng) * R, oz = tgt.pos.z + Math.cos(e.orbitAng) * R;
   if (!navWalkable(ox, oz) || !inBounds(ox, oz, 3)) { e.orbitDir = -e.orbitDir; e.orbitAng += e.orbitDir * 0.3; }
   _b.set(ox, 0, oz);
   const td = steerTo(e, _b, dt, _a);
@@ -872,6 +931,8 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
 
 function updateEnemy(e, dt) {
   e.t += dt; e.sinceHit += dt; e.flash -= dt;
+  // the badly wounded leave a trail of drips
+  if (e.hp < e.maxHp * 0.6 && (e.dripT = (e.dripT || 0) - dt) <= 0) { e.dripT = rand(0.35, 0.7); bloodSplat(e.pos, rand(0.35, 0.6), 'spatter'); }
   // damage over time
   e.dotTick -= dt;
   if (e.dots.length && e.dotTick <= 0) {

@@ -5,7 +5,7 @@
 // that hits, kills and the player's own wounds keep writing into (the oldest dynamic stain goes
 // first). Decals live in the arena world only. Textures are drawn on a canvas at load.
 
-const BLOOD = { ready: false, kinds: {}, cap: IS_TOUCH ? 170 : 260, staticN: IS_TOUCH ? 70 : 110 };
+const BLOOD = { ready: false, kinds: {}, cap: IS_TOUCH ? 230 : 360, staticN: IS_TOUCH ? 110 : 170, wall: null };
 const BLOOD_KINDS = ['splat', 'pool', 'smear', 'spatter'];
 
 function bloodTexture(kind) {
@@ -51,8 +51,17 @@ function buildBlood() {
     worlds.arena.objects.push(m);
     BLOOD.kinds[k] = { mesh: m, n: 0, ring: BLOOD.staticN };
   }
+  // splatter up walls: a separate set of upright decals
+  const wm = new THREE.MeshBasicMaterial({ map: BLOOD.kinds.splat.mesh.material.map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.DoubleSide });
+  addCutaway(wm);
+  const W = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), wm, IS_TOUCH ? 90 : 160);
+  for (let i = 0; i < W.count; i++) W.setMatrixAt(i, hide);
+  W.frustumCulled = false; W.renderOrder = 1; W.visible = WORLD.id === 'arena';
+  scene.add(W); worlds.arena.objects.push(W);
+  BLOOD.wall = { mesh: W, n: 0 };
   BLOOD.ready = true;
   scatterBlood();
+  scatterWallBlood();
 }
 
 const _bm = new THREE.Matrix4(), _bq = new THREE.Quaternion(), _bp = new THREE.Vector3(), _bs = new THREE.Vector3(), _bup = new THREE.Vector3(0, 1, 0);
@@ -94,4 +103,37 @@ function scatterBlood() {
       for (let j = 0; j < 3; j++) put('smear', x + Math.cos(dir) * j * 1.5, z - Math.sin(dir) * j * 1.5, 1.1 + rng() * 0.6, dir);
     } else put(kind, x, z, kind === 'pool' ? 1.6 + rng() * 2 : 0.9 + rng() * 1.4, rng() * TAU);
   }
+}
+
+// Blood sprayed up walls near where the fighting was: rays out from spots on the ground find the
+// nearest wall (a box collider), and a splat is stuck to the face it hit.
+function scatterWallBlood() {
+  const rng = makeRng(1313), W = BLOOD.wall, M = W.mesh;
+  const P = (n) => { const v = MAP.points[n]; return v ? (Array.isArray(v) ? v : v.p) : null; };
+  const centres = [[0, -10, 22], [0, 22, 10], [32, 12, 10], [-30, 6, 10]];
+  for (const n of ['TentEntrance', 'Carousel', 'FarmYard', 'BlockadeEast', 'BlockadeWest']) { const p = P(n); if (p) centres.push([p[0], p[2], 14]); }
+  const o = new THREE.Vector3(), d = new THREE.Vector3(), hit = new THREE.Vector3(), n = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(), m = new THREE.Matrix4(), z = new THREE.Vector3(0, 0, 1);
+  for (let k = 0; k < M.count * 25 && W.n < M.count; k++) {
+    const c = centres[k % centres.length], a = rng() * TAU, r = Math.sqrt(rng()) * c[2];
+    const x = c[0] + Math.cos(a) * r, zz = c[1] + Math.sin(a) * r;
+    if (!navWalkable(x, zz)) continue;
+    o.set(x, groundAt(x, zz) + 0.6 + rng() * 1.2, zz);
+    const b = rng() * TAU; d.set(Math.cos(b), 0, Math.sin(b));
+    const t = rayWorld(o, d, 9).t;
+    if (t >= 9) continue;
+    hit.copy(o).addScaledVector(d, t);
+    // which face of which box: the nearest box surface to the hit point
+    colsNear(hit.x - 0.1, hit.z - 0.1, hit.x + 0.1, hit.z + 0.1);
+    let best = null, bd = 0.08;
+    for (const c2 of nearBoxes) {
+      if (c2.ref || hit.y < c2.minY || hit.y > c2.maxY) continue;
+      for (const [dist, nx, nz] of [[Math.abs(hit.x - c2.minX), -1, 0], [Math.abs(hit.x - c2.maxX), 1, 0], [Math.abs(hit.z - c2.minZ), 0, -1], [Math.abs(hit.z - c2.maxZ), 0, 1]]) if (dist < bd) { bd = dist; best = [nx, nz]; }
+    }
+    if (!best || best[0] * d.x + best[1] * d.z > 0) continue;
+    n.set(best[0], 0, best[1]);
+    q.setFromUnitVectors(z, n).multiply(new THREE.Quaternion().setFromAxisAngle(z, rng() * TAU));
+    const size = 0.8 + rng() * 1.3;
+    M.setMatrixAt(W.n++, m.compose(hit.addScaledVector(n, 0.03), q, s.set(size, size, size)));
+  }
+  M.instanceMatrix.needsUpdate = true;
 }

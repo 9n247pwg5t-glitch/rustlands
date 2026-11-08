@@ -111,7 +111,7 @@ function resetPlayer() {
     combo: 0, comboT: -9, kickT: 0, kickCd: 0, kickDur: 0.42,
     stats: { kills: 0, crits: 0, shots: 0, damage: 0 },
     // the arsenal (js/arsenal.js): rifle and axe, built from level, mods and skills
-    mods: { ar: {}, melee: {} }, skills: {}, skillPoints: 0, buffs: {},
+    mods: { ar: {}, melee: {} }, stash: [], skills: {}, skillPoints: 0, buffs: {},
   });
   buildWeapons();
   player.shieldItem = levelShield();
