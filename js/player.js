@@ -56,6 +56,7 @@ const player = {
     }
   },
   hurt(amount, srcPos, elem) {
+    if (amount > 4 && Math.random() < 0.5) bloodSplat(this.pos, 0.7, 'spatter'); // the player bleeds too
     if (!this.alive || this.invuln > 0 || game.state !== 'play') return;
     amount *= damageTakenScale();
     if (srcPos) hud.hurtFrom(srcPos);

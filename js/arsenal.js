@@ -174,21 +174,42 @@ function equipMod(m) {
 }
 
 // ---------------------------------------------------------------------------
-// Swinging: a three-move combo. Swinging again soon after a swing ends moves on to the next move;
-// waiting starts over. Each move has its own length, the moment it lands, its arc and its damage.
-const AXE_COMBO = [
-  { name: 'slash', len: 1.0, hit: 0.42, arc: 0.45, dmg: 1 }, // diagonal, upper right to lower left
-  { name: 'backhand', len: 0.95, hit: 0.4, arc: 0.25, dmg: 1 }, // flat, left to right: a wide arc
-  { name: 'chop', len: 1.3, hit: 0.5, arc: 0.55, dmg: 0 }, // overhead finisher (damage from the axe's finisher)
+// Swinging: three-move combos. Swinging again soon after a swing ends moves on to the next move;
+// waiting starts over. Each combo is a random pick from a few strings of moves (never the same one
+// twice in a row), and its third move is the finisher (the axe's finisher damage, bigger shake,
+// Earthsplitter). Each move has its own length, the moment it lands, its arc (cosine of the half
+// angle it reaches; -1 is all the way round), how many it can hit and its damage.
+const AXE_SET = {
+  slash: { name: 'slash', len: 1.0, hit: 0.42, arc: 0.45, multi: 1, dmg: 1 }, // diagonal cut
+  backhand: { name: 'backhand', len: 0.95, hit: 0.42, arc: 0.2, multi: 2, dmg: 1 }, // the swing back: a wide arc, through two
+  spin: { name: 'spin', len: 1.15, hit: 0.52, arc: -1, multi: 99, dmg: 0.85, reach: 0.9 }, // a full turn: everyone around
+  chop: { name: 'chop', len: 1.25, hit: 0.5, arc: 0.55, multi: 1, dmg: 1.15 }, // straight down, overhead
+  leap: { name: 'leap', len: 1.3, hit: 0.55, arc: 0.4, multi: 3, dmg: 1.15, lunge: 7.5, quakeR: 2.6 }, // a jump forward into a chop
+};
+const AXE_COMBOS = [
+  ['slash', 'backhand', 'chop'], ['backhand', 'slash', 'spin'], ['slash', 'spin', 'leap'],
+  ['backhand', 'chop', 'spin'], ['spin', 'slash', 'leap'], ['slash', 'backhand', 'leap'],
 ];
+const axeMove = (step = player.combo || 0) => AXE_SET[(player.comboSeq || AXE_COMBOS[0])[step]];
+// kept for code that names the moves in order
+const AXE_COMBO = { get length() { return 3; } };
 const COMBO_WINDOW = 0.65; // seconds after a swing ends to chain the next
 function meleeSwing() {
   const g = player.gun();
   if (!g || !g.melee) return false;
   if (!g || player.meleeCd > 0 || player.kickT > 0 || !player.alive || player.downed || game.mode === 'hub') return false;
   const chained = player.comboT > -COMBO_WINDOW && player.meleeT <= 0;
-  player.combo = chained ? ((player.combo || 0) + 1) % AXE_COMBO.length : 0;
-  const M = AXE_COMBO[player.combo];
+  player.combo = chained ? ((player.combo || 0) + 1) % 3 : 0;
+  if (player.combo === 0) {
+    const last = player.comboSeq;
+    do player.comboSeq = pick(AXE_COMBOS); while (player.comboSeq === last);
+  }
+  const M = axeMove();
+  // the leap: a hop forward toward where you aim
+  if (M.lunge && player.grounded) {
+    camBasis();
+    player.vel.x += _fwd.x * M.lunge; player.vel.z += _fwd.z * M.lunge; player.vel.y = 5.2; player.grounded = false;
+  }
   const dur = clamp(0.62 / g.rate * 1.35, 0.32, 0.6) * M.len;
   player.meleeCd = dur * 0.92;
   player.meleeT = player.meleeDur = dur;
@@ -198,8 +219,8 @@ function meleeSwing() {
   return true;
 }
 function resolveMeleeHit() {
-  const g = axeOf(), M = AXE_COMBO[player.combo || 0];
-  const finisher = M.name === 'chop';
+  const g = axeOf(), M = axeMove();
+  const finisher = (player.combo || 0) === 2;
   camBasis();
   _fwd.y = 0; _fwd.normalize(); // swings and kicks sweep level
   const c = new THREE.Vector3(), hits = [];
@@ -208,14 +229,22 @@ function resolveMeleeHit() {
     enemyCenter(e, c);
     const d = c.clone().sub(aimEye()); d.y *= 0.3;
     const dist = d.length();
-    if (dist > g.reach + e.radius) continue;
-    if (d.normalize().dot(_fwd) < (g.cleave ? Math.min(0.2, M.arc) : M.arc)) continue;
+    if (dist > g.reach * (M.reach || 1) + e.radius) continue;
+    if (M.arc > -1 && d.normalize().dot(_fwd) < (g.cleave ? Math.min(0.2, M.arc) : M.arc)) continue;
     hits.push([dist, e]);
   }
   hits.sort((a, b) => a[0] - b[0]);
-  // the backhand sweeps through two; Cleave hits everything in the arc
-  const targets = g.cleave ? hits : hits.slice(0, M.name === 'backhand' ? 2 : 1);
-  for (const [, e] of targets) axeHit(e, g, finisher ? g.finisher : M.dmg, finisher ? 14 : 9);
+  // the backhand sweeps through two, the spin through everyone; Cleave hits everything in the arc
+  const targets = g.cleave ? hits : hits.slice(0, M.multi);
+  for (const [, e] of targets) axeHit(e, g, M.dmg * (finisher ? g.finisher : 1), finisher ? 14 : 9);
+  // the leap lands with a small shockwave
+  if (M.quakeR) {
+    const at = player.pos.clone().addScaledVector(_fwd, 1.2); at.y = groundAt(at.x, at.z);
+    ringFx(at, M.quakeR, 0xc9a070, 0.35);
+    burst(at.clone().setY(at.y + 0.2), 0xc9a070, 12, 5, 0.12, 0.5, 0.5);
+    for (const e of enemies) if (e.alive && !targets.some(([, t]) => t === e) && e.pos.distanceTo(at) < M.quakeR) { axeHit(e, g, 0.4, 10); e.flinchT = Math.max(e.flinchT, 0.5); }
+    game.shake(0.3);
+  }
   // Earthsplitter: the chop's shockwave
   if (finisher && g.quake) {
     const at = player.pos.clone().addScaledVector(_fwd.clone().setY(0).normalize(), 1.8);

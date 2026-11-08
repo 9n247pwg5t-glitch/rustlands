@@ -130,16 +130,21 @@ function tdAim(dt) {
 }
 
 // ---------------------------------------------------------------------------
-// The player's body: the uploaded character (the same model the first-person arms used), with the
+// The player's body: the uploaded character (models/player-body, the full model with pants, hair and
+// beard; the first-person arms model left those out), with the
 // rifle and the axe in the right hand, animated with the shared clips.
 const GAIT_PLAYER_AXE = { fwd: [['Walk Forward rifle', 1.25], ['Unarmed Run Forward 2', 1.6]], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.8], idle: 'Unarmed Idle' };
 // Each combo move plays one of the enemy axe clips, timed so its blow lands when the swing does.
+// (The three uploaded axe clips give five moves: each half of the two-blow combo clip, the spin,
+// and the overhead chop, standing or leaping.)
 const TD_SWINGS = {
   slash: { clip: 'Standing Melee Combo Attack Ver. 3', start: 0.3, hit: 1.03, end: 1.35, trail: [[0.86, 1.14]] },
-  backhand: { clip: 'Standing Melee Attack 360 High', start: 0.3, hit: 1.08, end: 1.5, trail: [[0.82, 1.32]] },
+  backhand: { clip: 'Standing Melee Combo Attack Ver. 3', start: 1.3, hit: 1.78, end: 2.25, trail: [[1.58, 1.95]] },
+  spin: { clip: 'Standing Melee Attack 360 High', start: 0.3, hit: 1.08, end: 1.6, trail: [[0.7, 1.35]] },
   chop: { clip: 'Standing Melee Attack Downward', start: 0.2, hit: 0.84, end: 1.3, trail: [[0.58, 0.98]] },
+  leap: { clip: 'Standing Melee Attack Downward', start: 0.1, hit: 0.84, end: 1.35, trail: [[0.5, 1.0]] },
 };
-RIG_LOOKS.player = { bases: ['fp'] };
+RIG_LOOKS.player = { bases: ['player'] };
 function buildPlayerBody() {
   if (TD.body || !RIG.base[RIG_LOOKS.player.bases[0]]) return;
   const { root, rig } = makeRigEnemy('player', {});
@@ -183,7 +188,7 @@ function updatePlayerBody(dt) {
   pe.flinchT = Math.max(0, pe.flinchT - dt);
   // a new axe swing: play its clip
   if (player.meleeT > B.meleeT + 1e-4) {
-    const S = TD_SWINGS[AXE_COMBO[player.combo || 0].name];
+    const S = TD_SWINGS[axeMove().name];
     pe.state = 'swing';
     pe.atk = { clip: S.clip, start: S.start, hits: [S.hit], end: S.end, trail: S.trail };
     rigOnce(R, S.clip, (S.hit - S.start) / Math.max(0.05, player.meleeHitT), S.start, S.end, 0.06);
@@ -201,4 +206,37 @@ function updatePlayerBody(dt) {
   pe.reloadT = B.reloading ? 1 : 0;
   animateRig(pe, dt);
   if (player.downed) B.root.rotation.x = -0.5; // slumped
+  updateBlobShadows();
+}
+
+// ---------------------------------------------------------------------------
+// Blob shadows (phones, which have no shadow maps): a soft dark disc under the player and every
+// enemy, one instanced draw.
+const BLOBS = (() => {
+  if (!IS_TOUCH) return null;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 4, 32, 32, 31);
+  gr.addColorStop(0, 'rgba(20,10,30,0.55)'); gr.addColorStop(0.6, 'rgba(20,10,30,0.35)'); gr.addColorStop(1, 'rgba(20,10,30,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const m = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), 48);
+  m.frustumCulled = false; m.renderOrder = 1; m.count = 0;
+  scene.add(m);
+  return m;
+})();
+const _blobM = new THREE.Matrix4(), _blobP = new THREE.Vector3(), _blobS = new THREE.Vector3(), _blobQ = new THREE.Quaternion();
+function updateBlobShadows() {
+  if (!BLOBS) return;
+  let n = 0;
+  const put = (pos, r) => {
+    if (n >= 48) return;
+    _blobP.set(pos.x, groundAt(pos.x, pos.z) + 0.04, pos.z);
+    const lift = Math.max(0, pos.y - _blobP.y); // smaller when in the air
+    _blobS.set(r, 1, r).multiplyScalar(clamp(1 - lift * 0.25, 0.4, 1));
+    BLOBS.setMatrixAt(n++, _blobM.compose(_blobP, _blobQ, _blobS));
+  };
+  if (TD.body && TD.body.root.visible) put(player.pos, 1.1);
+  for (const e of enemies) if (e.alive) put(e.pos, 1.1 * e.def.scale);
+  BLOBS.count = n;
+  BLOBS.instanceMatrix.needsUpdate = true;
 }

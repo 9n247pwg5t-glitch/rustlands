@@ -20,7 +20,9 @@ and Playwright (for the browser step).
    texture files. The weapons use `30000 --meshopt 1`.
 4. Add the file to `RIG_FILES` in `js/rigs.js` and use it in `RIG_LOOKS`.
 
-For the top-down view the axe and the player's rifle use lower-detail copies: copy `models/gun-axe.json`
+For the top-down view every character and weapon uses a lower-detail copy (`-td`): enemies with
+`7000 --tex 512`, the player body (`models/player-body`, from the original First person player upload
+with its pants, hair and beard) with `12000 --tex 1024`, guns with `1500`. For example the axe and the player's rifle: copy `models/gun-axe.json`
 and `models/player-ar.json` into a folder as `gun-axe-td.gltf` and `player-ar-td.gltf`, then
 `node optimize.mjs <that folder> ../models 2500 --meshopt 1` (it also reads .gltf, including meshopt-packed input).
 

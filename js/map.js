@@ -161,6 +161,7 @@ async function buildStageMap(data, gltf) {
   worlds.arena.fog = new THREE.Fog(FOG_COLOR, IS_TOUCH ? 50 : 70, IS_TOUCH ? 135 : 200);
   if (WORLD.id === 'arena') scene.fog = worlds.arena.fog;
   MAP.ready = true;
+  buildBlood(); // js/blood.js
   if (typeof campaign !== 'undefined') campaign.previewUrl = null; // re-render the stage card picture
 }
 

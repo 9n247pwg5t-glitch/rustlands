@@ -5,8 +5,10 @@
 const renderer = new THREE.WebGLRenderer({ antialias: !IS_TOUCH, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, IS_TOUCH ? 1.3 : 1.75));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
+// Phones get no shadow maps (they'd draw every character twice); characters there stand on cartoon
+// blob shadows instead (js/topdown.js).
+renderer.shadowMap.enabled = !IS_TOUCH;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.autoClear = false;
 document.getElementById('game').appendChild(renderer.domElement);
 
@@ -61,10 +63,10 @@ scene.add(sky);
 
 // ---------------------------------------------------------------------------
 // Lights
-const hemi = new THREE.HemisphereLight(0xcfe8ff, 0xb06a3c, 0.6);
+const hemi = new THREE.HemisphereLight(0xdcefff, 0xc08a5c, 0.75); // brighter, softer fill for the cartoon look
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff0d8, 1.0);
-sun.castShadow = true;
+sun.castShadow = !IS_TOUCH;
 sun.shadow.mapSize.set(IS_TOUCH ? 1024 : 2048, IS_TOUCH ? 1024 : 2048);
 const SC = 45;
 Object.assign(sun.shadow.camera, { left: -SC, right: SC, top: SC, bottom: -SC, near: 1, far: 160 });
@@ -87,12 +89,28 @@ function flashAt(pos, color, intensity, range, dur) {
 
 // ---------------------------------------------------------------------------
 // Cel-shaded materials and comic outlines (inverted hull)
-const gradTex = (() => {
-  const d = new Uint8Array([70, 70, 70, 255, 150, 150, 150, 255, 255, 255, 255, 255]);
-  const t = new THREE.DataTexture(d, 3, 1, THREE.RGBAFormat);
-  t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
+// Cartoon style (decisions.md 2026-11-08), not cel shading: light falls off smoothly and the dark
+// side stays bright and colourful (a soft ramp instead of hard bands), there are no ink outlines,
+// and every built-in material's final colour gets a saturation and brightness lift (below).
+const INK = false;
+function softRamp(floor) {
+  const n = 64, d = new Uint8Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    const x = i / (n - 1), s = x * x * (3 - 2 * x);
+    const v = Math.round(255 * (floor + (1 - floor) * Math.pow(s, 0.8)));
+    d.set([v, v, v, 255], i * 4);
+  }
+  const t = new THREE.DataTexture(d, n, 1, THREE.RGBAFormat);
+  t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true;
   return t;
-})();
+}
+const gradTex = softRamp(0.48);
+// the colour lift, at the end of every built-in material's fragment shader
+THREE.ShaderChunk.dithering_fragment = `{
+  float cartoonL = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
+  gl_FragColor.rgb = max(mix(vec3(cartoonL), gl_FragColor.rgb, 1.28), 0.0) * 1.04;
+}
+` + THREE.ShaderChunk.dithering_fragment;
 // Top-down cutaway: world materials hide everything above the player's head within a radius of
 // them (roofs, the canopy, ceilings, treetops), so the overhead camera can always see the player.
 // CUT = (x, height, z, radius); js/topdown.js moves it every frame; height 1e6 turns it off.
@@ -149,7 +167,7 @@ function box(w, h, d, color, x = 0, y = 0, z = 0, parent = null, ol = 0.04, mat 
   const m = new THREE.Mesh(g, mat || toon(color));
   m.position.set(x, y, z);
   m.castShadow = true; m.receiveShadow = true;
-  if (ol > 0) {
+  if (ol > 0 && INK) {
     const o = new THREE.Mesh(g, OUTLINE_MAT);
     o.scale.set((w + ol * 2) / w, (h + ol * 2) / h, (d + ol * 2) / d);
     m.add(o);
@@ -162,7 +180,7 @@ function cyl(rt, rb, h, color, x = 0, y = 0, z = 0, parent = null, ol = 0.04, se
   const m = new THREE.Mesh(g, mat || toon(color));
   m.position.set(x, y, z);
   m.castShadow = true; m.receiveShadow = true;
-  if (ol > 0) {
+  if (ol > 0 && INK) {
     const r = Math.max(rt, rb);
     const o = new THREE.Mesh(g, OUTLINE_MAT);
     o.scale.set((r + ol) / r, (h + ol * 2) / h, (r + ol) / r);
@@ -172,6 +190,7 @@ function cyl(rt, rb, h, color, x = 0, y = 0, z = 0, parent = null, ol = 0.04, se
   return m;
 }
 function addOutline(mesh, scale) {
+  if (!INK) return null; // cartoon style: no ink outlines
   const o = new THREE.Mesh(mesh.geometry, OUTLINE_MAT);
   o.scale.setScalar(scale);
   mesh.add(o);
@@ -472,7 +491,7 @@ function collideBody(p, radius, height, vy = 0) {
 // Effects
 const fx = { particles: [], tracers: [], blasts: [], debris: [], rings: [] };
 const PGEO = new THREE.BoxGeometry(1, 1, 1);
-const MAX_PARTICLES = IS_TOUCH ? 220 : 420;
+const MAX_PARTICLES = IS_TOUCH ? 140 : 420; // each particle is a draw call
 
 function particle(pos, vel, color, size, life, grav = 1, additive = false) {
   let p;
@@ -641,7 +660,10 @@ let NAV_CELL = 1, NAV_N = 2, NAV_X0 = -1, NAV_Z0 = -1;
 let navBlocked = new Uint8Array(4), navDist = new Float32Array(4).fill(Infinity);
 let _heapIdx = new Int32Array(16), _heapKey = new Float32Array(16);
 let _aG = new Float32Array(4), _aFrom = new Int32Array(4), _aSeen = new Uint32Array(4);
-const NAV_REACH = 110; // the flow field spreads this far (m) from the target; beyond it enemies head straight in
+// The flow field covers the whole map. Recomputing it is spread over several frames (NAV_BUDGET
+// cells a frame) into a second buffer, then swapped in, so a big map never stalls a frame.
+const NAV_REACH = Infinity, NAV_BUDGET = IS_TOUCH ? 9000 : 16000;
+let navNext = new Float32Array(4), _dHeapIdx = new Int32Array(16), _dHeapKey = new Float32Array(16), navJob = null;
 const navCellOf = (x, z) => {
   const ix = Math.floor((x - NAV_X0) / NAV_CELL), iz = Math.floor((z - NAV_Z0) / NAV_CELL);
   return ix < 0 || iz < 0 || ix >= NAV_N || iz >= NAV_N ? -1 : iz * NAV_N + ix;
@@ -654,6 +676,7 @@ function navInit(n, cell, x0, z0, bits) {
   navBlocked = new Uint8Array(n * n); navDist = new Float32Array(n * n).fill(Infinity);
   _heapIdx = new Int32Array(n * n * 4); _heapKey = new Float32Array(n * n * 4);
   _aG = new Float32Array(n * n); _aFrom = new Int32Array(n * n); _aSeen = new Uint32Array(n * n);
+  navNext = new Float32Array(n * n).fill(Infinity); _dHeapIdx = new Int32Array(n * n * 4); _dHeapKey = new Float32Array(n * n * 4); navJob = null;
   for (let i = 0; i < n * n; i++) navBlocked[i] = (bits[i >> 3] >> (i & 7)) & 1;
   navTargetCell = -2; navAge = 99;
 }
@@ -662,9 +685,11 @@ function navInit(n, cell, x0, z0, bits) {
 let navTargetCell = -2, navAge = 99;
 function navUpdate(target, dt) {
   navAge += dt;
+  if (navJob) { navStep(NAV_BUDGET); return; }
   let tc = navCellOf(target.x, target.z);
-  if (tc === navTargetCell && navAge < 1.5) return;
+  if (tc === navTargetCell && navAge < 1.0) return;
   if (tc < 0) return;
+  if (tc !== navTargetCell && navAge < 0.35) return; // at most a few recomputes a second
   if (navBlocked[tc]) {
     // standing on a roof or crate: route enemies to the nearest open cell
     let best = -1, bd = Infinity;
@@ -677,33 +702,39 @@ function navUpdate(target, dt) {
     tc = best;
   }
   navTargetCell = navCellOf(target.x, target.z); navAge = 0;
-  navDist.fill(Infinity);
-  let n = 0;
+  navNext.fill(Infinity);
+  navNext[tc] = 0;
+  _dHeapKey[0] = 0; _dHeapIdx[0] = tc;
+  navJob = { n: 1 };
+  navStep(NAV_BUDGET);
+}
+// Dijkstra over the grid with a binary heap, `budget` cells at a time; swaps the field in when done.
+function navStep(budget) {
+  const J = navJob, D = navNext, HK = _dHeapKey, HI = _dHeapIdx;
+  let n = J.n;
   const push = (i, k) => {
     let p = n++;
-    while (p > 0) { const q = (p - 1) >> 1; if (_heapKey[q] <= k) break; _heapKey[p] = _heapKey[q]; _heapIdx[p] = _heapIdx[q]; p = q; }
-    _heapKey[p] = k; _heapIdx[p] = i;
+    while (p > 0) { const q = (p - 1) >> 1; if (HK[q] <= k) break; HK[p] = HK[q]; HI[p] = HI[q]; p = q; }
+    HK[p] = k; HI[p] = i;
   };
   const pop = () => {
-    const top = _heapIdx[0];
-    const lk = _heapKey[--n], li = _heapIdx[n];
+    const top = HI[0];
+    const lk = HK[--n], li = HI[n];
     let p = 0;
     for (;;) {
       let c = p * 2 + 1;
       if (c >= n) break;
-      if (c + 1 < n && _heapKey[c + 1] < _heapKey[c]) c++;
-      if (_heapKey[c] >= lk) break;
-      _heapKey[p] = _heapKey[c]; _heapIdx[p] = _heapIdx[c]; p = c;
+      if (c + 1 < n && HK[c + 1] < HK[c]) c++;
+      if (HK[c] >= lk) break;
+      HK[p] = HK[c]; HI[p] = HI[c]; p = c;
     }
-    _heapKey[p] = lk; _heapIdx[p] = li;
+    HK[p] = lk; HI[p] = li;
     return top;
   };
-  navDist[tc] = 0; push(tc, 0);
-  while (n > 0) {
-    const k0 = _heapKey[0];
+  while (n > 0 && budget-- > 0) {
+    const k0 = HK[0];
     const i = pop();
-    if (k0 > navDist[i]) continue;
-    if (k0 > NAV_REACH) break;
+    if (k0 > D[i]) continue;
     const x = i % NAV_N, z = (i - x) / NAV_N;
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
       if (!dx && !dz) continue;
@@ -713,9 +744,11 @@ function navUpdate(target, dt) {
       if (navBlocked[j]) continue;
       if (dx && dz && (navBlocked[z * NAV_N + nx] || navBlocked[nz * NAV_N + x])) continue; // no corner cutting
       const nd = k0 + (dx && dz ? 1.4142 : 1);
-      if (nd < navDist[j] && n < _heapIdx.length) { navDist[j] = nd; push(j, nd); }
+      if (nd < D[j] && n < HI.length) { D[j] = nd; push(j, nd); }
     }
   }
+  J.n = n;
+  if (n === 0) { navNext = navDist; navDist = D; navJob = null; }
 }
 
 // Direction (unit XZ vector written into out) along the flow field, or false.

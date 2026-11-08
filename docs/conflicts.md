@@ -39,9 +39,13 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
 - **The gas station map's names.** Its node names (`GasStation_*`, `Clown_Carnival`, `Farm`...)
   are the file's own labels, not approved place names; the stage card calls it "Roadside gas
   station · placeholder".
-- **Map performance is unproven on the target phone.** On phones the map draws about 250 draw calls
-  and 150k triangles a frame with no map shadows and a shorter view; this needs checking on the
-  actual iPhone.
+- **Performance is unproven on the target phone.** In a phone-sized emulated view a horde frame
+  draws about 250 draw calls and 300k triangles (lower-detail -td character and weapon models, no
+  shadow maps, at most 24 enemies alive, 6 bodies on the ground); this needs checking on the actual
+  iPhone.
+- **Horde numbers are placeholders.** Wave sizes (12 + 7 per wave, up to 80), the mix (mostly
+  Psychos), pack sizes, the on-screen caps (24 on phones, 34 on desktop) and the weaker Psycho
+  (44 health, 11 damage) are first-pass (`buildWave`, `updateWaves` in `js/main.js`).
 - **Objectives are wave-based only.** The bible imagines explorable zones with branching paths,
   optional discoveries and a culminating objective; stage objectives are just "clear N waves" so far.
 - **Placeholder progression numbers.** Stage rewards (first clear: $300 × level scale and 60% of a
@@ -58,6 +62,8 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
   top-down; the bible's "first-person combat" (§6.1) and "two-thumb FPS" layout (§10) are
   superseded there. Camera height, angle and lead, the roof/treetop cutaway radius (`TD_VIEW` in
   `js/topdown.js`) and the auto-aim (lock range and cone) are first-pass values.
+- **Unused files.** The full-detail character and weapon models (`models/*.json` without `-td`, and
+  `fp-arms`) are no longer loaded.
 - **Leftover first-person code.** `js/fparms.js` (first-person arms) and the viewmodel code in
   `js/player.js` are no longer used and could be removed.
 

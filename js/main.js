@@ -39,13 +39,53 @@ const game = {
 function buildWave(w) {
   const list = [];
   const boss = w % 5 === 0;
-  const n = Math.min(Math.round((6 + Math.floor(w * 2.2)) * DIFFICULTY.waveSize), 40);
-  const pool = [['bandit', 10], ['psycho', 7], ['marauder', w >= 3 ? 5 : 0], ['suicide', w >= 4 ? 3 : 0]].filter((p) => p[1] > 0);
+  // hordes (decisions.md 2026-11-08): big waves, mostly axe-wielding rushers, a few gunners behind
+  const n = Math.min(Math.round((12 + w * 7) * DIFFICULTY.waveSize), 80);
+  const pool = [['psycho', 12], ['bandit', 2.5], ['suicide', w >= 2 ? 2.5 : 0], ['marauder', w >= 3 ? 1.2 : 0]].filter((p) => p[1] > 0);
   for (let i = 0; i < (boss ? Math.floor(n * 0.5) : n); i++) list.push(weighted(pool));
   const badass = w >= 3 ? 1 + Math.floor((w - 3) / 3) : 0;
   for (let i = 0; i < (boss ? Math.floor(badass / 2) : badass); i++) list.splice(randi(2, list.length), 0, 'nomad');
   if (boss) list.splice(Math.min(3, list.length), 0, 'boss');
   return list;
+}
+// Where a pack comes in: open ground the enemies can walk from (on the flow field), off screen but
+// close (20-36 m), in a random direction; else the map's reachable spawn points.
+const _hv = new THREE.Vector3();
+function offScreen(x, y, z) { _hv.set(x, y + 1, z).project(camera); return _hv.z > 1 || Math.abs(_hv.x) > 1.08 || Math.abs(_hv.y) > 1.08; }
+function hordeSpawnPoint() {
+  for (let k = 0; k < 40; k++) {
+    const a = rand(0, TAU), d = rand(20, 36) + k * 0.3;
+    const x = player.pos.x + Math.cos(a) * d, z = player.pos.z + Math.sin(a) * d;
+    if (!inBounds(x, z, 3) || !navWalkable(x, z)) continue;
+    const c = navCellOf(x, z), nd = navDist[c];
+    if (!(nd < d * 2.2 + 10) && !(k > 25 && nd < Infinity)) continue; // a reasonable walk in
+    const y = groundAt(x, z);
+    if (!offScreen(x, y, z)) continue;
+    return new THREE.Vector3(x, y, z);
+  }
+  const ok = spawnPoints.filter((g) => navWalkable(g.x, g.z) && navDist[navCellOf(g.x, g.z)] < Infinity);
+  const list = ok.length ? ok : spawnPoints;
+  return list.slice().sort((a, b) => a.distanceTo(player.pos) - b.distanceTo(player.pos))[Math.min(1, list.length - 1)].clone();
+}
+// Anyone who stops getting closer for a while (stuck on the map, or a gunner far off) and isn't on
+// screen is moved to a fresh spot near the player, so waves always end.
+function unstickEnemies(dt) {
+  for (const e of enemies) {
+    if (!e.alive || e.def.boss) continue;
+    const d = Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z);
+    const s = e.stuck || (e.stuck = { t: 0, best: d, check: 1 });
+    s.check -= dt;
+    if (s.check > 0) continue;
+    s.check = 1;
+    const far = e.def.ai === 'ranged' ? d > 40 : d > 6;
+    if (far && d > s.best - 1) s.t += 1; else { s.t = 0; s.best = Math.min(s.best, d); }
+    if (d < s.best) s.best = d;
+    if (s.t >= (e.def.ai === 'ranged' ? 8 : 4) && offScreen(e.pos.x, e.pos.y, e.pos.z)) {
+      const p = hordeSpawnPoint();
+      e.pos.copy(p); e.vel.set(0, 0, 0); e.path = null; e.spot = null; e.state = 'move';
+      s.t = 0; s.best = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
+    }
+  }
 }
 function startWave() {
   game.wave++;
@@ -55,7 +95,8 @@ function startWave() {
   game.waveTotal = game.toSpawn.length; game.waveKilled = 0;
   game.spawnT = 1;
   SFX.wave();
-  hud.banner(game.waveLabel(), game.wave % 5 === 0 ? 'Krag the Scrapjaw has entered the arena' : game.waveTotal + ' enemies incoming');
+  game.pack = null;
+  hud.banner(game.waveLabel(), game.wave % 5 === 0 ? 'Krag the Scrapjaw has entered the arena' : 'A horde of ' + game.waveTotal + ' incoming');
 }
 function endWave() {
   spawnChest(game.wave % 5 === 0);
@@ -78,20 +119,21 @@ function updateWaves(dt) {
   }
   const alive = enemies.filter((e) => e.alive).length;
   game.spawnT -= dt;
-  const maxAlive = Math.min(7 + game.wave + DIFFICULTY.maxAlive, 18);
+  // how many at once: phones draw fewer
+  const maxAlive = IS_TOUCH ? Math.min(14 + game.wave * 2, 24) : Math.min(18 + game.wave * 3, 34);
   if (game.toSpawn.length && game.spawnT <= 0 && alive < maxAlive) {
-    game.spawnT = rand(0.4, 1.0);
+    // they come in packs, each pack from one spot just off screen
+    if (!game.pack || game.pack.left <= 0) game.pack = { at: hordeSpawnPoint(), left: randi(3, 7) };
+    game.pack.left--;
+    game.spawnT = game.pack.left > 0 ? rand(0.1, 0.28) : rand(1.0, 2.2);
     const key = game.toSpawn.shift();
-    // the map's enemy spawn points that are out of sight range but not too far to walk in from
-    const byDist = spawnPoints.slice().sort((a, b) => a.distanceTo(player.pos) - b.distanceTo(player.pos));
-    const gates = byDist.filter((g) => { const d = g.distanceTo(player.pos); return d > 26 && d < 85; });
-    const gate = gates.length ? pick(gates) : byDist.find((g) => g.distanceTo(player.pos) > 26) || byDist[byDist.length - 1];
-    const p = gate.clone();
-    for (let k = 0; k < 8; k++) { const x = gate.x + rand(-2.5, 2.5), z = gate.z + rand(-2.5, 2.5); if (navWalkable(x, z)) { p.set(x, 0, z); break; } }
+    const a = game.pack.at, p = a.clone();
+    for (let k = 0; k < 8; k++) { const x = a.x + rand(-2.5, 2.5), z = a.z + rand(-2.5, 2.5); if (navWalkable(x, z)) { p.set(x, 0, z); break; } }
     p.y = groundAt(p.x, p.z);
     const lvl = game.enemyLevel + (key === 'boss' ? 1 : 0);
     spawnEnemy(key, lvl, p);
   }
+  unstickEnemies(dt);
   // purge dead
   for (let i = enemies.length - 1; i >= 0; i--) if (!enemies[i].alive) enemies.splice(i, 1);
   if (!game.toSpawn.length && enemies.length === 0) endWave();
@@ -504,7 +546,7 @@ function updateWheelButton() {
   $('kickBtn').classList.toggle('cool', player.kickCd > 0);
   const label = g.melee ? 'SWING' : 'FIRE';
   if ($('fireLabel').textContent !== label) $('fireLabel').textContent = label;
-  const hint = g.melee ? AXE_COMBO[player.meleeT > 0 || player.comboT > -COMBO_WINDOW ? (player.combo + 1) % 3 : 0].name : 'auto-aim';
+  const hint = g.melee ? (player.meleeT > 0 || player.comboT > -COMBO_WINDOW ? axeMove((player.combo + 1) % 3).name : 'combo') : 'auto-aim';
   if ($('fireHint').textContent !== hint) $('fireHint').textContent = hint;
 }
 function openWheel() { /* no weapon wheel: the axe is the only weapon */ }

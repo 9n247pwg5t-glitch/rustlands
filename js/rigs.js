@@ -22,15 +22,17 @@ const RIG_ATTACKS = [
 // The leap slam (js/enemies.js): the overhead chop, timed so the blow lands as the jump does.
 const RIG_LEAP = { clip: 'Standing Melee Attack Downward', axe: true, start: 0.3, hits: [0.84], end: 1.6, dmg: [1.6], trail: [[0.55, 1.0]] };
 
-// The uploaded characters: game name -> model file.
+// The uploaded characters: game name -> model file. These are the lower-detail copies (-td: ~7-10k
+// vertices, 512 px textures, made with tools/optimize.mjs) since the top-down view shows them small
+// and hordes put many on screen at once.
 const RIG_FILES = {
-  psycho1: 'strung-out-clown', // the strung-out clown
-  ugly: 'burnt-clown', // the burnt clown
-  female: 'psycho-clown-showgirl', // the psycho clown showgirl
-  heavy: 'male-psychosis-top-heavy',
-  gangster: 'gangster-clown',
-  brute: 'brute',
-  fp: 'fp-arms', // the player's own first-person arms (js/fparms.js), not an enemy body
+  psycho1: 'strung-out-clown-td', // the strung-out clown
+  ugly: 'burnt-clown-td', // the burnt clown
+  female: 'psycho-clown-showgirl-td', // the psycho clown showgirl
+  heavy: 'male-psychosis-top-heavy-td',
+  gangster: 'gangster-clown-td',
+  brute: 'brute-td',
+  player: 'player-body', // the player's own body (js/topdown.js), not an enemy body
 };
 // Per enemy type: which bodies, and the gear pinned to the bones. The characters are shown as
 // authored; `cloth` (optional) would dye the dark parts of their clothes.
@@ -45,9 +47,9 @@ const RIG_LOOKS = {
 
 // Weapon models (glTF as .json, vertex coloured; barrel or blade toward +Z, up +Y, metres). The
 // sockets are where the hand grips it and where shots leave. `size` scales the model in the fist.
-// The axe and the player's rifle use lower-detail copies (-td, made with tools/optimize.mjs) since the
+// All weapons use lower-detail copies (-td, made with tools/optimize.mjs) since the
 // top-down view shows them small; the full models were for first-person close-ups.
-const GUN_FILES = { pistol: 'gun-pistol', rifle: 'gun-rifle', shotgun: 'gun-shotgun', axe: 'gun-axe-td', ringmaster: 'player-ar-td' };
+const GUN_FILES = { pistol: 'gun-pistol-td', rifle: 'gun-rifle-td', shotgun: 'gun-shotgun-td', axe: 'gun-axe-td', ringmaster: 'player-ar-td' };
 const GUN_SOCKETS = {
   pistol: { grip: [0, -0.035, -0.052], muzzle: [0, 0.034, 0.282], size: 0.9 },
   rifle: { grip: [0, -0.03, -0.042], muzzle: [0, 0.046, 0.66], size: 0.8 },
@@ -133,7 +135,7 @@ function loadRigs() {
       try { RIG.base[names[i]] = prepareRigBase(r.value); } catch (e) { console.warn('Enemy model unusable:', RIG_FILES[names[i]], e); }
     });
     // a type whose bodies all failed falls back to any loaded body
-    const loaded = Object.keys(RIG.base).filter((n) => n !== 'fp');
+    const loaded = Object.keys(RIG.base).filter((n) => n !== 'player');
     for (const look of Object.values(RIG_LOOKS)) {
       look.bases = look.bases.filter((b) => RIG.base[b]);
       if (!look.bases.length) look.bases = loaded.slice();
@@ -177,7 +179,7 @@ function prepareRigBase(gltf) {
     mats[m.name] = { map: src.map || null, alpha: src.alphaTest > 0 || src.transparent, id: m.name, vc: !!m.geometry.attributes.color, glow, normal };
     m.frustumCulled = false;
     m.castShadow = true;
-    if (/Eye|Brow|Lash|Mouth|Facial/i.test(m.name)) continue;
+    if (/Eye|Brow|Lash|Mouth|Facial/i.test(m.name) || !INK) continue; // cartoon style: no ink outlines
     const ws = m.getWorldScale(v).x;
     const o = new THREE.SkinnedMesh(m.geometry, rigOutlineMaterial(0.016 / (ws * fit)));
     o.position.copy(m.position); o.quaternion.copy(m.quaternion); o.scale.copy(m.scale);
@@ -231,17 +233,12 @@ function capTexture(tex) {
 // Character and weapon shading on top of the cel bands: four light steps (the world uses three),
 // ink-dark creases wherever the normal map bends the surface away from the mesh (folds, seams,
 // muscle), and a thin rim of light along the silhouette.
-const rigGradTex = (() => {
-  const d = new Uint8Array([64, 64, 64, 255, 118, 118, 118, 255, 178, 178, 178, 255, 255, 255, 255, 255]);
-  const t = new THREE.DataTexture(d, 4, 1, THREE.RGBAFormat);
-  t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
-  return t;
-})();
+const rigGradTex = softRamp(0.5); // cartoon style: smooth soft shading (js/world.js)
 const RIG_DETAIL = `{
     float crease = 1.0 - clamp(dot(normal, geometryNormal), 0.0, 1.0);
     float rim = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
-    outgoingLight *= 1.0 - smoothstep(0.012, 0.09, crease) * 0.4;
-    outgoingLight += diffuseColor.rgb * smoothstep(0.6, 0.78, rim) * 0.32;
+    outgoingLight *= 1.0 - smoothstep(0.02, 0.12, crease) * 0.15;
+    outgoingLight += diffuseColor.rgb * smoothstep(0.55, 0.9, rim) * 0.35; // a soft cartoon rim light
   }
   #include <output_fragment>`;
 function rigDetail(sh) { sh.fragmentShader = sh.fragmentShader.replace('#include <output_fragment>', RIG_DETAIL); }
@@ -497,7 +494,7 @@ function rigGun(kind, left = false) {
   for (const o of meshes) {
     o.material = gunMaterial(o.material, hue);
     o.castShadow = true;
-    o.add(new THREE.Mesh(o.geometry, _gunOutline));
+    if (INK) o.add(new THREE.Mesh(o.geometry, _gunOutline));
   }
   const muzzle = sock.muzzle ? new THREE.Object3D() : null;
   if (muzzle) { muzzle.position.fromArray(sock.muzzle); gun.add(muzzle); }
@@ -540,7 +537,7 @@ function buildModelGun(kind, ol) {
     if (o.material.transparent || o.material.opacity < 1) { o.material = new THREE.MeshBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.16, depthWrite: false }); continue; }
     o.material = gunMaterial(o.material, 0);
     o.castShadow = true;
-    o.add(new THREE.Mesh(o.geometry, outline));
+    if (INK) o.add(new THREE.Mesh(o.geometry, outline));
   }
   const g = new THREE.Group(), w = new THREE.Group();
   g.add(w); w.add(gun);
@@ -1026,19 +1023,23 @@ function rigLocomotion(e, R, dt) {
 
 // Dead enemies keep playing their death clip, then sink into the sand.
 const rigCorpses = [];
+const CORPSE_T = IS_TOUCH ? 2.2 : 3.2; // how long a body lies before sinking away
 function rigDie(e, violent) {
   removeRigTrail(e.rig);
   rigOnce(e.rig, violent ? 'Flying Back Death' : 'Dying', violent ? 1.3 : 1.5, violent ? 0 : 0.2, Infinity, 0.08);
   e.rig.one.keep = true;
   rigCorpses.push({ e, t: 0 });
+  // hordes die fast: keep only the newest few bodies (fewer on phones)
+  const maxC = IS_TOUCH ? 6 : 12;
+  while (rigCorpses.length > maxC) { const c = rigCorpses.shift(); scene.remove(c.e.model.root); }
 }
 function updateRigCorpses(dt) {
   for (let i = rigCorpses.length - 1; i >= 0; i--) {
     const c = rigCorpses[i];
     c.t += dt;
     c.e.rig.mixer.update(dt);
-    if (c.t > 3.2) c.e.model.root.position.y -= dt * 0.9;
-    if (c.t > 4.6) { scene.remove(c.e.model.root); rigCorpses.splice(i, 1); }
+    if (c.t > CORPSE_T) c.e.model.root.position.y -= dt * 0.9;
+    if (c.t > CORPSE_T + 1.4) { scene.remove(c.e.model.root); rigCorpses.splice(i, 1); }
   }
 }
 function clearRigCorpses() {

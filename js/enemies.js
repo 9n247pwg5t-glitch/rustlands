@@ -11,7 +11,7 @@ const DIFFICULTY = {
 const ENEMY_DEFS = {
   bandit: { name: 'Bandit', body: 'human', hp: 52, shield: 0, hpType: 'flesh', speed: 4.4, xp: 10, ai: 'ranged', dmg: 6, burst: 4, burstGap: 0.14, cd: [0.9, 1.7], projSpeed: 80, spread: 0.05, range: [9, 24], scale: 1, look: { shirt: 0xb3753a, pants: 0x4a3b2e, skin: 0xe0a77a, mask: 0xe8e2d0, weapon: 'gun' } },
   marauder: { name: 'Marauder', body: 'human', hp: 58, shield: 45, hpType: 'flesh', speed: 4.2, xp: 16, ai: 'ranged', dmg: 7, burst: 5, burstGap: 0.11, cd: [1.0, 1.8], projSpeed: 88, spread: 0.045, range: [10, 26], scale: 1.05, look: { shirt: 0x3f5b7a, pants: 0x2e2e33, skin: 0xd09a72, mask: 0x30302c, weapon: 'gun', goggles: true } },
-  psycho: { name: 'Psycho', body: 'human', hp: 62, shield: 0, hpType: 'flesh', speed: 7.6, xp: 12, ai: 'melee', dmg: 14, scale: 1, look: { shirt: null, pants: 0x6b2a20, skin: 0xe6b08a, mask: 0xf3efe2, weapon: 'axe', stripes: true } },
+  psycho: { name: 'Psycho', body: 'human', hp: 44, shield: 0, hpType: 'flesh', speed: 7.0, xp: 8, ai: 'melee', dmg: 11, scale: 1, look: { shirt: null, pants: 0x6b2a20, skin: 0xe6b08a, mask: 0xf3efe2, weapon: 'axe', stripes: true } },
   suicide: { name: 'Suicide Psycho', body: 'human', hp: 34, shield: 0, hpType: 'flesh', speed: 8.4, xp: 10, ai: 'suicide', dmg: 36, scale: 0.95, look: { shirt: null, pants: 0x3a3a3a, skin: 0xe6b08a, mask: 0xd13a2a, weapon: 'bomb' } },
   nomad: { name: 'Badass Nomad', body: 'human', hp: 230, shield: 90, hpType: 'armor', speed: 3.3, xp: 70, ai: 'ranged', dmg: 4.5, burst: 10, burstGap: 0.07, cd: [1.2, 1.9], projSpeed: 90, spread: 0.075, range: [6, 18], scale: 1.4, badass: true, look: { shirt: 0x5a4a3a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x222222, weapon: 'gun', armor: true } },
   boss: { name: 'Krag the Scrapjaw', body: 'human', hp: 2600, shield: 900, hpType: 'armor', speed: 3.8, xp: 600, ai: 'boss', dmg: 22, projSpeed: 30, scale: 2.4, boss: true, look: { shirt: 0x6a3a2a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x8a8a8a, weapon: 'hammer', armor: true, jaw: true } },
@@ -109,6 +109,7 @@ function spawnEnemy(key, level, pos) {
     dots: [], dotTick: 0, sinceHit: 99, lastSeenPlayer: 0, flash: 0, yellT: rand(2, 6),
     bossPhase: 0, bossAttackT: 4, summoned: false,
     chase: new THREE.Vector3(), direct: true, directCheck: 0, stuckT: 0, unstickT: 0, unstickDir: new THREE.Vector3(), flinchT: 0,
+    speedK: rand(0.82, 1.1), // a horde doesn't move in lockstep
     engaged: false, waitT: 0, backoffT: 0, orbitAng: null, orbitR: rand(5, 8), orbitDir: Math.random() < 0.5 ? -1 : 1,
     tac: null, tacT: 0, spot: null, prefDist: 0, moveShoot: false, retreatCd: rand(3, 6), noLosT: 0,
     path: null, pathT: 0, pathI: 0, pathGoal: new THREE.Vector3(),
@@ -196,6 +197,11 @@ function damageEnemy(e, amount, elem, opts = {}) {
     p.y += e.height * 0.4;
     hud.damageNumber(p, dealt, opts.dot ? ELEM[elem].css : (opts.crit ? '#ffd23a' : (elem !== 'none' ? E.css : '#ffffff')), opts.crit, shown > 1.2 ? 'up' : shown < 0.85 ? 'down' : '');
   }
+  // wounds bleed onto the ground, and spray a little blood off the body
+  if (!opts.dot && e.shield <= 0 && dealt > 0) {
+    if (Math.random() < 0.45) bloodSplat(e.pos, rand(0.6, 1.1), Math.random() < 0.5 ? 'splat' : 'spatter');
+    burst(enemyCenter(e, _bp2), 0xa0101a, 5, 3.5, 0.08, 0.5);
+  }
   if (opts.fromPlayer) {
     hud.targetHit(e);
     if (player.lifesteal && opts.lifesteal) player.heal(dealt * 0.06);
@@ -211,6 +217,7 @@ function applyDot(e, elem, dps) {
   else e.dots.push({ elem, dps, t: ELEM[elem].dot });
 }
 
+const _bp2 = new THREE.Vector3();
 function killEnemy(e, opts = {}) {
   if (!e.alive) return;
   e.alive = false;
@@ -226,8 +233,13 @@ function killEnemy(e, opts = {}) {
     addDebris(m, v, new THREE.Vector3(rand(-6, 6), 0, rand(-6, 6)), rand(3.5, 5));
   }
   if (!e.rig) scene.remove(e.model.root);
-  burst(center, 0x8a1d1d, violent ? 22 : 10, violent ? 8 : 4, 0.14, 0.9);
+  burst(center, 0x8a1d1d, violent ? 34 : 18, violent ? 8 : 5, 0.14, 0.9);
+  burst(center, 0xc0141a, violent ? 16 : 8, violent ? 6 : 3.5, 0.1, 0.7);
   if (violent) burst(center, 0xefe4cc, 6, 7, 0.12, 1.2);
+  // a pool where they fall and spatter around it
+  bloodSplat(e.pos, violent ? 2.6 : 1.9, 'pool');
+  bloodSplat(e.pos, violent ? 2.2 : 1.4, 'spatter');
+  if (opts.dir) { _bp2.copy(e.pos).addScaledVector(opts.dir, 1.4); bloodSplat(_bp2, 1.3, 'splat'); }
   for (const d of e.dots) if (d.elem === 'fire') burst(center, 0xff8a2a, 8, 4, 0.15, 0.6, -0.3, true);
   SFX.kill();
   if (e.key === 'suicide' && !opts.selfDestruct) explode(center, 5, 30 * e.dmgScale, 'explosive', { hurtsPlayer: true, fromPlayer: true, enemyDmg: true });
@@ -374,6 +386,8 @@ function chaseDir(e, tgt, fwd, side, dt) {
       _k2.set(tgt.pos.x + side.x * o, tgt.pos.y + 0.6, tgt.pos.z + side.z * o);
       if (!lineOfSight(_k1, _k2)) direct = false;
     }
+    // low walls, fences and steep ground don't block sight but do block walking
+    if (direct && !tgt.isTurret && !navLineClear(e.pos, tgt.pos)) direct = false;
     e.direct = direct;
   }
   if (e.direct) return fwd;
@@ -383,13 +397,13 @@ function chaseDir(e, tgt, fwd, side, dt) {
 // ---------------------------------------------------------------------------
 // Tactics. Gunners pick their own firing spot around the player (their preferred range, spread
 // apart, off to the player's sides, near cover), hold it while strafing, move on after a while and
-// fall back to cover to recharge. Melee enemies take turns: a few engage while the rest circle at a
-// distance; after a combo they often back off and let another one in. Only a few gunners fire at once.
+// fall back to cover to recharge. Melee enemies come as a horde: all of them press in at once,
+// surrounding the player. Only a few gunners fire at once.
 const tactics = { shooters: 0, maxShooters: 2, engaged: 0, maxEngaged: 2, movers: 0, maxMovers: 2 };
 function tacticsFrame(dt = 1 / 60) {
   if (tactics.nadeT > 0) tactics.nadeT -= dt;
   tactics.maxShooters = Math.min(7, 4 + Math.floor(game.wave / 2));
-  tactics.maxEngaged = Math.min(5, 3 + Math.floor(game.wave / 4));
+  tactics.maxEngaged = 999; // hordes: every melee enemy comes straight in (no taking turns)
   let shooters = 0, engaged = 0, gunners = 0, movers = 0, slot = 0;
   const waiting = [];
   for (const e of enemies) {
@@ -665,7 +679,7 @@ function afterMeleeAttack(e) {
   // a psycho that drew blood sometimes stops to gloat (an opening for the player)
   if (e.landed && e.rig && Math.random() < 0.3) { e.landed = false; e.state = 'taunt'; e.stateT = rigTaunt(e) * 0.8; e.tauntCd = rand(4, 7); return; }
   e.landed = false;
-  if (Math.random() < 0.3) e.backoffT = rand(0.7, 1.1);
+  if (Math.random() < 0.08) e.backoffT = rand(0.5, 0.8); // rarely: a horde keeps pressing
 }
 
 // The blade glints (a flash of light at the edge) a moment before an axe blow lands.
@@ -881,7 +895,7 @@ function updateEnemy(e, dt) {
   const side = new THREE.Vector3(-fwd.z, 0, fwd.x);
   _want.set(0, 0, 0);
   let face = true;
-  const sp = e.def.speed * (e.dots.some((d) => d.elem === 'shock') ? 0.75 : 1);
+  const sp = e.def.speed * (e.speedK || 1) * (e.dots.some((d) => d.elem === 'shock') ? 0.75 : 1);
   const playerDowned = player.downed && !tgt.isTurret;
   const chase = chaseDir(e, tgt, fwd, side, dt);
 
