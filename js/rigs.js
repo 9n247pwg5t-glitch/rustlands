@@ -729,13 +729,19 @@ function rigAction(R, name) {
   if (!a) { a = R.mixer.clipAction(R.clips[name]); R.actions[name] = a; }
   return a;
 }
+// Fade `a` in and every other playing clip out. (Clips that finished or were dropped mid-way used
+// to stay at full weight underneath and blend into everything after, until a body's moves turned
+// to mush; every clip still sounding is faded, not just the last one.)
+function rigFadeTo(R, a, fade) {
+  for (const o of Object.values(R.actions)) if (o !== a && o.enabled && o.getEffectiveWeight() > 0) o.fadeOut(fade);
+  a.fadeIn(fade);
+}
 function rigLoop(R, name, ts) {
   const a = rigAction(R, name);
   if (R.loop !== a || R.one) {
     a.reset(); a.setLoop(THREE.LoopRepeat, Infinity); a.enabled = true;
     a.play();
-    const from = R.one ? R.one.action : R.loop;
-    if (from && from !== a) a.crossFadeFrom(from, 0.18, false);
+    rigFadeTo(R, a, 0.18);
     R.loop = a; R.one = null;
   }
   a.timeScale = ts;
@@ -743,11 +749,10 @@ function rigLoop(R, name, ts) {
 // Play part of a clip once: from `start` to `end` seconds, at speed `ts`.
 function rigOnce(R, name, ts = 1, start = 0, end = Infinity, fade = 0.12) {
   const a = rigAction(R, name);
-  const from = R.one ? R.one.action : R.loop;
   a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.enabled = true;
   a.time = start; a.timeScale = ts;
   a.play();
-  if (from && from !== a) a.crossFadeFrom(from, fade, false);
+  rigFadeTo(R, a, fade);
   R.one = { action: a, end: Math.min(end, a.getClip().duration) };
   R.loop = null;
   return a;
