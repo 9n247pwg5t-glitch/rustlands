@@ -186,7 +186,7 @@ function sharedMat(m) {
   return s;
 }
 const MAP_INK = addCutaway(new THREE.LineBasicMaterial({ color: 0x1c0e20, transparent: true, opacity: 0.88 }));
-const MAP_NO_SHADOW = /^(Terrain|Road|GasStation_Lot|Bounds_|Blood|Graffiti|Pond$|PowerLines)/;
+const MAP_NO_SHADOW = /^(Terrain|Road|Detail|GasStation_Lot|Bounds_|Blood|Graffiti|Pond$|PowerLines)/; // (Detail: small props, no ink or shadow)
 function mergeStatics(root, group, cache) {
   root.updateMatrixWorld(true);
   const meshes = [];
