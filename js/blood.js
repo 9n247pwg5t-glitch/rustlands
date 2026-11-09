@@ -69,7 +69,7 @@ function buildBlood() {
   BLOOD.wall = { mesh: W, n: 0 };
   BLOOD.ready = true;
   scatterBlood();
-  scatterWallBlood();
+  if (!MAP.noWallBlood) scatterWallBlood();
 }
 
 const _bm = new THREE.Matrix4(), _bq = new THREE.Quaternion(), _bp = new THREE.Vector3(), _bs = new THREE.Vector3(), _bup = new THREE.Vector3(0, 1, 0);
@@ -109,7 +109,7 @@ function scatterBlood() {
       if (rng() < 0.35) put('spatter', x + (rng() - 0.5) * 1.5, z + (rng() - 0.5) * 1.5, 0.6 + rng() * 0.6, rng() * TAU);
     }
   }
-  for (let k = 0; k < BLOOD.staticN * 3; k++) {
+  for (let k = 0; k < BLOOD.staticN * 3 * (MAP.bloodAmount || 1); k++) {
     let r = rng() * total, s = spots[0];
     for (const q of spots) { r -= q[3]; if (r <= 0) { s = q; break; } }
     const a = rng() * TAU, d = Math.sqrt(rng()) * s[2];

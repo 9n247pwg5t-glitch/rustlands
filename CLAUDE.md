@@ -52,8 +52,10 @@ When something is approved, add a dated line to `docs/decisions.md` in the same 
   animated body, and the cutaway (`CUT` in `js/world.js`) that hides geometry above the player's
   head; world materials get it through `addCutaway`. Gameplay aims from `aimEye()` along
   `TD.aimDir` (`camBasis()` returns the aim basis, not the camera's).
-- Stage maps (`js/map.js`): Stage 1's "arena" world is built in code by `js/compound.js` and handed
-  to `applyStage()`. A map can also be an uploaded glTF; convert one with
+- Stage maps (`js/map.js`): Stage 1's "arena" world is the creator's painted overhead picture
+  (`maps/compound-painted.webp`) laid flat with colliders traced in picture pixels (`js/painted.js`,
+  `PM_COLS`); the 3D compound built by `js/compound.js` is the alternative (`PM_USE`). Both hand their
+  data to `applyStage()`. A map can also be an uploaded glTF; convert one with
   `tools/map-optimize.mjs` (rendering) and `tools/map-bake.mjs` (ground, colliders, nav grid,
   spawn/loot markers); see `tools/README.md`. Collider queries go through `colsNear`/`rayWorld`
   (a spatial grid), never a loop over all of `boxCols`.

@@ -17,7 +17,8 @@ const TD = {
 // phones sit closer, so the characters are big enough to read on a small screen
 const TD_VIEW = { height: IS_TOUCH ? 9 : 11, back: IS_TOUCH ? 5.6 : 6.8, fov: 50, chest: 1.35, cutUp: 2.3, cutR: 6 };
 // The angled view: landscape gets the usual height, portrait looks from higher up to see as far sideways.
-const tdHeight = () => TD_VIEW.height * (camera.aspect < 1 ? 1.45 : 1);
+// (a stage map can pull the camera back: the painted map is a picture, sharper seen from further off)
+const tdHeight = () => TD_VIEW.height * (camera.aspect < 1 ? 1.45 : 1) * (WORLD.id === 'arena' && MAP.ready && MAP.camScale || 1);
 
 // Where shots and swings come from: the player's chest.
 const aimEye = (out = new THREE.Vector3()) => out.set(player.pos.x, player.pos.y + TD_VIEW.chest, player.pos.z);

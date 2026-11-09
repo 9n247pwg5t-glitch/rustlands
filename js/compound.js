@@ -398,7 +398,7 @@ function cmpFx(group) {
 // Per frame: flames flicker
 function updateCompound(dt) {
   if (!CMP.flames) return;
-  for (const f of CMP.flames) { f.t += dt * 9; const k = 1 + Math.sin(f.t) * 0.12 + Math.sin(f.t * 2.3) * 0.08; f.sp.scale.set(0.9 * k, 1.4 * (2 - k), 1); }
+  for (const f of CMP.flames) { f.t += dt * 9; const k = 1 + Math.sin(f.t) * 0.12 + Math.sin(f.t * 2.3) * 0.08; f.sp.scale.set((f.w || 0.9) * k, (f.h || 1.4) * (2 - k), 1); }
   updateCompoundDetail(dt);
 }
 
@@ -408,7 +408,9 @@ function buildCompoundStage() {
   cmpFx(fx);
   applyStage(D, root, fx);
 }
-MAP.promise = Promise.resolve().then(() => { try { buildCompoundStage(); } catch (e) { console.warn('Stage map failed to build:', e); MAP.failed = true; } });
+// Stage 1 is the painted map (js/painted.js) unless PM_USE is off.
+MAP.promise = (typeof PM_USE !== 'undefined' && PM_USE ? buildPaintedStage() : Promise.resolve().then(buildCompoundStage))
+  .catch((e) => { console.warn('Stage map failed to build:', e); MAP.failed = true; });
 
 // ---------------------------------------------------------------------------
 // Set dressing (decisions.md 2026-11-09: "as much detail as possible given mobile limitations").
@@ -741,39 +743,8 @@ function cmpDetailFx(group) {
     const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(bc, 3)); bg.computeVertexNormals(); bg.computeBoundingSphere();
     group.add(new THREE.Mesh(bg, addCutaway(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }))));
   }
-  // --- smoke and embers: points whose rise, growth and fade are worked out in the shader
-  const pts = (sources, per, additive, map, tint) => {
-    const P = [], S = [], O = [];
-    for (const [x, y, z, sc] of sources) for (let k = 0; k < per; k++) { P.push(x, y, z); S.push(sc); O.push(k / per + cmpRng() * 0.1); }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('aSize', new THREE.Float32BufferAttribute(S, 1)); g.setAttribute('aOff', new THREE.Float32BufferAttribute(O, 1));
-    g.computeBoundingSphere(); g.boundingSphere.radius += 6;
-    const mat = new THREE.ShaderMaterial({
-      uniforms: { uT: { value: 0 }, uScale: { value: 300 }, uMap: { value: map }, uTint: { value: new THREE.Color(tint) }, uEmber: { value: additive ? 1 : 0 } },
-      vertexShader: `attribute float aSize; attribute float aOff; uniform float uT, uScale, uEmber; varying float vA;
-        void main() { float l = fract(uT * (uEmber > 0.5 ? 0.55 : 0.18) + aOff); vec3 p = position;
-          float sway = sin(uT * 1.3 + aOff * 40.0);
-          p.y += l * (uEmber > 0.5 ? 2.6 : 4.5) * aSize * 2.0; p.x += sway * l * (uEmber > 0.5 ? 0.5 : 1.2); p.z += cos(uT * 0.9 + aOff * 30.0) * l * 0.6;
-          vA = (uEmber > 0.5 ? (1.0 - l) : smoothstep(0.0, 0.15, l) * (1.0 - l)) ;
-          vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv;
-          gl_PointSize = (uEmber > 0.5 ? 0.09 : aSize * (0.8 + l * 2.2)) * uScale / max(0.5, -mv.z); }`,
-      fragmentShader: `uniform sampler2D uMap; uniform vec3 uTint; uniform float uEmber; varying float vA;
-        void main() { vec4 t = texture2D(uMap, gl_PointCoord); if (uEmber > 0.5) { float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(uTint * vA, 1.0) * smoothstep(0.5, 0.1, d); }
-          else gl_FragColor = vec4(uTint, t.a * vA * 0.8); }`,
-      transparent: true, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-    });
-    const o = new THREE.Points(g, mat); o.renderOrder = 3; group.add(o); return mat;
-  };
-  // --- sweeping searchlights: a cone and a pool of light that wander over the yard
-  const swMat = new THREE.MeshBasicMaterial({ color: 0xe8f0ff, transparent: true, opacity: 0.08, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
-  const swPool = new THREE.MeshBasicMaterial({ map: TEX.glow, color: 0xb8c8ff, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending });
-  for (const w of CMP.sweeps || []) {
-    w.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 2.2, 1, 12, 1, true).translate(0, -0.5, 0), swMat); w.beam.position.set(w.x, w.y, w.z); w.beam.frustumCulled = false;
-    w.pool = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), swPool); w.pool.scale.set(6, 1, 6); w.pool.renderOrder = 2; w.pool.frustumCulled = false;
-    group.add(w.beam, w.pool);
-  }
   const fireSrc = CMP.fires.map(([x, z]) => [x, 1.9, z, 0.55]);
-  CMP.smokeFx = [pts(fireSrc.concat(CMP.smoke), IS_TOUCH ? 3 : 5, false, T.smoke, 0x3a3238), pts(CMP.fires.map(([x, z]) => [x, 1.4, z, 0.6]), IS_TOUCH ? 3 : 5, true, T.smoke, 0xff9a3a)];
+  cmpSmokeFx(group, fireSrc.concat(CMP.smoke), CMP.fires.map(([x, z]) => [x, 1.4, z, 0.6]));
 }
 const _swV = new THREE.Vector3(), _swD = new THREE.Vector3(), _swUp = new THREE.Vector3(0, -1, 0);
 function updateCompoundDetail(dt) {
@@ -964,4 +935,41 @@ function cmpFill(H, T, det, dblk, chair) {
   );
   spot(-30, -4, 6, 1.2); spot(27.5, 7.5, 5, 1); spot(-8, -32, 5, 0.9); spot(-43.5, 30, 4, 0.5); spot(46, 22.4, 4, 0.5); spot(-33, 12, 5, 0.4);
   spot(28, -8, 5, 0.4); spot(14, -25, 5, 0.5); spot(-14, -25, 5, 0.5); spot(-38, -30, 6, 0.4); spot(30, 33, 5, 0.4); spot(15, 0, 5, 0.6); spot(-15, 0, 5, 0.6); spot(0, 14, 4, 0.6); spot(0, -14, 4, 0.6);
+}
+
+// Smoke and embers: points whose rise, growth and fade are worked out in the shader (two draws).
+function cmpSmokeFx(group, smokeSrc, emberSrc) {
+  const T = CMP.T;
+  // --- smoke and embers: points whose rise, growth and fade are worked out in the shader
+  const pts = (sources, per, additive, map, tint) => {
+    const P = [], S = [], O = [];
+    for (const [x, y, z, sc] of sources) for (let k = 0; k < per; k++) { P.push(x, y, z); S.push(sc); O.push(k / per + cmpRng() * 0.1); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('aSize', new THREE.Float32BufferAttribute(S, 1)); g.setAttribute('aOff', new THREE.Float32BufferAttribute(O, 1));
+    g.computeBoundingSphere(); g.boundingSphere.radius += 6;
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uT: { value: 0 }, uScale: { value: 300 }, uMap: { value: map }, uTint: { value: new THREE.Color(tint) }, uEmber: { value: additive ? 1 : 0 } },
+      vertexShader: `attribute float aSize; attribute float aOff; uniform float uT, uScale, uEmber; varying float vA;
+        void main() { float l = fract(uT * (uEmber > 0.5 ? 0.55 : 0.18) + aOff); vec3 p = position;
+          float sway = sin(uT * 1.3 + aOff * 40.0);
+          p.y += l * (uEmber > 0.5 ? 2.6 : 4.5) * aSize * 2.0; p.x += sway * l * (uEmber > 0.5 ? 0.5 : 1.2); p.z += cos(uT * 0.9 + aOff * 30.0) * l * 0.6;
+          vA = (uEmber > 0.5 ? (1.0 - l) : smoothstep(0.0, 0.15, l) * (1.0 - l)) ;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_Position = projectionMatrix * mv;
+          gl_PointSize = (uEmber > 0.5 ? 0.09 : aSize * (0.8 + l * 2.2)) * uScale / max(0.5, -mv.z); }`,
+      fragmentShader: `uniform sampler2D uMap; uniform vec3 uTint; uniform float uEmber; varying float vA;
+        void main() { vec4 t = texture2D(uMap, gl_PointCoord); if (uEmber > 0.5) { float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(uTint * vA, 1.0) * smoothstep(0.5, 0.1, d); }
+          else gl_FragColor = vec4(uTint, t.a * vA * 0.8); }`,
+      transparent: true, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    });
+    const o = new THREE.Points(g, mat); o.renderOrder = 3; group.add(o); return mat;
+  };
+  // --- sweeping searchlights: a cone and a pool of light that wander over the yard
+  const swMat = new THREE.MeshBasicMaterial({ color: 0xe8f0ff, transparent: true, opacity: 0.08, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const swPool = new THREE.MeshBasicMaterial({ map: TEX.glow, color: 0xb8c8ff, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending });
+  for (const w of CMP.sweeps || []) {
+    w.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 2.2, 1, 12, 1, true).translate(0, -0.5, 0), swMat); w.beam.position.set(w.x, w.y, w.z); w.beam.frustumCulled = false;
+    w.pool = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), swPool); w.pool.scale.set(6, 1, 6); w.pool.renderOrder = 2; w.pool.frustumCulled = false;
+    group.add(w.beam, w.pool);
+  }
+  CMP.smokeFx = [pts(smokeSrc, IS_TOUCH ? 3 : 5, false, T.smoke, 0x3a3238), pts(emberSrc, IS_TOUCH ? 3 : 5, true, T.smoke, 0xff9a3a)];
 }
