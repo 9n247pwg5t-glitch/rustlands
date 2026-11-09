@@ -389,6 +389,7 @@ function updatePlayer(dt) {
   const stickSprint = Math.hypot(input.touchMove.x, input.touchMove.y) > 0.92;
   const sprint = (k.ShiftLeft || k.ShiftRight || stickSprint) && mag > 0.3 && !player.downed;
   stickBase.classList.toggle('sprint', stickSprint);
+  player.sprinting = sprint;
   let speed = player.downed ? 1.6 : sprint ? 10.5 : 7;
   if (player.adsK > 0.5) speed *= 0.6;
   // top-down: up on the stick (or W) is up the screen, which is always north

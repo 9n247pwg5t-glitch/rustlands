@@ -95,6 +95,9 @@ function tdAim(dt) {
     else want = eye.clone().addScaledVector(_ta, 10);
   } else if (input.fire || player.meleeT > 0 || player.kickT > 0) {
     if (TD.lock) { want = enemyCenter(TD.lock, new THREE.Vector3()); TD.target = TD.lock; }
+  } else if (TD.lock && TD.lock.alive && !player.sprinting && Math.hypot(TD.lock.pos.x - player.pos.x, TD.lock.pos.z - player.pos.z) < 7) {
+    // squared up to a close enemy: keep facing it while moving (backing off runs backwards, sideways sidesteps)
+    want = enemyCenter(TD.lock, new THREE.Vector3());
   } else if (Math.hypot(player.vel.x, player.vel.z) > 1.5) {
     want = eye.clone().add(_ta.set(player.vel.x, 0, player.vel.z).normalize().multiplyScalar(10)); // face where you're going
   }
@@ -134,7 +137,8 @@ function tdAim(dt) {
 // The player's body: the uploaded character (models/player-body, the full model with pants, hair and
 // beard; the first-person arms model left those out), with the
 // rifle and the axe in the right hand, animated with the shared clips.
-const GAIT_PLAYER_AXE = { fwd: [['Walk Forward rifle', 1.25], ['Unarmed Run Forward 2', 1.6]], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.8], idle: 'Unarmed Idle' };
+// the player runs with the uploaded Unarmed Run Forward 3 / Unarmed Run Back clips (2026-11-09)
+const GAIT_PLAYER_AXE = { fwd: [['Unarmed Run Forward 3', 2.4]], back: ['Unarmed Run Back', 2.6], side: ['Goalkeeper Sidestep', 1.8], idle: 'Unarmed Idle' };
 // Each combo move plays one of the enemy axe clips, timed so its blow lands when the swing does.
 // (Each move's clip, and where in it the blow lands, is in AXE_SET in js/arsenal.js.)
 RIG_LOOKS.player = { bases: ['player'] };

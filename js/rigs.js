@@ -120,7 +120,7 @@ function loadRigs() {
   if (window.MeshoptDecoder) loader.setMeshoptDecoder(MeshoptDecoder);
   const get = (f) => new Promise((ok, fail) => loader.load('models/' + f + '.json', ok, undefined, fail));
   // (versioned, so a phone holding an older copy without the newer clips fetches it again)
-  const anims = fetch('models/enemy-anims.json?v=44').then((r) => { if (!r.ok) throw new Error('anims ' + r.status); return r.json(); });
+  const anims = fetch('models/enemy-anims.json?v=46').then((r) => { if (!r.ok) throw new Error('anims ' + r.status); return r.json(); });
   const names = Object.keys(RIG_FILES);
   RIG.loading = anims.then((data) => {
     RIG.data = data;
@@ -959,6 +959,7 @@ const GAIT = {
   suicide: { fwd: [['Mutant Run', 1.85], ['Rifle Run', 2.0]], back: ['Run Backwards', 2.0], side: ['Goalkeeper Sidestep', 1.7], idle: 'Unarmed Idle' },
 };
 const gaitOf = (e) => {
+  if (e.gait) return e.gait; // a body with its own gait (the player's, js/topdown.js)
   if (e.def.ai === 'suicide') return GAIT.suicide;
   if (e.def.ai !== 'ranged' && e.def.ai !== 'boss') return GAIT.melee;
   if (e.inCover && !e.burstLeft) return GAIT.cover;

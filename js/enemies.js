@@ -565,6 +565,8 @@ function enemyReload(e) {
 }
 // Grenade: wind up and throw (the clip's release is 2.05 s in), lobbed to land where the target is.
 const NADE_START = 1.0, NADE_RELEASE = 2.05, NADE_TS = 1.3;
+// Enemies don't throw grenades (decisions.md 2026-11-09); the throw is kept, switched off.
+const ENEMY_GRENADES = false;
 function enemyStartThrow(e) {
   e.state = 'throw'; e.stateT = (2.6 - NADE_START) / NADE_TS; e.throwT = 0; e.nadeOut = false;
   rigOnce(e.rig, 'Grenade Throw', NADE_TS, NADE_START, 2.6, 0.1);
@@ -663,7 +665,7 @@ function updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned) {
   // crouched while holding a spot behind cover (standing up to fire)
   e.inCover = !!(e.rig && e.tac === 'hold' && e.spotCover && sd < 1.6);
   // a grenade to flush out a target that's been hiding, or now and then to break up a standoff
-  if (e.rig && e.nadeCd <= 0 && !e.burstLeft && !e.reloadT && e.grounded && !(tactics.nadeT > 0) && dist > 7 && dist < 24 && e.tac !== 'retreat' && !tgt.isTurret
+  if (ENEMY_GRENADES && e.rig && e.nadeCd <= 0 && !e.burstLeft && !e.reloadT && e.grounded && !(tactics.nadeT > 0) && dist > 7 && dist < 24 && e.tac !== 'retreat' && !tgt.isTurret
       && (e.noLosT > 2.5 || (e.los && Math.random() < 0.25))) {
     e.nadeCd = rand(12, 20);
     enemyStartThrow(e);

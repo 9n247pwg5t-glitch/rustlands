@@ -29,3 +29,4 @@ they conflict. Only the creator approves entries.
 | 2026-11-09 | The player's axe uses the uploaded Mixamo clips (Standing Melee Combo Attack Ver. 2, Standing Melee Attack Downward 2, Standing Melee Run Jump Attack) alongside the earlier ones: nine moves in six combos, plus the leap. | §6 |
 | 2026-11-09 | Enemy combat is methodical and less cluttered: fewer enemies at once, one to three attacking while the rest keep a wider ring, slower pincers, rarer feints. Enemies have more health to suit single-target combat. | §6 enemy variety |
 | 2026-11-09 | The look is a little more cartoony and grittier: bolder inked edges and line art, comic halftone dots in the shadows, film grain, a dark vignette, slightly muted shadows. | §1 visual identity |
+| 2026-11-09 | Enemies don't throw grenades. The player runs with the uploaded Unarmed Run Forward 3 and Unarmed Run Back clips, and keeps facing a nearby enemy while moving (so backing off runs backwards). | §6 |
