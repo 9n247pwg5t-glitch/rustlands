@@ -24,7 +24,15 @@ function bloodTexture(kind) {
   };
   const drops = (n, r0, r1, spread) => { for (let i = 0; i < n; i++) { const a = rng() * Math.PI * 2, d = spread * (0.5 + rng() * 0.5); blob(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, r0 + rng() * (r1 - r0), 'rgba(150,8,12,0.95)', 0.3, 8); } };
   if (kind === 'splat') { blob(64, 64, 26, 'rgba(120,6,10,0.95)', 0.5, 18); blob(60, 62, 14, 'rgba(165,14,18,0.9)', 0.4); drops(16, 2, 6, 54); }
-  else if (kind === 'pool') { blob(64, 64, 48, 'rgba(95,4,8,0.92)', 0.22, 22); blob(58, 58, 34, 'rgba(135,8,12,0.9)', 0.25, 18); blob(50, 50, 9, 'rgba(210,60,60,0.45)', 0.3); }
+  else if (kind === 'pool') {
+    // one smooth pool, dark at the rim, a wet highlight, a few drops round it
+    g.save(); g.beginPath();
+    for (let i = 0; i <= 24; i++) { const a = (i / 24) * Math.PI * 2, rr = 44 * (0.86 + 0.14 * Math.sin(a * 3 + 1) + rng() * 0.06); g.lineTo(64 + Math.cos(a) * rr, 64 + Math.sin(a) * rr * 0.85); }
+    g.closePath(); const gr = g.createRadialGradient(56, 58, 4, 64, 64, 48); gr.addColorStop(0, 'rgba(150,12,18,0.95)'); gr.addColorStop(0.75, 'rgba(105,5,10,0.95)'); gr.addColorStop(1, 'rgba(60,2,6,0.95)');
+    g.fillStyle = gr; g.fill(); g.restore();
+    g.fillStyle = 'rgba(255,170,170,0.25)'; g.beginPath(); g.ellipse(50, 50, 12, 6, -0.6, 0, Math.PI * 2); g.fill();
+    drops(7, 2, 5, 58);
+  }
   else if (kind === 'smear') {
     for (let i = 0; i < 9; i++) blob(18 + i * 11, 64 + Math.sin(i * 0.8) * 4, 13 - i * 1.1, 'rgba(125,6,10,0.85)', 0.4, 10);
     g.globalCompositeOperation = 'destination-out'; g.fillStyle = 'rgba(0,0,0,0.35)';
@@ -87,21 +95,23 @@ function bloodSplat(pos, size = 1, kind = 'splat') {
 function scatterBlood() {
   const rng = makeRng(666);
   const P = (n) => { const v = MAP.points[n]; return v ? (Array.isArray(v) ? v : v.p) : null; };
-  const spots = [[0, -10, 22, 1], [0, 22, 9, 0.6], [32, 12, 9, 0.5], [-30, 6, 10, 0.4]];
-  for (const [n, r, w] of [['TentEntrance', 16, 0.8], ['Carousel', 12, 0.6], ['FarmYard', 14, 0.5], ['PondDock', 8, 0.3], ['BlockadeEast', 10, 0.4], ['BlockadeWest', 10, 0.4]]) { const p = P(n); if (p) spots.push([p[0], p[2], r, w]); }
+  // a map built in code says where (MAP.bloodSpots: x, z, radius, weight); else the gas station's spots
+  const spots = MAP.bloodSpots ? MAP.bloodSpots.slice() : [[0, -10, 22, 1], [0, 22, 9, 0.6], [32, 12, 9, 0.5], [-30, 6, 10, 0.4]];
+  if (!MAP.bloodSpots) for (const [n, r, w] of [['TentEntrance', 16, 0.8], ['Carousel', 12, 0.6], ['FarmYard', 14, 0.5], ['PondDock', 8, 0.3], ['BlockadeEast', 10, 0.4], ['BlockadeWest', 10, 0.4]]) { const p = P(n); if (p) spots.push([p[0], p[2], r, w]); }
   const total = spots.reduce((t, s) => t + s[3], 0);
   const put = (kind, x, z, size, rot) => { if (navWalkable(x, z)) placeBlood(kind, x, z, size, rot, true); };
-  for (let k = 0; k < BLOOD.staticN * 4; k++) {
+  for (let k = 0; k < BLOOD.staticN * 3; k++) {
     let r = rng() * total, s = spots[0];
     for (const q of spots) { r -= q[3]; if (r <= 0) { s = q; break; } }
     const a = rng() * TAU, d = Math.sqrt(rng()) * s[2];
     const x = s[0] + Math.cos(a) * d, z = s[1] + Math.sin(a) * d;
-    const kind = BLOOD_KINDS[k % 4];
+    // mostly splats and spatter, some drag trails, few big pools
+    const kind = weighted([['splat', 35], ['spatter', 35], ['smear', 18], ['pool', 8]]);
     if (kind === 'smear') {
       // a drag trail: a few smears in a line
       const dir = rng() * TAU;
       for (let j = 0; j < 3; j++) put('smear', x + Math.cos(dir) * j * 1.5, z - Math.sin(dir) * j * 1.5, 1.1 + rng() * 0.6, dir);
-    } else put(kind, x, z, kind === 'pool' ? 1.6 + rng() * 2 : 0.9 + rng() * 1.4, rng() * TAU);
+    } else put(kind, x, z, kind === 'pool' ? 1.4 + rng() * 1.2 : 0.7 + rng() * 1.2, rng() * TAU);
   }
 }
 
@@ -110,8 +120,8 @@ function scatterBlood() {
 function scatterWallBlood() {
   const rng = makeRng(1313), W = BLOOD.wall, M = W.mesh;
   const P = (n) => { const v = MAP.points[n]; return v ? (Array.isArray(v) ? v : v.p) : null; };
-  const centres = [[0, -10, 22], [0, 22, 10], [32, 12, 10], [-30, 6, 10]];
-  for (const n of ['TentEntrance', 'Carousel', 'FarmYard', 'BlockadeEast', 'BlockadeWest']) { const p = P(n); if (p) centres.push([p[0], p[2], 14]); }
+  const centres = MAP.bloodSpots ? MAP.bloodSpots.map((s) => [s[0], s[1], s[2] + 6]) : [[0, -10, 22], [0, 22, 10], [32, 12, 10], [-30, 6, 10]];
+  if (!MAP.bloodSpots) for (const n of ['TentEntrance', 'Carousel', 'FarmYard', 'BlockadeEast', 'BlockadeWest']) { const p = P(n); if (p) centres.push([p[0], p[2], 14]); }
   const o = new THREE.Vector3(), d = new THREE.Vector3(), hit = new THREE.Vector3(), n = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(), m = new THREE.Matrix4(), z = new THREE.Vector3(0, 0, 1);
   for (let k = 0; k < M.count * 25 && W.n < M.count; k++) {
     const c = centres[k % centres.length], a = rng() * TAU, r = Math.sqrt(rng()) * c[2];

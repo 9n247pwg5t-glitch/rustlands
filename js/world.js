@@ -351,6 +351,14 @@ function defineWorld(id, def, build) {
   COLG.dirty = true;
   return worlds[id];
 }
+// A world's light: intensities, and colours (sky/ground of the fill, the sun's) where it sets them.
+const LIGHT_DEFAULT = { sky: hemi.color.getHex(), ground: hemi.groundColor.getHex(), sunColor: sun.color.getHex() };
+function applyWorldLight(L) {
+  hemi.intensity = L.hemi; sun.intensity = L.sun;
+  hemi.color.setHex(L.sky != null ? L.sky : LIGHT_DEFAULT.sky);
+  hemi.groundColor.setHex(L.ground != null ? L.ground : LIGHT_DEFAULT.ground);
+  sun.color.setHex(L.sunColor != null ? L.sunColor : LIGHT_DEFAULT.sunColor);
+}
 function switchWorld(id) {
   if (id === WORLD.id) return;
   const cur = worlds[WORLD.id], next = worlds[id];
@@ -361,7 +369,7 @@ function switchWorld(id) {
   WORLD.id = id; WORLD.flat = next.flat; WORLD.bounds = next.bounds;
   COLG.dirty = true;
   scene.fog = next.fog; scene.background = next.background;
-  hemi.intensity = next.light.hemi; sun.intensity = next.light.sun;
+  applyWorldLight(next.light);
 }
 // A world's live box colliders, whether or not it's the active one (barrels respawn on a timer).
 const worldBoxCols = (id) => (WORLD.id === id ? boxCols : worlds[id].box);

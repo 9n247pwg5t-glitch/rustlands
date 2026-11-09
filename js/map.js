@@ -282,10 +282,72 @@ function updateStageMap(cam) {
 
 // Where stage play starts: the map's player spawn (or the middle before it loads).
 const stageSpawn = () => (MAP.ready ? MAP.spawn.clone() : new THREE.Vector3(0, 0, 12));
-// facing the store (the map's StoreEntrance marker), or straight ahead
+// facing the map's LookAt marker (the ring), or straight ahead
 function stageSpawnYaw() {
-  const e = MAP.ready && MAP.points.StoreEntrance;
+  const e = MAP.ready && (MAP.points.LookAt || MAP.points.StoreEntrance);
   return e ? Math.atan2(-(e[0] - MAP.spawn.x), -(e[2] - MAP.spawn.z)) : 0;
 }
 
-loadStageMap('map-clown-station');
+// A stage map built in code (js/compound.js) instead of loaded: `D` holds its colliders, marker
+// points, bounds, the ring (raised ground), explosive barrels and where blood should gather;
+// `root` its lit static meshes (merged here like a loaded map's); `fx` its unlit glows.
+function applyStage(D, root, fx) {
+  // ground: flat, the ring raised
+  const cell = 0.5, x0 = D.bounds.minX - 6, z0 = D.bounds.minZ - 6;
+  const nx = Math.ceil((D.bounds.maxX - D.bounds.minX + 12) / cell), nz = Math.ceil((D.bounds.maxZ - D.bounds.minZ + 12) / cell);
+  const h = new Int16Array(nx * nz), R = D.ring;
+  for (let iz = 0; iz < nz; iz++) for (let ix = 0; ix < nx; ix++) {
+    const x = x0 + (ix + 0.5) * cell, z = z0 + (iz + 0.5) * cell;
+    if (R && Math.abs(x - R.x) <= R.half && Math.abs(z - R.z) <= R.half) h[iz * nx + ix] = Math.round(R.h * 100);
+  }
+  Object.assign(MAPG, { x0, z0, cell, nx, nz, h, ready: true });
+  worlds.arena.bounds = Object.assign({}, D.bounds);
+  if (WORLD.id === 'arena') WORLD.bounds = worlds.arena.bounds;
+  // navigation: 1 m cells, blocked where a body would touch a collider
+  const N = Math.ceil(Math.max(D.bounds.maxX - D.bounds.minX, D.bounds.maxZ - D.bounds.minZ)) + 2, NX0 = D.bounds.minX - 1, NZ0 = D.bounds.minZ - 1;
+  const bits = new Uint8Array(Math.ceil(N * N / 8));
+  for (let iz = 0; iz < N; iz++) for (let ix = 0; ix < N; ix++) {
+    const x = NX0 + ix + 0.5, z = NZ0 + iz + 0.5, g = terrainAt(x, z);
+    let blocked = x < D.bounds.minX || x > D.bounds.maxX || z < D.bounds.minZ || z > D.bounds.maxZ;
+    for (const b of D.boxes) { if (blocked) break; if (b[5] < g + 0.5 || b[4] > g + 1.6) continue; if (x > b[0] - 0.5 && x < b[2] + 0.5 && z > b[1] - 0.5 && z < b[3] + 0.5) blocked = true; }
+    for (const s of D.spheres) { if (blocked) break; if (Math.hypot(x - s[0], z - s[2]) < s[3] + 0.5) blocked = true; }
+    const i = iz * N + ix;
+    if (blocked) bits[i >> 3] |= 1 << (i & 7);
+  }
+  navInit(N, 1, NX0, NZ0, bits);
+  // markers
+  MAP.points = D.points;
+  MAP.spawn.set(...D.points.PlayerSpawn);
+  MAP.bloodSpots = D.bloodSpots;
+  spawnPoints.length = 0;
+  for (const [k, v] of Object.entries(D.points)) if (/^EnemySpawn/.test(k)) spawnPoints.push(new THREE.Vector3(...v));
+  // meshes: the lit ones merged by material, the glows on top
+  const group = new THREE.Group();
+  group.name = 'stage-map';
+  root.updateMatrixWorld(true);
+  mergeStatics(root, group, new Map());
+  group.add(fx);
+  scene.add(group);
+  MAP.group = group;
+  worlds.arena.objects.push(group);
+  group.visible = WORLD.id === 'arena';
+  // colliders, a health vending machine, red barrels
+  intoArena(() => {
+    for (const b of D.boxes) boxCols.push({ minX: b[0], minZ: b[1], maxX: b[2], maxZ: b[3], minY: b[4], maxY: b[5], ref: null });
+    for (const s of D.spheres) sphCols.push({ x: s[0], y: s[1], z: s[2], r: s[3], top: s[4] });
+    const v = D.points.Vending;
+    if (v) buildVending(v[0], v[2], Math.PI, 'health');
+    for (const [x, z] of D.barrels || []) if (navWalkable(x, z)) buildBarrel(x, z);
+  });
+  // night: a dark violet haze, no daytime sky, cool moonlight and a warm bounce
+  const NIGHT = new THREE.Color(0x261a2c);
+  worlds.arena.fog = new THREE.Fog(NIGHT, IS_TOUCH ? 34 : 45, IS_TOUCH ? 95 : 130);
+  worlds.arena.background = NIGHT;
+  worlds.arena.light = { hemi: 1.25, sun: 0.5, sky: 0x9a88c8, ground: 0x7a5a42, sunColor: 0xc0b4ff };
+  sky.visible = false; // (and kept off: it's taken out of the arena world's objects)
+  { const i = worlds.arena.objects.indexOf(sky); if (i >= 0) worlds.arena.objects.splice(i, 1); }
+  if (WORLD.id === 'arena') { scene.fog = worlds.arena.fog; scene.background = NIGHT; applyWorldLight(worlds.arena.light); }
+  MAP.ready = true;
+  buildBlood(); // js/blood.js
+  if (typeof campaign !== 'undefined') campaign.previewUrl = null; // re-render the stage card picture
+}

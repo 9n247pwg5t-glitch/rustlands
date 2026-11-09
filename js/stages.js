@@ -10,8 +10,8 @@
 // entered yet. Names here are placeholders until the creator names the stages (see docs/).
 const STAGES = [
   {
-    id: 'stage-1', title: 'Stage 1', subtitle: 'Roadside gas station · placeholder',
-    env: 'A clown-infested gas station on a blockaded highway: forecourt, store, car wash, a carnival tent and a carousel, woods, a farm and a pond.',
+    id: 'stage-1', title: 'Stage 1', subtitle: 'Clown wrestling compound · placeholder',
+    env: 'A fenced clown-wrestling yard in a dead suburb at night: a bloody ring under floodlights, bleachers, the clown-faced entrance tent, a rusted bus, a trailer and fire barrels.',
     objective: 'Clear 5 waves. The 5th is a boss wave.',
     waves: 5, ready: true, preview: 'snapshot',
     load() { switchWorld('arena'); }, unload() {}, // the map (js/map.js) loads in the background at boot

@@ -221,7 +221,8 @@ function buildChestModel(boss) {
 function spawnChest(boss) {
   if (game.chest) scene.remove(game.chest.group);
   // in the open on the forecourt, a few steps from where the player starts
-  const pos = MAP.ready ? MAP.spawn.clone().add(new THREE.Vector3(0, 0, 6)) : new THREE.Vector3(0, 0, -1.5);
+  const cs = MAP.ready && MAP.points.ChestSpot;
+  const pos = cs ? new THREE.Vector3(...cs) : MAP.ready ? MAP.spawn.clone().add(new THREE.Vector3(0, 0, 6)) : new THREE.Vector3(0, 0, -1.5);
   pos.y = groundAt(pos.x, pos.z);
   const group = buildChestModel(boss);
   group.position.copy(pos);
@@ -698,6 +699,7 @@ function update(dt) {
   updatePlayerProj(dt);
   updateDrops(dt);
   updateFx(dt);
+  updateCompound(dt);
   updateRigCorpses(dt);
   if (!hub) { updateWaves(dt); campaign.runT += dt; }
   updateInteraction(dt);

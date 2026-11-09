@@ -22,8 +22,11 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
   - Enemy terms "Psycho", "Badass", "Marauder", "Nomad"; the downed-state banner "Fight For Your
     Life" / "Second Wind" (`js/player.js`, README).
 
-- **Map art names.** The uploaded map's graffiti texture includes a "DR. GIGGLES' TRAVELING
-  CARNIVAL" sign: a name that came with the asset, not an approved one.
+- **Map art names.** Stage 1's compound has a "CLOWN WRESTLING" banner (from the concept art; a
+  description, not a name). The old gas station map (unused now) has a "DR. GIGGLES' TRAVELING
+  CARNIVAL" sign that came with the asset.
+- **The compound and the canon.** The bible names Mike's wrestling property "Slaughterhouse Universe
+  Wrestling" (§3); whether this compound is one of its venues, and any signage for it, is OPEN.
 - **Carnage call-outs.** The streak milestone lines (RATINGS UP!, PRIME TIME!, FRENZY!, SPONSORED!,
   GOING VIRAL!, SERIES FINALE!) and "Star" enemies are placeholders (`STREAK_MILESTONES` in `js/main.js`).
 
@@ -37,8 +40,8 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
   and uses a console in front of a wall of TVs to open stage select. Whose place it is, where it
   is, how it looks and what else it holds (shop, gear, story) are OPEN; it's a generic panelled
   interior with no story content, labelled "HUB" in the HUD.
-- **Stage 1's map is loaded at boot, not by the stage.** The gas station map (`js/map.js`)
-  downloads in the background when the game starts and becomes the "arena" world; it is hidden
+- **Stage 1's map is built at boot, not by the stage.** The compound (`js/compound.js`) is built
+  when the game starts and becomes the "arena" world; it is hidden
   and not simulated outside Stage 1, but it isn't built by Stage 1's `load()` or removed by
   `unload()`. Fine with one map; with more stages, each map should load on entering its stage.
 - **The gas station map's names.** Its node names (`GasStation_*`, `Clown_Carnival`, `Farm`...)
