@@ -184,7 +184,12 @@ function updatePlayerBody(dt) {
     const S = axeMove();
     pe.state = 'swing';
     pe.atk = { clip: S.clip, start: S.start, hits: [S.hit], end: S.end, trail: S.trail };
-    rigOnce(R, S.clip, (S.end - S.start) / Math.max(0.1, player.meleeDur), S.start, S.end, 0.06);
+    const ts = (S.end - S.start) / Math.max(0.1, player.meleeDur);
+    const cur = R.one && R.one.action, name = cur && cur.getClip().name;
+    if (cur && name === S.clip && Math.abs(cur.time - S.start) < 0.3 && cur.time <= S.start + 0.3) {
+      // the next blow of the same combo clip: keep playing it, as animated
+      R.one.end = S.end; cur.timeScale = ts; cur.paused = false;
+    } else rigOnce(R, S.clip, ts, S.start, S.end, 0.08);
   }
   B.meleeT = player.meleeT;
   // a counter is a roundhouse kick, a plain kick a front kick

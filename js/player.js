@@ -340,6 +340,8 @@ function updateWeapon(dt) {
     g.regenT = (g.regenT || 0) + dt;
     if (g.regenT > 0.35) { g.regenT = 0; if (g.inMag < g.mag) g.inMag++; }
   }
+  // a strike pressed mid-swing is queued (js/arsenal.js), so fast tapping flows through the combo
+  if (g && g.melee && player.meleeT > 0 && (input.firePressed || player.triggerQueue > 0)) { player.strikeQueued = true; player.triggerQueue = 0; }
   if (player.reloadT > 0 || player.swapT > 0 || player.meleeT > 0 || player.kickT > 0) return;
   if (g.melee) { if (input.fire || player.triggerQueue > 0) { player.triggerQueue = 0; meleeSwing(); } return; }
   if (g.inMag <= 0 && g.special !== 'infinite' && player.ammo[g.ammo] > 0 && !input.fire) { startReload(); return; }

@@ -137,26 +137,31 @@ function equipMod(m) {
 
 // ---------------------------------------------------------------------------
 // Moves. Each plays a stretch of one of the axe clips (js/topdown.js) - `start`, `hit`, `end` in
-// clip seconds - over `dur` real seconds at base swing speed; `dmg` is its damage multiplier.
-// A combo is three strikes; the third is a heavy finisher. Strikes chained within COMBO_WINDOW of
-// each other continue the combo; otherwise a new one (a random string) starts.
+// clip seconds, wind-up and follow-through included - at about 1.5x the clip's own speed (faster
+// with swing-speed mods and skills); `dmg` is its damage multiplier. A combo is three strikes, the
+// third a heavy finisher. Combos mostly follow the clips as they were animated (the two-blow and
+// three-blow combo clips play straight through), so a combo looks like the uploaded animation.
+// Strikes chained within COMBO_WINDOW continue the combo, and a strike pressed during a swing is
+// queued and starts as the swing ends.
 const AXE_SET = {
-  slash: { name: 'slash', clip: 'Standing Melee Combo Attack Ver. 3', start: 0.3, hit: 1.03, end: 1.35, dur: 0.55, dmg: 1, trail: [[0.86, 1.14]] },
-  backhand: { name: 'backhand', clip: 'Standing Melee Combo Attack Ver. 3', start: 1.3, hit: 1.78, end: 2.25, dur: 0.55, dmg: 1, trail: [[1.58, 1.95]] },
-  cleaver: { name: 'cleaver', clip: 'Standing Melee Combo Attack Ver. 2', start: 0.4, hit: 0.95, end: 1.3, dur: 0.52, dmg: 1, trail: [[0.75, 1.1]] },
-  hook: { name: 'hook', clip: 'Standing Melee Combo Attack Ver. 2', start: 1.3, hit: 1.66, end: 1.95, dur: 0.45, dmg: 0.9, trail: [[1.5, 1.8]] },
-  overhead: { name: 'overhead', clip: 'Standing Melee Combo Attack Ver. 2', start: 1.95, hit: 2.6, end: 3.2, dur: 0.78, dmg: 1.7, heavy: true, trail: [[2.3, 2.75]] },
-  chop: { name: 'chop', clip: 'Standing Melee Attack Downward', start: 0.2, hit: 0.84, end: 1.3, dur: 0.72, dmg: 1.6, heavy: true, trail: [[0.58, 0.98]] },
-  chop2: { name: 'chop2', clip: 'Standing Melee Attack Downward 2', start: 0.25, hit: 0.83, end: 1.35, dur: 0.72, dmg: 1.6, heavy: true, trail: [[0.6, 0.95]] },
-  spin: { name: 'spin', clip: 'Standing Melee Attack 360 High', start: 0.3, hit: 1.08, end: 1.6, dur: 0.75, dmg: 1.6, heavy: true, trail: [[0.7, 1.35]] },
+  slash: { name: 'slash', clip: 'Standing Melee Combo Attack Ver. 3', start: 0.15, hit: 1.03, end: 1.35, dmg: 1, trail: [[0.82, 1.15]] },
+  backhand: { name: 'backhand', clip: 'Standing Melee Combo Attack Ver. 3', start: 1.35, hit: 1.78, end: 2.45, dmg: 1.1, trail: [[1.56, 1.98]] },
+  cleaver: { name: 'cleaver', clip: 'Standing Melee Combo Attack Ver. 2', start: 0.15, hit: 0.95, end: 1.3, dmg: 1, trail: [[0.72, 1.12]] },
+  hook: { name: 'hook', clip: 'Standing Melee Combo Attack Ver. 2', start: 1.3, hit: 1.66, end: 1.95, dmg: 0.9, trail: [[1.48, 1.82]] },
+  overhead: { name: 'overhead', clip: 'Standing Melee Combo Attack Ver. 2', start: 1.95, hit: 2.6, end: 3.4, dmg: 1.7, heavy: true, trail: [[2.28, 2.78]] },
+  chop: { name: 'chop', clip: 'Standing Melee Attack Downward', start: 0.05, hit: 0.84, end: 1.5, dmg: 1.6, heavy: true, trail: [[0.56, 1.0]] },
+  chop2: { name: 'chop2', clip: 'Standing Melee Attack Downward 2', start: 0.1, hit: 0.83, end: 1.5, dmg: 1.6, heavy: true, trail: [[0.58, 0.98]] },
+  spin: { name: 'spin', clip: 'Standing Melee Attack 360 High', start: 0.2, hit: 1.08, end: 1.75, dmg: 1.6, heavy: true, trail: [[0.68, 1.36]] },
   // the gap-closer: a running leap onto a target a few strides away
-  leap: { name: 'leap', clip: 'Standing Melee Run Jump Attack', start: 0.5, hit: 1.7, end: 2.35, dur: 0.85, dmg: 1.3, leap: true, trail: [[1.4, 1.85]] },
+  leap: { name: 'leap', clip: 'Standing Melee Run Jump Attack', start: 0.35, hit: 1.7, end: 2.5, dmg: 1.3, leap: true, trail: [[1.38, 1.88]] },
 };
+const AXE_PLAY = 1.5; // clip seconds per real second at base swing speed
 const AXE_COMBOS = [
-  ['slash', 'backhand', 'overhead'], ['cleaver', 'hook', 'chop'], ['slash', 'cleaver', 'chop2'],
-  ['backhand', 'hook', 'spin'], ['cleaver', 'slash', 'overhead'], ['hook', 'backhand', 'chop2'],
+  ['cleaver', 'hook', 'overhead'], // the three-blow combo clip, straight through
+  ['slash', 'backhand', 'chop2'], ['slash', 'backhand', 'overhead'], ['cleaver', 'hook', 'chop'],
+  ['slash', 'backhand', 'spin'], ['cleaver', 'hook', 'chop2'],
 ];
-const COMBO_WINDOW = 0.75; // seconds after a strike ends to chain the next
+const COMBO_WINDOW = 0.9; // seconds after a strike ends to chain the next
 const STRIKE_RANGE = 9; // how far a strike looks for a target (beyond reach, it leaps)
 const axeMove = (step = player.combo || 0) => (player.leaping ? AXE_SET.leap : AXE_SET[(player.comboSeq || AXE_COMBOS[0])[step]]);
 const AXE_COMBO = { get length() { return 3; } }; // (kept for older code that counts the moves)
@@ -189,15 +194,16 @@ function meleeSwing() {
   if (tgt) TD.lock = tgt;
   player.strikeTarget = tgt;
   const dist = tgt ? Math.hypot(tgt.pos.x - player.pos.x, tgt.pos.z - player.pos.z) : 0;
-  player.leaping = !!tgt && dist > g.reach + tgt.radius + 1.2;
+  player.leaping = !!tgt && dist > g.reach + tgt.radius + 2.6; // a few strides away: leap onto them
   if (!player.leaping) {
-    const chained = player.comboT > -COMBO_WINDOW && player.meleeT <= 0;
+    const chained = player.comboT > -COMBO_WINDOW && player.meleeT <= 0 && player.comboSeq && !player.wasLeap;
     player.combo = chained ? ((player.combo || 0) + 1) % 3 : 0;
     if (player.combo === 0) { const last = player.comboSeq; do player.comboSeq = pick(AXE_COMBOS); while (player.comboSeq === last); }
   } else player.combo = 0;
+  player.wasLeap = player.leaping;
   const M = axeMove();
-  const dur = M.dur * 1.35 / g.rate;
-  player.meleeCd = dur * 0.9;
+  const dur = (M.end - M.start) / AXE_PLAY * 1.35 / g.rate;
+  player.meleeCd = dur * 0.6; // once the blow has landed, the next strike may cut the follow-through short
   player.meleeT = player.meleeDur = dur;
   player.meleeHitT = dur * (M.hit - M.start) / (M.end - M.start);
   player.meleeHit = false;
@@ -354,7 +360,12 @@ function updatePlayerMelee(dt) {
     } else if (!player.meleeHit) player.forceVel = new THREE.Vector3(-Math.sin(player.yaw) * 2, 0, -Math.cos(player.yaw) * 2);
     if (!player.meleeHit && player.meleeDur - player.meleeT >= player.meleeHitT) { player.meleeHit = true; resolveMeleeHit(); }
     if (player.meleeT <= 0) { player.comboT = 0; player.leaping = false; }
-  } else player.comboT = (player.comboT || 0) - dt;
+    // a strike pressed during this one: start it once the blow has landed and the follow-through is underway
+    else if (player.strikeQueued && player.meleeHit && player.meleeCd <= 0) { player.strikeQueued = false; player.meleeT = 0; player.comboT = 0; player.leaping = false; meleeSwing(); }
+  } else {
+    player.comboT = (player.comboT || 0) - dt;
+    if (player.strikeQueued) { player.strikeQueued = false; meleeSwing(); }
+  }
   if (player.kickT > 0) {
     player.kickT -= dt;
     if (!player.kickHit && player.kickDur - player.kickT >= player.kickDur * 0.4) { player.kickHit = true; resolveKick(); }

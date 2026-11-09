@@ -119,7 +119,8 @@ function loadRigs() {
   // geometry is packed with EXT_meshopt_compression (tools/optimize.mjs --meshopt)
   if (window.MeshoptDecoder) loader.setMeshoptDecoder(MeshoptDecoder);
   const get = (f) => new Promise((ok, fail) => loader.load('models/' + f + '.json', ok, undefined, fail));
-  const anims = fetch('models/enemy-anims.json').then((r) => { if (!r.ok) throw new Error('anims ' + r.status); return r.json(); });
+  // (versioned, so a phone holding an older copy without the newer clips fetches it again)
+  const anims = fetch('models/enemy-anims.json?v=44').then((r) => { if (!r.ok) throw new Error('anims ' + r.status); return r.json(); });
   const names = Object.keys(RIG_FILES);
   RIG.loading = anims.then((data) => {
     RIG.data = data;
