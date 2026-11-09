@@ -113,7 +113,7 @@ const hud = (() => {
         el.mag.classList.toggle('empty', !g.melee && g.inMag <= Math.ceil(g.mag * 0.2));
       }
       // the rifle's ammo pool, or the kick cooldown with the axe; the two weapon slots
-      if (g) el.pool.textContent = counterThreat() ? 'COUNTER NOW (F)' : (p.dodgeCd > 0 ? '' : 'dodge ready');
+      if (g) el.pool.textContent = counterThreat() ? 'COUNTER NOW (F)' : dangerThreat() ? 'DODGE NOW (SPACE)' : (p.flow || 0) >= TAKEDOWN_FLOW ? 'TAKEDOWN READY' : '';
       let sh = '';
       for (let i = 0; i < p.weapons.length; i++) {
         const w = p.weapons[i];

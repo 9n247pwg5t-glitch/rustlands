@@ -163,7 +163,8 @@ const AXE_COMBOS = [
 ];
 const COMBO_WINDOW = 0.9; // seconds after a strike ends to chain the next
 const STRIKE_RANGE = 9; // how far a strike looks for a target (beyond reach, it leaps)
-const axeMove = (step = player.combo || 0) => (player.leaping ? AXE_SET.leap : AXE_SET[(player.comboSeq || AXE_COMBOS[0])[step]]);
+const TAKEDOWN_FLOW = 8;
+const axeMove = (step = player.combo || 0) => (player.leaping ? AXE_SET.leap : player.takedown ? AXE_SET.overhead : AXE_SET[(player.comboSeq || AXE_COMBOS[0])[step]]);
 const AXE_COMBO = { get length() { return 3; } }; // (kept for older code that counts the moves)
 
 // Who a strike goes to: the enemy nearest the direction you're pushing (if you are), else the one
@@ -201,8 +202,11 @@ function meleeSwing() {
     if (player.combo === 0) { const last = player.comboSeq; do player.comboSeq = pick(AXE_COMBOS); while (player.comboSeq === last); }
   } else player.combo = 0;
   player.wasLeap = player.leaping;
+  // a takedown when 8 hits are flowing: the next strike on a regular enemy kills it outright
+  player.takedown = (player.flow || 0) >= TAKEDOWN_FLOW && !!tgt && !tgt.def.boss;
   const M = axeMove();
-  const dur = (M.end - M.start) / AXE_PLAY * 1.35 / g.rate;
+  let dur = (M.end - M.start) / AXE_PLAY * 1.35 / g.rate;
+  if (player.riposteT > 0) { dur *= 0.72; player.riposteT = 0; } // the riposte after a counter is quick
   player.meleeCd = dur * 0.6; // once the blow has landed, the next strike may cut the follow-through short
   player.meleeT = player.meleeDur = dur;
   player.meleeHitT = dur * (M.hit - M.start) / (M.end - M.start);
@@ -230,11 +234,30 @@ function resolveMeleeHit() {
     e = null; let bd = Infinity;
     for (const x of enemies) if (inReach(x)) { const d = x.pos.distanceTo(player.pos); if (d < bd) { bd = d; e = x; } }
   }
-  if (!e) { player.whiffs = (player.whiffs || 0) + 1; return; }
+  if (!e) {
+    // a miss breaks the flow (if there was anyone to hit)
+    if ((player.flow || 0) > 0 && enemies.some((x) => x.alive && x.pos.distanceTo(player.pos) < 7)) { player.flow = 0; hud.popText('MISS', '#c8c0b4'); }
+    player.takedown = false;
+    return;
+  }
+  if (player.takedown) {
+    // TAKEDOWN: a regular enemy dies on the spot; a Star loses half its health
+    player.takedown = false;
+    player.flow -= TAKEDOWN_FLOW; player.flowT = 3.5;
+    const dmg = e.star ? e.maxHp * 0.5 : e.hp + e.shield + 1;
+    _fwd.set(e.pos.x - player.pos.x, 0, e.pos.z - player.pos.z).normalize();
+    player.stats.damage += damageEnemy(e, dmg, g.element, { crit: true, fromPlayer: true, dir: _fwd.clone(), overkill: true });
+    for (let i = 0; i < 3; i++) bloodSplat(e.pos, 1.6, i ? 'spatter' : 'pool');
+    hud.popText('TAKEDOWN!', '#ff3b2a'); hud.hitMarker(true, !e.alive);
+    if (!e.alive) onPlayerKill('axe');
+    game.slowmo = Math.max(game.slowmo, 0.6); game.shake(0.6); game.hitstop = Math.max(game.hitstop, 0.12);
+    SFX.chop(true);
+    return;
+  }
   const flow = 1 + Math.min(player.flow || 0, 20) / 20 * g.flowMax;
   axeHit(e, g, M.dmg * flow * (heavy ? g.finisher : 1), heavy ? 12 : 6);
   player.flow = (player.flow || 0) + 1;
-  player.flowT = 3;
+  player.flowT = 3.5;
   // a heavy blow staggers
   if (heavy && e.alive && !e.def.boss) { e.flinchT = Math.max(e.flinchT, 0.7); if (e.state === 'swing') e.state = 'move'; }
   SFX.chop(true);
@@ -242,7 +265,10 @@ function resolveMeleeHit() {
   game.hitstop = Math.max(game.hitstop, heavy ? 0.08 : 0.045);
 }
 function axeHit(e, g, mult, shove) {
-  const crit = Math.random() < g.critChance;
+  // an opening: hits on a stunned enemy always crit and hit harder; on one that's down, harder still
+  const open = e.state === 'stun', down = e.state === 'down';
+  if (open) mult *= 1.5; else if (down) mult *= 1.6;
+  const crit = open || Math.random() < g.critChance;
   let dmg = g.damage * mult * (crit ? g.crit : 1);
   if (g.exec && e.hp < e.maxHp * 0.3) dmg *= 1 + g.exec;
   const dealt = damageEnemy(e, dmg, g.element, { crit, fromPlayer: true, dir: _fwd.clone() });
@@ -255,40 +281,57 @@ function axeHit(e, g, mult, shove) {
   if (!e.alive) onPlayerKill('axe');
 }
 
-// COUNTER: when an enemy close by is about to strike (its "!" is up), knock it down and take no
-// hit. With nobody to counter it's a kick, which shoves and staggers whoever is in front.
+// COUNTER: when enemies close by are about to strike with a yellow "!", knock every one of them
+// down at once (a double or triple counter when a pincer comes) and take no hit; the next strike is
+// a quick riposte. A red "!!" can't be countered - that one has to be dodged. With nothing to
+// counter it's a kick.
+const threatsNear = (r, counterable) => enemies.filter((e) => e.alive && e.threat > 0 && (!counterable || !e.unblockable) && Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < r);
 function counterThreat() {
   let best = null, bt = Infinity;
-  for (const e of enemies) {
-    if (!e.alive || !(e.threat > 0)) continue;
-    const d = Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z);
-    if (d < 4.2 && e.threat < bt) { bt = e.threat; best = e; }
-  }
+  for (const e of threatsNear(4.2, true)) if (e.threat < bt) { bt = e.threat; best = e; }
   return best;
 }
+const dangerThreat = () => threatsNear(4.6, false).find((e) => e.unblockable) || null;
 function counter() {
-  const e = counterThreat();
-  if (!e) return kick();
-  if (player.kickCd > 0.6 || !player.alive || player.downed || game.mode === 'hub') return false;
+  if (!player.alive || player.downed || game.mode === 'hub') return false;
+  const list = threatsNear(4.2, true).sort((a, b) => a.threat - b.threat).slice(0, 3);
+  if (!list.length) {
+    if (dangerThreat()) { hud.popText("CAN'T COUNTER: DODGE!", '#ff3b2a'); SFX.deny(); return false; }
+    return kick();
+  }
+  if (player.kickCd > 0.6) return false;
   const g = axeOf(), k = rank('mKick');
-  player.yaw = Math.atan2(-(e.pos.x - player.pos.x), -(e.pos.z - player.pos.z));
+  const e0 = list[0];
+  player.yaw = Math.atan2(-(e0.pos.x - player.pos.x), -(e0.pos.z - player.pos.z));
   player.meleeT = 0; player.kickCd = 0.35; player.kickT = player.kickDur = 0.42; player.kickHit = true; player.countered = true;
-  player.invuln = Math.max(player.invuln, 0.45);
-  camBasis(); _fwd.y = 0; _fwd.normalize();
-  const dealt = damageEnemy(e, g.damage * 0.6 * (1 + k * 0.4) * (rank('mCounter') ? 3 : 1), 'none', { fromPlayer: true, dir: _fwd.clone() });
-  player.stats.damage += dealt;
-  e.threat = 0;
-  if (e.alive && !e.def.boss) {
-    e.vel.addScaledVector(_fwd, 9); e.vy = 3; e.grounded = false;
-    if (e.rig) { e.state = 'down'; e.stateT = 1.6; rigOnce(e.rig, 'Getting Up', 1.3, 0, Infinity, 0.05); }
-    e.attackCd = 1.5; e.engaged = false; e.backoffT = 0;
-  } else if (e.alive) e.state = 'move';
-  player.flow = (player.flow || 0) + 1; player.flowT = 3;
-  hud.hitMarker(true, !e.alive);
-  if (!e.alive) onPlayerKill('kick');
-  hud.popText('COUNTER!', '#4fc6ff');
-  SFX.hit(true); game.shake(0.35); game.hitstop = Math.max(game.hitstop, 0.12);
+  player.invuln = Math.max(player.invuln, 0.5);
+  for (const e of list) {
+    _fwd.set(e.pos.x - player.pos.x, 0, e.pos.z - player.pos.z).normalize();
+    const dealt = damageEnemy(e, g.damage * 0.6 * (1 + k * 0.4) * (rank('mCounter') ? 3 : 1), 'none', { fromPlayer: true, dir: _fwd.clone() });
+    player.stats.damage += dealt;
+    e.threat = 0;
+    if (e.alive && !e.def.boss) {
+      e.vel.addScaledVector(_fwd, 9); e.vy = 3; e.grounded = false;
+      if (e.rig) { e.state = 'down'; e.stateT = 1.8; rigOnce(e.rig, 'Getting Up', 1.2, 0, Infinity, 0.05); }
+      e.attackCd = 1.8; e.engaged = false; e.backoffT = 0;
+    } else if (e.alive) e.state = 'move';
+    if (!e.alive) onPlayerKill('kick');
+  }
+  player.flow = (player.flow || 0) + list.length; player.flowT = 3.5;
+  player.riposteT = 1.5; // the next strike comes quick
+  hud.hitMarker(true, false);
+  hud.popText(['COUNTER!', 'DOUBLE COUNTER!', 'TRIPLE COUNTER!'][list.length - 1], '#4fc6ff');
+  if (list.length > 1) { player.addXp(5 * list.length); game.slowmo = Math.max(game.slowmo, 0.3); }
+  SFX.hit(true); game.shake(0.35 + list.length * 0.1); game.hitstop = Math.max(game.hitstop, 0.12);
   return true;
+}
+// A stunned enemy: dazed for a moment, its attack dropped, wide open (hits on it crit).
+function stunEnemy(e, t) {
+  e.threat = 0;
+  if (e.def.boss) { if (e.state === 'swing' || e.state === 'charge') e.state = 'move'; return; }
+  e.state = 'stun'; e.stateT = t; e.engaged = false; e.attackCd = t + 0.6; e.backoffT = 0;
+  e.vel.x *= 0.2; e.vel.z *= 0.2;
+  if (e.rig) rigOnce(e.rig, 'Hit Reaction headshot', 0.75, 0, Infinity, 0.05);
 }
 
 // The kick: a front kick that shoves enemies back and staggers them.
@@ -336,6 +379,18 @@ function dodge() {
   }
   const l = Math.hypot(dx, dz) || 1;
   player.dodgeDir = new THREE.Vector3(dx / l, 0, dz / l);
+  // a perfect dodge: right before a blow lands (any blow, red or yellow). Time slows, and whoever
+  // swung is left stunned and open.
+  const late = threatsNear(4.8, false).filter((e) => e.threat < 0.42);
+  if (late.length) {
+    for (const e of late) stunEnemy(e, 1.7);
+    game.slowmo = Math.max(game.slowmo, 0.5);
+    player.invuln = Math.max(player.invuln, 0.7);
+    player.flow = (player.flow || 0) + late.length + (late.some((e) => e.unblockable) ? 1 : 0); player.flowT = 3.5;
+    player.addXp(4 * late.length);
+    hud.popText('PERFECT DODGE!', '#9fff6a');
+    SFX.shieldUp();
+  }
   player.meleeT = 0; player.kickT = 0;
   player.dodgeT = 0.26; player.dodgeCd = 0.6;
   player.invuln = Math.max(player.invuln, 0.34);
@@ -344,7 +399,7 @@ function dodge() {
 }
 
 function updatePlayerMelee(dt) {
-  player.meleeCd -= dt; player.kickCd -= dt; player.dodgeCd = (player.dodgeCd || 0) - dt;
+  player.meleeCd -= dt; player.kickCd -= dt; player.dodgeCd = (player.dodgeCd || 0) - dt; player.riposteT = (player.riposteT || 0) - dt;
   player.forceVel = null;
   if ((player.flowT = (player.flowT || 0) - dt) <= 0) player.flow = 0;
   if (player.dodgeT > 0) { player.dodgeT -= dt; player.forceVel = player.dodgeDir.clone().multiplyScalar(15); }

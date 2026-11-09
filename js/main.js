@@ -44,7 +44,8 @@ function buildWave(w) {
   // packs (decisions.md 2026-11-09): mostly axe-wielders, a few gunners behind; fewer than the old
   // hordes, since each now takes a few hits and only a few come at you at once
   const n = Math.min(Math.round((8 + w * 4) * DIFFICULTY.waveSize), 40);
-  const pool = [['psycho', 12], ['bandit', 2.5], ['suicide', w >= 2 ? 2.5 : 0], ['marauder', w >= 3 ? 1.2 : 0]].filter((p) => p[1] > 0);
+  // (no Suicide Psychos: no bomb-carriers or grenades, decisions.md 2026-11-09)
+  const pool = [['psycho', 12], ['bandit', 2.5], ['marauder', w >= 3 ? 1.2 : 0]].filter((p) => p[1] > 0);
   for (let i = 0; i < (boss ? Math.floor(n * 0.5) : n); i++) list.push(weighted(pool));
   const badass = w >= 3 ? 1 + Math.floor((w - 3) / 3) : 0;
   for (let i = 0; i < (boss ? Math.floor(badass / 2) : badass); i++) list.splice(randi(2, list.length), 0, 'nomad');
@@ -590,6 +591,11 @@ function updateWheelButton() {
   if ($('wbAmmo').textContent !== big) $('wbAmmo').textContent = big;
   $('wbPool').textContent = th ? 'counter now' : player.kickCd > 0 ? '' : 'kick';
   $('kickBtn').classList.toggle('cool', (player.dodgeCd || 0) > 0);
+  $('kickBtn').classList.toggle('danger', !!dangerThreat()); // a red "!!" is coming: dodge
+  const td = (player.flow || 0) >= TAKEDOWN_FLOW;
+  fireBtn.classList.toggle('takedown', td);
+  const lab = td ? 'TAKEDOWN' : 'STRIKE';
+  if ($('fireLabel').textContent !== lab) $('fireLabel').textContent = lab;
   const hint = player.flow >= 2 ? player.flow + ' hits' : (player.meleeT > 0 || player.comboT > -COMBO_WINDOW ? axeMove((player.combo + 1) % 3).name : 'combo');
   if ($('fireHint').textContent !== hint) $('fireHint').textContent = hint;
 }

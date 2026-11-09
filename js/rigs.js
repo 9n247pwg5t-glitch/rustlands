@@ -14,7 +14,8 @@ const RIG_HEIGHT = 1.85; // metres at enemy scale 1
 const RIG_ATK_TS = 1.15;
 const RIG_ATTACKS = [
   { clip: 'Standing Melee Attack Downward', w: 4, axe: true, start: 0.2, hits: [0.84], end: 1.6, dmg: [1.3], trail: [[0.58, 0.98]] },
-  { clip: 'Standing Melee Attack 360 High', w: 2.5, axe: true, start: 0.3, hits: [1.08], end: 1.9, dmg: [1.4], trail: [[0.82, 1.32]] },
+  // the spinning swing can't be countered (a red "!!"): it has to be dodged
+  { clip: 'Standing Melee Attack 360 High', w: 2.5, axe: true, unblockable: true, start: 0.3, hits: [1.08], end: 1.9, dmg: [1.4], trail: [[0.82, 1.32]] },
   { clip: 'Standing Melee Combo Attack Ver. 3', w: 2.5, axe: true, start: 0.3, hits: [1.03, 1.78], end: 2.4, dmg: [0.8, 0.8], trail: [[0.86, 1.14], [1.58, 1.95]] },
   { clip: 'Mma Kick 1', w: 0.8, start: 0.3, hits: [0.73], end: 1.2, dmg: [1.2] },
   { clip: 'Roundhouse Kick', w: 0.8, start: 0.45, hits: [1.0], end: 1.5, dmg: [1.4] },

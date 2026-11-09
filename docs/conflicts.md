@@ -50,7 +50,8 @@ needs a creator decision; record it in `decisions.md`, fix the code, then remove
   iPhone.
 - **Combat and wave numbers are placeholders.** Wave sizes (8 + 4 per wave, up to 40), the mix
   (mostly Psychos), pack sizes (2-4), the on-screen caps (11 on phones, 14 on desktop), enemy health
-  (a Psycho takes about three axe hits), attack tokens (1-3), the counter window (0.75 s), dodge
+  (a Psycho takes about three axe hits), attack tokens (1-3), the counter window (0.75 s), the perfect-dodge window
+  (0.42 s) and stun (1.7 s), the takedown threshold (8 hits), open/down damage bonuses, dodge
   and leap distances (`js/main.js`, `js/enemies.js`, `js/arsenal.js`).
 - **Objectives are wave-based only.** The bible imagines explorable zones with branching paths,
   optional discoveries and a culminating objective; stage objectives are just "clear N waves" so far.

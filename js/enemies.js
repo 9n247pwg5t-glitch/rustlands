@@ -766,7 +766,8 @@ function startLeap(e, tgt, dist, fwd) {
 function updateLeap(e, dt, tgt, dist, fwd) {
   e.leapT += dt;
   e.faceLock = true;
-  e.threat = !e.leapLanded && dist < 7 ? Math.max(0.05, e.leapDur - e.leapT) : 0; // counterable in the air
+  e.threat = !e.leapLanded && dist < 7 ? Math.max(0.05, e.leapDur - e.leapT) : 0; // dodge it
+  e.unblockable = true;
   if (!e.leapLanded) {
     _want.copy(e.leapV);
     if (e.glintHit < 0 && e.leapT > e.leapDur - 0.3) { e.glintHit = 0; axeGlint(e, dist); }
@@ -831,6 +832,7 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
     if (a.axe && toHit > 0 && toHit < 0.34 && e.glintHit !== e.atkHit) { e.glintHit = e.atkHit; axeGlint(e, dist); }
     // the counter window: from a little before the blow until it lands ("!" over the head)
     e.threat = toHit > 0 && toHit < 0.75 && dist < 4.2 ? toHit : 0;
+    e.unblockable = !!a.unblockable;
     while (e.atkHit < a.hits.length && t >= a.hits[e.atkHit]) {
       const connect = dist < 2.4 * e.def.scale && !tgt.isTurret;
       if (a.axe) SFX.chop(connect); else SFX.swing();
@@ -935,12 +937,17 @@ function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
 }
 
 // The "!" over an enemy about to strike: yellow, turning red just before the blow (COUNTER now).
-const WARN_TEX = [0xffd23a, 0xff3b2a].map((col) => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.font = 'bold 54px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 8; g.strokeStyle = '#1c110a'; g.strokeText('!', 32, 34); g.fillStyle = '#' + col.toString(16).padStart(6, '0'); g.fillText('!', 32, 34); return new THREE.CanvasTexture(c); });
+// Yellow "!": can be countered. Red "!!": can't (the spinning swing, the leap) - dodge it.
+const WARN_TEX = [[0xffd23a, '!'], [0xff3b2a, '!!']].map(([col, txt]) => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.font = 'bold 50px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 8; g.strokeStyle = '#1c110a'; g.strokeText(txt, 32, 34); g.fillStyle = '#' + col.toString(16).padStart(6, '0'); g.fillText(txt, 32, 34); return new THREE.CanvasTexture(c); });
+// Stunned (after a perfect dodge): a ring of stars, the enemy is open
+const STUN_TEX = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.font = 'bold 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 6; g.strokeStyle = '#1c110a'; g.strokeText('✶ ✶', 32, 32); g.fillStyle = '#9fff6a'; g.fillText('✶ ✶', 32, 32); return new THREE.CanvasTexture(c); })();
 function updateWarning(e) {
-  const on = e.threat > 0 && e.alive;
+  const stun = e.state === 'stun' && e.alive;
+  const on = (e.threat > 0 || stun) && e.alive;
   if (!e.warn) { if (!on) return; e.warn = new THREE.Sprite(new THREE.SpriteMaterial({ map: WARN_TEX[0], depthTest: false })); e.warn.renderOrder = 7; e.warn.position.y = 2.4; e.model.root.add(e.warn); }
   e.warn.visible = on;
-  if (on) { e.warn.material.map = WARN_TEX[e.threat < 0.3 ? 1 : 0]; e.warn.scale.setScalar(e.threat < 0.3 ? 0.85 : 0.65); }
+  if (on && stun) { e.warn.material.map = STUN_TEX; e.warn.scale.setScalar(0.75 + Math.sin(e.t * 9) * 0.06); }
+  else if (on) { e.warn.material.map = WARN_TEX[e.unblockable ? 1 : 0]; e.warn.scale.setScalar(e.threat < 0.3 ? 0.9 : 0.65); } // grows just before the blow
 }
 function updateEnemy(e, dt) {
   e.t += dt; e.sinceHit += dt; e.flash -= dt;
@@ -974,12 +981,12 @@ function updateEnemy(e, dt) {
   const chase = chaseDir(e, tgt, fwd, side, dt);
 
   const ai = e.def.ai;
-  const special = e.state === 'taunt' || e.state === 'down' || e.state === 'dash' || e.state === 'throw';
+  const special = e.state === 'taunt' || e.state === 'down' || e.state === 'dash' || e.state === 'throw' || e.state === 'stun';
   if (special) {
     e.stateT -= dt;
     if (e.state === 'throw') enemyUpdateThrow(e, dt, tgt);
     if (e.state === 'dash') { _want.copy(e.dashDir).multiplyScalar(e.dashSpeed); }
-    if (e.state === 'down') face = false;
+    if (e.state === 'down' || e.state === 'stun') face = false;
     if (e.stateT <= 0) e.state = 'move';
   } else if (ai === 'ranged') {
     updateRanged(e, dt, tgt, dist, fwd, side, sp, playerDowned);
