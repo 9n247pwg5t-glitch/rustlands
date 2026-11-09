@@ -5,7 +5,7 @@
 // that hits, kills and the player's own wounds keep writing into (the oldest dynamic stain goes
 // first). Decals live in the arena world only. Textures are drawn on a canvas at load.
 
-const BLOOD = { ready: false, kinds: {}, cap: IS_TOUCH ? 230 : 360, staticN: IS_TOUCH ? 110 : 170, wall: null };
+const BLOOD = { ready: false, kinds: {}, cap: IS_TOUCH ? 330 : 500, staticN: IS_TOUCH ? 210 : 320, wall: null };
 const BLOOD_KINDS = ['splat', 'pool', 'smear', 'spatter'];
 
 function bloodTexture(kind) {
@@ -62,7 +62,7 @@ function buildBlood() {
   // splatter up walls: a separate set of upright decals
   const wm = new THREE.MeshBasicMaterial({ map: BLOOD.kinds.splat.mesh.material.map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.DoubleSide });
   addCutaway(wm);
-  const W = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), wm, IS_TOUCH ? 90 : 160);
+  const W = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), wm, IS_TOUCH ? 150 : 240);
   for (let i = 0; i < W.count; i++) W.setMatrixAt(i, hide);
   W.frustumCulled = false; W.renderOrder = 1; W.visible = WORLD.id === 'arena';
   scene.add(W); worlds.arena.objects.push(W);
@@ -100,6 +100,15 @@ function scatterBlood() {
   if (!MAP.bloodSpots) for (const [n, r, w] of [['TentEntrance', 16, 0.8], ['Carousel', 12, 0.6], ['FarmYard', 14, 0.5], ['PondDock', 8, 0.3], ['BlockadeEast', 10, 0.4], ['BlockadeWest', 10, 0.4]]) { const p = P(n); if (p) spots.push([p[0], p[2], r, w]); }
   const total = spots.reduce((t, s) => t + s[3], 0);
   const put = (kind, x, z, size, rot) => { if (navWalkable(x, z)) placeBlood(kind, x, z, size, rot, true); };
+  // drag trails the map lays out (MAP.bloodTrails: polylines of [x, z]): smears end to end, drops beside them
+  for (const line of MAP.bloodTrails || []) for (let i = 0; i + 1 < line.length; i++) {
+    const [ax, az] = line[i], [bx, bz] = line[i + 1], L = Math.hypot(bx - ax, bz - az), dir = Math.atan2(-(bz - az), bx - ax), n = Math.max(1, Math.round(L / 1.4));
+    for (let k = 0; k < n; k++) {
+      const t = (k + 0.5) / n, x = ax + (bx - ax) * t + (rng() - 0.5) * 0.3, z = az + (bz - az) * t + (rng() - 0.5) * 0.3;
+      put('smear', x, z, 1.0 + rng() * 0.5, dir + (rng() - 0.5) * 0.3);
+      if (rng() < 0.35) put('spatter', x + (rng() - 0.5) * 1.5, z + (rng() - 0.5) * 1.5, 0.6 + rng() * 0.6, rng() * TAU);
+    }
+  }
   for (let k = 0; k < BLOOD.staticN * 3; k++) {
     let r = rng() * total, s = spots[0];
     for (const q of spots) { r -= q[3]; if (r <= 0) { s = q; break; } }

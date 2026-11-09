@@ -319,6 +319,7 @@ function applyStage(D, root, fx) {
   MAP.points = D.points;
   MAP.spawn.set(...D.points.PlayerSpawn);
   MAP.bloodSpots = D.bloodSpots;
+  MAP.bloodTrails = D.bloodTrails || null;
   spawnPoints.length = 0;
   for (const [k, v] of Object.entries(D.points)) if (/^EnemySpawn/.test(k)) spawnPoints.push(new THREE.Vector3(...v));
   // meshes: the lit ones merged by material, the glows on top

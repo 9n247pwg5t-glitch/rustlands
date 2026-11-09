@@ -454,6 +454,9 @@ function cmpDetailTextures() {
     tracks: cmpCanvas(64, 256, (g) => { g.fillStyle = 'rgba(20,14,10,0.55)'; for (const x of [12, 44]) for (let y = 0; y < 256; y += 8) g.fillRect(x - 5 + Math.sin(y * 0.05) * 2, y, 10, 5); }),
     cracks: cmpCanvas(128, 128, (g) => { g.strokeStyle = 'rgba(10,8,10,0.75)'; g.lineWidth = 2; for (let i = 0; i < 5; i++) { g.beginPath(); let x = 64, y = 64; g.moveTo(x, y); for (let k = 0; k < 7; k++) { x += (cmpRng() - 0.5) * 36; y += (cmpRng() - 0.5) * 36; g.lineTo(x, y); } g.stroke(); } }),
     manhole: cmpCanvas(64, 64, (g) => { g.fillStyle = '#2a2826'; g.beginPath(); g.arc(32, 32, 30, 0, TAU); g.fill(); g.strokeStyle = '#4a4642'; g.lineWidth = 2; for (let r = 8; r < 30; r += 7) { g.beginPath(); g.arc(32, 32, r, 0, TAU); g.stroke(); } }),
+    confetti: cmpCanvas(128, 128, (g) => { for (let i = 0; i < 70; i++) { g.fillStyle = ['#ff4a5a', '#ffd23a', '#4fc6ff', '#9fff6a', '#ff8a2a', '#d07aff', '#fff6e0'][i % 7]; g.save(); g.translate(8 + cmpRng() * 112, 8 + cmpRng() * 112); g.rotate(cmpRng() * 6); if (i % 7 === 6) { g.beginPath(); g.arc(0, 0, 3.5, 0, TAU); g.fill(); } else g.fillRect(-3, -1.5, 6, 3); g.restore(); } }),
+    patch: cmpCanvas(128, 128, (g) => { for (let i = 0; i < 9; i++) { const x = 30 + cmpRng() * 68, y = 30 + cmpRng() * 68, gr = g.createRadialGradient(x, y, 2, x, y, 30 + cmpRng() * 20); const dk = cmpRng() < 0.5; gr.addColorStop(0, dk ? 'rgba(22,16,12,0.28)' : 'rgba(120,100,80,0.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); } for (let i = 0; i < 160; i++) { const v = 40 + cmpRng() * 90; g.fillStyle = `rgba(${v},${v * 0.9},${v * 0.8},${0.5 * cmpRng()})`; const r = 0.8 + cmpRng() * 2.2, a = cmpRng() * TAU, d = cmpRng() * 48; g.beginPath(); g.arc(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, r, 0, TAU); g.fill(); } }),
+    drip: cmpCanvas(128, 128, (g) => { const gr = g.createRadialGradient(64, 64, 4, 64, 64, 46); gr.addColorStop(0, 'rgba(120,6,10,0.95)'); gr.addColorStop(0.7, 'rgba(80,2,6,0.9)'); gr.addColorStop(1, 'rgba(60,2,6,0)'); g.fillStyle = gr; g.beginPath(); for (let i = 0; i <= 20; i++) { const a = i / 20 * TAU, r = 40 + Math.sin(a * 4) * 6 + cmpRng() * 6; g.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r); } g.fill(); g.fillStyle = 'rgba(140,10,14,0.95)'; for (let i = 0; i < 14; i++) { const a = cmpRng() * TAU, d = 44 + cmpRng() * 16; g.beginPath(); g.arc(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, 1.5 + cmpRng() * 3, 0, TAU); g.fill(); } g.fillStyle = 'rgba(255,170,170,0.22)'; g.beginPath(); g.ellipse(52, 52, 12, 5, -0.6, 0, TAU); g.fill(); }),
     leaves: cmpCanvas(128, 128, (g) => { for (let i = 0; i < 40; i++) { g.fillStyle = ['#6a4a20', '#8a5a20', '#4a3a1a', '#a06a28'][i % 4]; g.save(); g.translate(cmpRng() * 128, cmpRng() * 128); g.rotate(cmpRng() * 6); g.beginPath(); g.ellipse(0, 0, 5, 2.5, 0, 0, TAU); g.fill(); g.restore(); } }),
   };
   T.smoke = cmpCanvas(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(90,80,90,0.5)'); gr.addColorStop(1, 'rgba(60,50,60,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); });
@@ -472,8 +475,6 @@ function cmpDetail(H) {
   for (const [sx, sz] of [[1, 1], [-1, -1]]) { // steel steps at two corners
     for (let k = 0; k < 3; k++) dblk(1.2, 0.3 * (k + 1), 0.5, metal, R.x + sx * (R.half + 1.1 - k * 0.35), 0, R.z + sz * (R.half + 0.4));
   }
-  // apron skirt flyers and a cable bundle
-  for (let i = 0; i < 6; i++) sign(0.6, 0.85, T.poster[i % 3], R.x - 4.5 + i * 1.8, 0.45, R.z + R.half + 0.02, 0);
   // announcer table: monitors, a bell, folding chairs
   const at = [-9.5, 9.5];
   solid(3.2, 0.85, 1, cmpMat(0x3a3a40), at[0], 0, at[1], 0);
@@ -560,7 +561,7 @@ function cmpDetail(H) {
   dblk(2.8, 0.3, 2.4, cmpMat(0xffffff, TEX.stripes, 0, [3, 1]), -15, 2.4, 33.5);
   det(new THREE.PlaneGeometry(1.2, 0.8), cmpMat(0xffcc70, null, 0xffa040), -15, 1.4, 32.48, Math.PI);
   sign(1.8, 0.6, T.ticket, -15, 2.0, 32.47, Math.PI).name = 'Detail';
-  sign(2.4, 0.9, T.neon, -15, 3.2, 33.5 - 1.05, Math.PI, 0xff40c0).name = 'Detail';
+  sign(2.4, 0.9, T.neon, -15, 3.2, 33.5 - 1.05, Math.PI, 0xff40c0).name = 'Detail'; sign(2.4, 0.9, T.neon, -15, 3.2, 33.5 - 1.02, 0, 0xff40c0).name = 'Detail';
   glowAt(-15, 31, 4, 0xff40c0);
   // popcorn cart
   solid(1.6, 1.2, 1, red, 13, 0.3, 31, 0.3);
@@ -660,6 +661,7 @@ function cmpDetail(H) {
     dblk(2.2, 0.12, 0.12, bark, x, 7.3, z);
   }
   for (const zz of [-58, 58]) CMP.wires.push([[-45, 7.4, zz], [-25, 6.6, zz], [-5, 7.4, zz], [15, 6.6, zz], [35, 7.4, zz]]);
+  cmpFill(H, T, det, dblk, chair);
 }
 
 // The set dressing's own draws: ground decals and litter (one mesh, one atlas), grass and weeds (one
@@ -672,6 +674,7 @@ function cmpAtlas(T) {
   const D = T.decal;
   put('puddle', D.puddle.image, 0, 0, 128, 128); put('oil', D.oil.image, 128, 0, 128, 128); put('cracks', D.cracks.image, 256, 0, 128, 128); put('leaves', D.leaves.image, 384, 0, 128, 128);
   put('manhole', D.manhole.image, 0, 128, 128, 128); put('tracks', D.tracks.image, 256, 128, 64, 256);
+  put('confetti', D.confetti.image, 384, 128, 128, 128); put('patch', D.patch.image, 0, 256, 128, 128); put('drip', D.drip.image, 128, 256, 128, 128);
   g.drawImage(T.litter.image, 128, 128, 128, 128);
   for (let i = 0; i < 4; i++) R['litter' + i] = [(128 + (i % 2) * 64) / 512, 1 - (128 + (Math.floor(i / 2) + 1) * 64) / 512, 64 / 512, 64 / 512];
   const t = new THREE.CanvasTexture(A); t.anisotropy = 2;
@@ -761,10 +764,27 @@ function cmpDetailFx(group) {
     });
     const o = new THREE.Points(g, mat); o.renderOrder = 3; group.add(o); return mat;
   };
+  // --- sweeping searchlights: a cone and a pool of light that wander over the yard
+  const swMat = new THREE.MeshBasicMaterial({ color: 0xe8f0ff, transparent: true, opacity: 0.08, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const swPool = new THREE.MeshBasicMaterial({ map: TEX.glow, color: 0xb8c8ff, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending });
+  for (const w of CMP.sweeps || []) {
+    w.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 2.2, 1, 12, 1, true).translate(0, -0.5, 0), swMat); w.beam.position.set(w.x, w.y, w.z); w.beam.frustumCulled = false;
+    w.pool = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), swPool); w.pool.scale.set(6, 1, 6); w.pool.renderOrder = 2; w.pool.frustumCulled = false;
+    group.add(w.beam, w.pool);
+  }
   const fireSrc = CMP.fires.map(([x, z]) => [x, 1.9, z, 0.55]);
   CMP.smokeFx = [pts(fireSrc.concat(CMP.smoke), IS_TOUCH ? 3 : 5, false, T.smoke, 0x3a3238), pts(CMP.fires.map(([x, z]) => [x, 1.4, z, 0.6]), IS_TOUCH ? 3 : 5, true, T.smoke, 0xff9a3a)];
 }
+const _swV = new THREE.Vector3(), _swD = new THREE.Vector3(), _swUp = new THREE.Vector3(0, -1, 0);
 function updateCompoundDetail(dt) {
+  CMP.swT = (CMP.swT || 0) + dt;
+  for (const w of CMP.sweeps || []) {
+    if (!w.beam) continue;
+    const t = CMP.swT * 0.32 + w.ph, x = Math.sin(t) * 32, z = Math.sin(t * 0.73 + 1) * 24;
+    _swV.set(x, groundAt(x, z) + 0.1, z); _swD.copy(_swV).sub(w.beam.position);
+    const L = _swD.length(); w.beam.scale.set(1, L, 1); w.beam.quaternion.setFromUnitVectors(_swUp, _swD.multiplyScalar(1 / L));
+    w.pool.position.copy(_swV);
+  }
   if (CMP.smokeFx) {
     const sc = renderer.domElement.height * 0.5 * camera.projectionMatrix.elements[5];
     for (const m of CMP.smokeFx) { m.uniforms.uT.value += dt; m.uniforms.uScale.value = sc; }
@@ -775,4 +795,173 @@ function updateCompoundDetail(dt) {
   const c = new THREE.Color();
   B.list.forEach((f, i) => { const on = (i + B.step) % 4 !== 0; B.mesh.setColorAt(i, c.setHex(f.color || 0xffe3a0).multiplyScalar(on ? 1 : 0.25)); });
   B.mesh.instanceColor.needsUpdate = true;
+}
+
+// The yard's mid-size fill (decisions.md 2026-11-09: "map feels too empty", "bloodier"): shipping
+// containers, a food truck, a strength tester, game booths, merch tables, picnic tables, TV camera
+// scaffolds, speaker stacks, searchlight towers, butcher racks with hanging carcasses, body bags,
+// bath tubs and buckets of blood, trash bags along the fence, and drag trails of blood between them.
+function cmpFill(H, T, det, dblk, chair) {
+  const { add, blk, col, solid, sign, glowAt, D, FX, FZ, R, wood, steel, bark, tyreM, crate, rustM } = H;
+  const metal = cmpMat(0x6a6a72), dark = cmpMat(0x1e1a1c), red = cmpMat(0xb3121a), white = cmpMat(0xe8e0d0), yellow = cmpMat(0xd8b23a);
+  const gore = cmpMat(0x8a1418), meat = cmpMat(0x6a1a22), fat = cmpMat(0x9a6a5e), bone = cmpMat(0xe6dcc4), bagM = cmpMat(0x1e2a22), blood = cmpMat(0x5a0408, null, 0x200000);
+  const trails = (D.bloodTrails = D.bloodTrails || []);
+  const spot = (x, z, r, w) => D.bloodSpots.push([x, z, r, w]);
+
+  // --- shipping containers (corrugated, rust streaked, tagged)
+  const container = (x, z, ry, color, y = 0, tag = -1) => {
+    const q = Math.abs(Math.sin(ry)) > 0.5, w = 6.1, h = 2.6, d = 2.45;
+    blk(w, h, d, cmpMat(color, TEX.metal, 0, [2, 1]), x, y, z, ry);
+    if (y === 0) col(x, z, q ? d : w, q ? w : d, h);
+    for (let i = 0; i < 12; i++) { const o = -w / 2 + 0.25 + i * (w - 0.5) / 11; dblk(0.08, h - 0.1, 0.06, cmpMat(color), x + Math.cos(ry) * o + Math.sin(ry) * (d / 2 + 0.02), y + 0.05, z - Math.sin(ry) * o + Math.cos(ry) * (d / 2 + 0.02), ry); }
+    dblk(0.06, h - 0.1, d - 0.1, dark, x + Math.cos(ry) * (w / 2 + 0.02), y + 0.05, z - Math.sin(ry) * (w / 2 + 0.02), ry); // doors end
+    if (tag >= 0) sign(3, 1.4, T.graffiti[tag], x + Math.sin(ry) * (d / 2 + 0.07), y + 1.2, z + Math.cos(ry) * (d / 2 + 0.07), ry).name = 'Detail';
+  };
+  container(-38, -30.5, 0, 0x8a3a2a, 0, 2); container(-37.6, -30.5, 0.06, 0x2a4a6a, 2.6);
+  container(30.5, 34.5, Math.PI, 0x3a5a3a, 0, 5);
+  container(46.2, -20, Math.PI / 2, 0x8a6a2a, 0, 1);
+
+  // --- a food truck with a lit hatch, an awning and a menu board
+  solid(2.4, 2.9, 6.2, cmpMat(0xe8d8b0), -33, 0.4, 12, 0);
+  blk(2.3, 1.2, 1.7, cmpMat(0xe8d8b0), -33, 0.4, 15.9, 0); dblk(2.0, 0.6, 0.05, cmpMat(0x1a1c22), -33, 1.0, 16.76);
+  dblk(0.05, 0.9, 3, cmpMat(0xffd27a, null, 0xffa040), -31.78, 1.7, 11.5);
+  dblk(1.4, 0.06, 3.4, cmpMat(0xffffff, TEX.stripes, 0, [3, 1]), -31.1, 2.75, 11.5);
+  dblk(1.6, 0.08, 3, metal, -31.7, 1.55, 11.5); // counter
+  sign(2.2, 0.7, T.popcorn, -31.77, 3.0, 11.5, Math.PI / 2).name = 'Detail';
+  for (const [a, b] of [[-1.2, -2.3], [1.2, -2.3], [-1.2, 2.3], [1.2, 2.3]]) det(new THREE.CylinderGeometry(0.42, 0.42, 0.3, 10).rotateZ(Math.PI / 2), tyreM, -33 + a, 0.42, 12 + b);
+  glowAt(-30.5, 11.5, 4, 0xffb050);
+  for (let i = 0; i < 3; i++) chair(-29.4, 9.6 + i * 1.4, -Math.PI / 2 + (cmpRng() - 0.5) * 0.6, i === 1);
+
+  // --- the strength tester: a tall striped post, the scale, a bell, a pad and the mallet
+  add(new THREE.CylinderGeometry(0.16, 0.2, 6, 8), cmpMat(0xffffff, TEX.stripes, 0, [1, 4]), 28, 3, -8);
+  for (let i = 0; i < 9; i++) dblk(0.5, 0.06, 0.04, [red, yellow, white][i % 3], 28, 0.8 + i * 0.6, -7.8);
+  det(new THREE.SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), yellow, 28, 6.0, -8).rotation.x = Math.PI;
+  dblk(1, 0.3, 1, red, 28, 0, -7.3); col(28, -7.8, 1, 1.2, 6);
+  const mallet = dblk(0.06, 0.06, 1.3, bark, 29.3, 0.05, -6.8, 0.6); dblk(0.4, 0.25, 0.25, wood, 29.68, 0.02, -6.2, 0.6);
+  glowAt(28, -7.5, 3, 0xffd060);
+
+  // --- a game booth facing the prize booth: a pyramid of bottles to knock down
+  solid(4, 0.9, 1.2, cmpMat(0x2a6a4a), 14, 0, -26, 0);
+  for (const s2 of [-1, 1]) dblk(0.12, 2.4, 0.12, wood, 14 + s2 * 2, 0, -26.5);
+  dblk(4.4, 0.15, 1.6, cmpMat(0xffffff, TEX.stripes, 0, [3, 1]), 14, 2.4, -26.3);
+  for (let r = 0; r < 3; r++) for (let i = 0; i < 3 - r; i++) for (const ox of [-1.1, 1.1]) det(new THREE.CylinderGeometry(0.06, 0.08, 0.28, 6), cmpMat([0x6a9a5a, 0xc8b070, 0x8a3a2a][r]), 14 + ox + (i - (2 - r) / 2) * 0.2, 1.04 + r * 0.29, -26.1);
+  glowAt(14, -24.5, 3.5, 0x60ff9a);
+
+  // --- merch tables beside the runway, shirts piled, a price sign
+  for (const sx of [-1, 1]) {
+    const x = sx * 7, z = -24;
+    blk(2.4, 0.08, 1, white, x, 0.8, z); for (const [a, b] of [[-1.1, -0.4], [1.1, -0.4], [-1.1, 0.4], [1.1, 0.4]]) dblk(0.05, 0.8, 0.05, steel, x + a, 0, z + b);
+    col(x, z, 2.4, 1, 0.9);
+    for (let i = 0; i < 6; i++) dblk(0.45, 0.06 + (i % 3) * 0.05, 0.35, cmpMat([0xb3121a, 0x1a1a1a, 0x5a1890, 0xd8b23a][i % 4]), x - 0.9 + (i % 3) * 0.9, 0.88, z - 0.2 + Math.floor(i / 3) * 0.4);
+    sign(0.75, 1.1, T.poster[(sx + 3) % 3], x + sx * 1.6, 0.6, z, -sx * Math.PI / 2).name = 'Detail';
+    chair(x, z - 1.1, 0, false);
+  }
+
+  // --- picnic tables near the gate
+  const picnic = (x, z, ry) => {
+    blk(2.2, 0.08, 0.9, wood, x, 0.75, z, ry);
+    for (const o of [-0.75, 0.75]) blk(2.2, 0.06, 0.3, wood, x - Math.sin(ry) * o, 0.42, z - Math.cos(ry) * o, ry);
+    for (const o of [-0.9, 0.9]) dblk(0.08, 0.75, 1.6, bark, x + Math.cos(ry) * o, 0, z - Math.sin(ry) * o, ry);
+    col(x, z, 2.3, 2, 0.85);
+    CMP.scatter.push({ kind: 'litter', x: x + 0.6, z: z + 1.3, s: 0.6 }, { kind: 'litter', x: x - 0.8, z: z - 1.2, s: 0.5 });
+  };
+  picnic(-10, 27, 0.15); picnic(16, 22, -0.2); picnic(-27, 7, 1.5);
+
+  // --- TV camera scaffolds and speaker stacks inside the barriers
+  for (const [x, z, face] of [[-8, -14, 0.5], [8, 14, Math.PI + 0.5]]) {
+    for (const [a, b] of [[-0.9, -0.9], [0.9, -0.9], [0.9, 0.9], [-0.9, 0.9]]) dblk(0.08, 2.2, 0.08, steel, x + a, 0, z + b);
+    for (const yy of [0.8, 2.2]) { dblk(1.9, 0.06, 0.06, steel, x, yy, z - 0.9); dblk(1.9, 0.06, 0.06, steel, x, yy, z + 0.9); dblk(0.06, 0.06, 1.9, steel, x - 0.9, yy, z); dblk(0.06, 0.06, 1.9, steel, x + 0.9, yy, z); }
+    blk(2, 0.1, 2, wood, x, 2.2, z); col(x, z, 2, 2, 2.4);
+    const g = new THREE.Group(); g.position.set(x, 2.3, z); g.rotation.y = face; g.name = 'Detail'; H.root.add(g);
+    for (const r of [-1, 0, 1]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.2, 0.04), dark); l.position.set(r * 0.3, 0.55, r === 0 ? 0.3 : -0.15); l.rotation.set(r === 0 ? -0.25 : 0.12, 0, -r * 0.25); g.add(l); }
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.8), dark); body.position.y = 1.25; g.add(body);
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.3, 10).rotateX(Math.PI / 2), metal); lens.position.set(0, 1.25, 0.55); g.add(lens);
+    const tally = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.06), cmpMat(0xff2020, null, 0xff0000)); tally.position.set(0, 1.5, 0.3); g.add(tally);
+    g.traverse((o) => { o.name = 'Detail'; });
+  }
+  for (const [x, z] of [[19.5, 11], [-19.5, -11], [19.5, -11], [-19.5, 11]]) {
+    solid(1.2, 1.2, 1, dark, x, 0, z, 0); blk(1.1, 1.1, 0.95, dark, x, 1.2, z);
+    for (const yy of [0.6, 1.75]) det(new THREE.CircleGeometry(0.38, 12), cmpMat(0x3a3a40), x - Math.sign(x) * 0.61, yy, z, -Math.sign(x) * Math.PI / 2);
+  }
+
+  // --- searchlight towers whose beams sweep the yard (the beam and its pool move; see updateCompound)
+  CMP.sweeps = [];
+  for (const [x, z, ph] of [[46.5, -12, 0], [-46.5, 9, Math.PI]]) {
+    for (const [a, b] of [[-0.8, -0.8], [0.8, -0.8], [0.8, 0.8], [-0.8, 0.8]]) dblk(0.1, 5, 0.1, steel, x + a, 0, z + b);
+    for (const yy of [1.5, 3, 4.5]) { dblk(1.7, 0.07, 0.07, steel, x, yy, z - 0.8); dblk(1.7, 0.07, 0.07, steel, x, yy, z + 0.8); }
+    blk(1.9, 0.12, 1.9, metal, x, 5, z); col(x, z, 1.8, 1.8, 5.2);
+    det(new THREE.CylinderGeometry(0.35, 0.45, 0.7, 10), dark, x, 5.55, z);
+    CMP.sweeps.push({ x, y: 5.6, z, ph });
+  }
+
+  // --- butcher racks: hooks, hanging carcasses, a block with a cleaver, a bath of blood, buckets, body bags
+  const carcass = (x, y, z, s) => {
+    const m = det(new THREE.IcosahedronGeometry(1, 1), meat, x, y, z, cmpRng() * TAU); m.scale.set(0.32 * s, 0.75 * s, 0.22 * s);
+    const f = det(new THREE.IcosahedronGeometry(1, 0), fat, x, y + 0.25 * s, z + 0.12 * s, cmpRng()); f.scale.set(0.2 * s, 0.35 * s, 0.1 * s);
+    const g2 = det(new THREE.IcosahedronGeometry(1, 0), gore, x, y - 0.3 * s, z, cmpRng()); g2.scale.set(0.24 * s, 0.4 * s, 0.18 * s);
+    det(new THREE.CylinderGeometry(0.04, 0.04, 0.5, 5), bone, x, y + 0.85 * s, z);
+    det(new THREE.TorusGeometry(0.1, 0.02, 4, 8, Math.PI * 1.4), metal, x, y + 1.15 * s, z);
+  };
+  const rack = (x, z, ry, n) => {
+    const c = Math.cos(ry), sn = Math.sin(ry), L = n * 1.1 + 0.6;
+    for (const o of [-L / 2, L / 2]) dblk(0.14, 3.2, 0.14, rustM, x + c * o, 0, z - sn * o, ry);
+    dblk(L + 0.3, 0.12, 0.12, rustM, x, 3.1, z, ry);
+    col(x, z, Math.abs(c) * L + 0.6, Math.abs(sn) * L + 0.6, 2.4);
+    for (let i = 0; i < n; i++) {
+      const o = -L / 2 + 0.85 + i * 1.1;
+      if (cmpRng() < 0.15) { det(new THREE.TorusGeometry(0.1, 0.02, 4, 8, Math.PI * 1.4), metal, x + c * o, 2.85, z - sn * o); continue; }
+      carcass(x + c * o, 1.75 + cmpRng() * 0.2, z - sn * o, 0.9 + cmpRng() * 0.25);
+      CMP.decals.push({ kind: 'drip', x: x + c * o, z: z - sn * o, s: 0.6, ry: cmpRng() * TAU, y: 0.09 });
+    }
+    spot(x, z, 4, 0.9);
+  };
+  const butcher = (x, z) => {
+    solid(1.4, 0.85, 0.9, cmpMat(0x6a4a34), x, 0, z, 0);
+    dblk(1.42, 0.03, 0.92, gore, x, 0.85, z);
+    const cl = dblk(0.5, 0.03, 0.22, metal, x + 0.2, 0.9, z, 0.4); cl.rotation.z = 0.15;
+    dblk(0.05, 0.05, 0.3, bark, x - 0.15, 0.9, z + 0.18, 0.4);
+    for (let i = 0; i < 3; i++) { const b = det(new THREE.IcosahedronGeometry(0.15, 0), meat, x - 0.4 + i * 0.25, 0.95, z - 0.2); b.scale.y = 0.6; }
+  };
+  const tub = (x, z, ry) => {
+    blk(1.7, 0.6, 0.8, white, x, 0.15, z, ry); col(x, z, 1.7, 1.7, 0.75);
+    det(new THREE.PlaneGeometry(1.5, 0.62).rotateX(-Math.PI / 2), blood, x, 0.76, z, ry);
+    for (const [a, b] of [[-0.7, -0.3], [0.7, -0.3], [-0.7, 0.3], [0.7, 0.3]]) det(new THREE.SphereGeometry(0.09, 6, 4), metal, x + a * Math.cos(ry) + b * Math.sin(ry), 0.1, z - a * Math.sin(ry) + b * Math.cos(ry));
+    spot(x, z, 2.5, 0.4);
+  };
+  const bucket = (x, z, tipped) => {
+    const b = det(new THREE.CylinderGeometry(0.2, 0.16, 0.38, 10), metal, x, tipped ? 0.17 : 0.19, z, cmpRng() * TAU);
+    if (tipped) { b.rotation.z = Math.PI / 2; CMP.decals.push({ kind: 'drip', x: x + 0.5, z, s: 0.9, ry: 0, y: 0.09 }); }
+    else det(new THREE.CircleGeometry(0.17, 10).rotateX(-Math.PI / 2), blood, x, 0.37, z);
+  };
+  const bodyBag = (x, z, ry) => {
+    const b = det(new THREE.IcosahedronGeometry(1, 1), bagM, x, 0.2, z, ry); b.scale.set(0.38, 0.22, 0.95);
+    dblk(0.03, 0.02, 1.6, cmpMat(0x8a8a90), x + Math.sin(ry) * 0, 0.4, z, ry);
+    CMP.decals.push({ kind: 'drip', x: x + (cmpRng() - 0.5), z: z + (cmpRng() - 0.5), s: 0.8, ry: cmpRng() * TAU, y: 0.09 });
+  };
+  rack(-30, -4, Math.PI / 2, 4); butcher(-27.6, -6.5); tub(-27.4, -1.5, 0.2); bucket(-28.6, -8.3, false); bucket(-31.6, -7.2, true);
+  rack(27.5, 7.5, 0, 3); butcher(30, 5.3); bucket(25.6, 5.6, false); bucket(26.4, 9.6, true);
+  rack(-8, -33.5, 0, 4); // by the tent, where the shows end
+  bodyBag(-33, -6.5, 0.3); bodyBag(-34.4, -5.6, 0.1); bodyBag(46, 22.4, 1.5); bodyBag(-19, -34.6, 1.6); bodyBag(-44, 21.5, 0.2); bodyBag(9.6, -31.4, 1.2);
+  tub(-43.5, 30, 1.2);
+  for (const [x, z] of [[-20.6, 33.4], [41.6, -14], [-12.4, -18.6], [21, 33.6], [-46.5, -6]]) bucket(x, z, cmpRng() < 0.5);
+
+  // --- trash bags heaped along the fence and by the bins
+  const bagC = [cmpMat(0x18181c), cmpMat(0x22222a), cmpMat(0x2a3a2a)];
+  const heap = (x, z, n) => { for (let i = 0; i < n; i++) { const b = det(new THREE.IcosahedronGeometry(0.4, 1), bagC[i % 3], x + (cmpRng() - 0.5) * 1.6, 0.25 + (i > n / 2 ? 0.25 : 0), z + (cmpRng() - 0.5) * 1.1, cmpRng() * 3); b.scale.set(1 + cmpRng() * 0.3, 0.75, 0.9 + cmpRng() * 0.3); } };
+  for (const [x, z, n] of [[-47.6, -2, 7], [47.6, 30, 6], [-12, 36.6, 6], [17, 36.6, 5], [-47.6, 35, 5], [47.6, -35, 5], [-28, -36.6, 6], [6, -36.6, 5], [45, 24.8, 5], [-22, -36.4, 4], [33, -36.6, 5]]) heap(x, z, n);
+
+  // --- ground variety: muddy patches, gravel, confetti and popcorn by the stalls
+  for (let i = 0; i < 46; i++) { const x = (cmpRng() - 0.5) * 2 * (FX - 3), z = (cmpRng() - 0.5) * 2 * (FZ - 3); if (Math.abs(x) < R.half + 1 && Math.abs(z) < R.half + 1) continue; CMP.decals.push({ kind: 'patch', x, z, s: 2 + cmpRng() * 3, ry: cmpRng() * TAU, y: 0.072 }); }
+  for (const [x, z, n] of [[13, 31, 4], [-15, 31.5, 4], [-14, -24.5, 4], [14, -24.5, 4], [-31, 11.5, 3], [0, 21, 3], [-7, -22, 2], [7, -22, 2], [0, 12, 3]]) for (let i = 0; i < n; i++) CMP.decals.push({ kind: 'confetti', x: x + (cmpRng() - 0.5) * 4, z: z + (cmpRng() - 0.5) * 3, s: 0.9 + cmpRng() * 0.8, ry: cmpRng() * TAU, y: 0.08 });
+  for (let i = 0; i < 260; i++) { const x = (cmpRng() - 0.5) * 2 * (FX - 2), z = (cmpRng() - 0.5) * 2 * (FZ - 2); if (Math.abs(x) < R.half && Math.abs(z) < R.half) continue; CMP.scatter.push({ kind: cmpRng() < 0.5 ? 'litter' : 'grass', x, z, s: 0.35 + cmpRng() * 0.4 }); }
+
+  // --- blood: drag trails between the racks, the ring, the tent, the shacks and the bags; more spots everywhere
+  trails.push(
+    [[-30, -4], [-25, -2], [-18, 0], [-12, 1], [-6.5, 0.5]], [[27.5, 7.5], [22, 5], [14, 2.5], [6.5, 1]], [[-8, -33.5], [-4, -31], [-1, -28], [0, -22], [0, -15], [0, -7]],
+    [[-6.5, -2], [-4, -9], [-3.6, -18], [-6, -24], [-14, -26]], [[3, 6.5], [3.4, 12], [2.6, 18], [0, 24], [-4, 30]], [[-34, 25.4], [-30, 22], [-24, 20], [-20, 14]],
+    [[36, 25.4], [32, 20], [26, 17.5], [22, 12]], [[-24, -28.8], [-20, -24], [-14, -20]], [[22, -28.8], [24, -24], [20, -18], [13, -12]],
+    [[-41, -2], [-36, 2], [-31, 6], [-33, 8.8]], [[38, -22.2], [34, -16], [28, -10]], [[-33, -6.5], [-38, -12], [-44, -18], [-46, -20]],
+  );
+  spot(-30, -4, 6, 1.2); spot(27.5, 7.5, 5, 1); spot(-8, -32, 5, 0.9); spot(-43.5, 30, 4, 0.5); spot(46, 22.4, 4, 0.5); spot(-33, 12, 5, 0.4);
+  spot(28, -8, 5, 0.4); spot(14, -25, 5, 0.5); spot(-14, -25, 5, 0.5); spot(-38, -30, 6, 0.4); spot(30, 33, 5, 0.4); spot(15, 0, 5, 0.6); spot(-15, 0, 5, 0.6); spot(0, 14, 4, 0.6); spot(0, -14, 4, 0.6);
 }
