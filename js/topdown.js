@@ -139,6 +139,8 @@ function tdAim(dt) {
 // beard; the first-person arms model left those out), with the
 // rifle and the axe in the right hand, animated with the shared clips.
 // the player runs with the uploaded Unarmed Run Forward 3 / Unarmed Run Back clips (2026-11-09)
+// the dive-and-roll stretch of the uploaded Stand To Roll clip (seconds), played over the dodge
+const ROLL_CLIP = [0.8, 2.05];
 const GAIT_PLAYER_AXE = { fwd: [['Unarmed Run Forward 3', 2.4]], back: ['Unarmed Run Back', 2.6], side: ['Goalkeeper Sidestep', 1.8], idle: 'Unarmed Idle' };
 // Each combo move plays one of the enemy axe clips, timed so its blow lands when the swing does.
 // (Each move's clip, and where in it the blow lands, is in AXE_SET in js/arsenal.js.)
@@ -205,7 +207,7 @@ function updatePlayerBody(dt) {
   }
   B.kickT = player.kickT;
   // a dodge: a fast sidestep
-  if (player.dodgeT > 0 && !B.dodging) { B.dodging = true; pe.state = 'swing'; pe.atk = null; rigOnce(R, 'Goalkeeper Sidestep', 2.6, 0, Infinity, 0.04); }
+  if (player.dodgeT > 0 && !B.dodging) { B.dodging = true; pe.state = 'swing'; pe.atk = null; rigOnce(R, 'Stand To Roll', (ROLL_CLIP[1] - ROLL_CLIP[0]) / DODGE_TIME, ROLL_CLIP[0], ROLL_CLIP[1], 0.05); }
   if (player.dodgeT <= 0) B.dodging = false;
   if (pe.state === 'swing' && player.meleeT <= 0 && player.kickT <= 0 && player.dodgeT <= 0) { pe.state = 'move'; pe.atk = null; }
   pe.reloadT = 0;

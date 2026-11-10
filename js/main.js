@@ -392,7 +392,7 @@ function updatePlayer(dt) {
   const sprint = (k.ShiftLeft || k.ShiftRight || stickSprint) && mag > 0.3 && !player.downed;
   stickBase.classList.toggle('sprint', stickSprint);
   player.sprinting = sprint;
-  let speed = player.downed ? 1.6 : sprint ? 10.5 : 7;
+  let speed = player.downed ? 1.6 : sprint ? 7.5 : 5; // (2026-11-10: slower; was 7 / 10.5)
   if (player.adsK > 0.5) speed *= 0.6;
   // top-down: up on the stick (or W) is up the screen, which is always north
   const fx = 0, fz = -1, rx = 1, rz = 0;

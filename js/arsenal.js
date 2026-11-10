@@ -369,6 +369,8 @@ function resolveKick() {
 }
 
 // DODGE: a quick dash the way you're pushing (or away from whoever is closest), briefly untouchable.
+// The dodge roll: how long it lasts and how fast it carries you (about 4.3 m).
+const DODGE_TIME = 0.6, DODGE_SPEED = 7.8;
 function dodge() {
   if (player.dodgeCd > 0 || (player.meleeT > 0 && !player.meleeHit) || !player.alive || player.downed || game.mode === 'hub') return false;
   let dx = input.touchMove.x + ((input.keys.KeyD || input.keys.ArrowRight) ? 1 : 0) - ((input.keys.KeyA || input.keys.ArrowLeft) ? 1 : 0);
@@ -392,8 +394,10 @@ function dodge() {
     SFX.shieldUp();
   }
   player.meleeT = 0; player.kickT = 0;
-  player.dodgeT = 0.26; player.dodgeCd = 0.6;
-  player.invuln = Math.max(player.invuln, 0.34);
+  // a forward roll (the uploaded Stand To Roll clip, 2026-11-10): the body turns to roll the way it goes
+  player.yaw = Math.atan2(-player.dodgeDir.x, -player.dodgeDir.z);
+  player.dodgeT = DODGE_TIME; player.dodgeCd = 0.75;
+  player.invuln = Math.max(player.invuln, 0.5);
   SFX.swing();
   return true;
 }
@@ -402,7 +406,7 @@ function updatePlayerMelee(dt) {
   player.meleeCd -= dt; player.kickCd -= dt; player.dodgeCd = (player.dodgeCd || 0) - dt; player.riposteT = (player.riposteT || 0) - dt;
   player.forceVel = null;
   if ((player.flowT = (player.flowT || 0) - dt) <= 0) player.flow = 0;
-  if (player.dodgeT > 0) { player.dodgeT -= dt; player.forceVel = player.dodgeDir.clone().multiplyScalar(15); }
+  if (player.dodgeT > 0) { player.dodgeT -= dt; const k = player.dodgeT / DODGE_TIME; player.forceVel = player.dodgeDir.clone().multiplyScalar(DODGE_SPEED * (k < 0.2 ? 0.4 + k * 3 : 1)); } // eases off as the roll comes up
   if (player.meleeT > 0) {
     player.meleeT -= dt;
     // glide in to the target so the blow lands at reach (the leap covers the most ground)
