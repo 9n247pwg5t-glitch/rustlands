@@ -591,8 +591,16 @@ function updateWheelButton() {
   const big = th ? '!' : '🦶';
   if ($('wbAmmo').textContent !== big) $('wbAmmo').textContent = big;
   $('wbPool').textContent = th ? 'counter now' : player.kickCd > 0 ? '' : 'kick';
-  $('kickBtn').classList.toggle('cool', (player.dodgeCd || 0) > 0);
-  $('kickBtn').classList.toggle('danger', !!dangerThreat()); // a red "!!" is coming: dodge
+  // the one defensive button: COUNTER while a yellow "!" can be countered (and no red "!!" is about
+  // to land, which has to be dodged), DODGE otherwise
+  const danger = !!dangerThreat(), canCounter = !!th && !danger;
+  const kb = $('kickBtn');
+  kb.classList.toggle('counter', canCounter);
+  kb.classList.toggle('cool', !canCounter && (player.dodgeCd || 0) > 0);
+  kb.classList.toggle('danger', danger); // a red "!!" is coming: dodge
+  const kl = canCounter ? 'COUNTER' : 'DODGE', kh = canCounter ? 'now!' : danger ? 'dodge it!' : 'roll';
+  if ($('kickLabel').textContent !== kl) $('kickLabel').textContent = kl;
+  if ($('kickHint').textContent !== kh) $('kickHint').textContent = kh;
   const td = (player.flow || 0) >= TAKEDOWN_FLOW;
   fireBtn.classList.toggle('takedown', td);
   const lab = td ? 'TAKEDOWN' : 'STRIKE';
@@ -605,7 +613,7 @@ function openWheel() { /* no weapon wheel: the axe is the only weapon */ }
 function touchAct(act, btn) {
   if (game.state !== 'play') return;
   if (act === 'jump') dodge(); // the JUMP button is DODGE now
-  else if (act === 'kick') dodge(); // the KICK slot is DODGE now
+  else if (act === 'kick') { if (counterThreat() && !dangerThreat()) counter(); else dodge(); } // DODGE, or COUNTER when it's lit
   else if (act === 'use') interact();
 }
 touchEl.addEventListener('pointerdown', (e) => {

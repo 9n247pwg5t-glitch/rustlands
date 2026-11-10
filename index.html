@@ -259,7 +259,10 @@
   #fireBtn span { font-size: 25px; }
   #fireBtn small { font: 600 11px/1 var(--body); letter-spacing: 0.08em; opacity: 0.85; }
   #fireBtn.ads { background: rgba(255, 138, 28, 0.85); box-shadow: 0 0 0 4px rgba(255, 210, 58, 0.6), 2px 2px 0 var(--ink); }
-  .tb[data-act="kick"] { width: 70px; height: 70px; right: calc(22px + var(--sar)); bottom: calc(114px + var(--sab)); font-size: 15px; }
+  /* two action buttons only (2026-11-10): STRIKE, and DODGE in the corner, which turns into COUNTER when a counter is open */
+  .tb[data-act="kick"] { width: 92px; height: 92px; right: calc(14px + var(--sar)); bottom: calc(14px + var(--sab)); font-size: 17px; flex-direction: column; align-content: center; gap: 2px; }
+  .tb[data-act="kick"] small { font: 600 10px/1 var(--body); letter-spacing: 0.08em; opacity: 0.85; }
+  .tb[data-act="kick"].counter { background: rgba(79, 198, 255, 0.9); border-color: #fff; color: var(--ink); animation: skPulse 0.4s ease-in-out infinite; opacity: 1; }
   .tb[data-act="kick"].cool { opacity: 0.45; }
   .tb[data-act="jump"] { width: 64px; height: 64px; right: calc(24px + var(--sar)); bottom: calc(118px + var(--sab)); font-size: 16px; }
   .tb[data-act="use"] { width: 64px; height: 64px; right: calc(232px + var(--sar)); bottom: calc(140px + var(--sab)); border-color: var(--hazard); background: rgba(255, 210, 58, 0.85); color: var(--ink); font-size: 17px; }
@@ -369,10 +372,10 @@
   <div id="stickBase" hidden><div id="stickKnob"></div></div>
   <div id="aimBase" hidden><div id="aimKnob"></div></div>
   <div class="tb" data-act="fire" id="fireBtn"><span id="fireLabel">STRIKE</span><small id="fireHint">combo</small></div>
-  <div class="tb" data-act="kick" id="kickBtn">DODGE</div>
+  <div class="tb" data-act="kick" id="kickBtn"><span id="kickLabel">DODGE</span><small id="kickHint">roll</small></div>
   <div class="tb" data-act="jump" hidden>JUMP</div>
   <div class="tb" data-act="use" id="useBtn" hidden>USE</div>
-  <div id="wheelBtn" data-act="wheel"><i id="wbName">COUNTER</i><b id="wbAmmo">🦶</b><small id="wbPool">kick</small></div>
+  <div id="wheelBtn" data-act="wheel" hidden><i id="wbName">COUNTER</i><b id="wbAmmo">🦶</b><small id="wbPool">kick</small></div>
   <div id="wheel" hidden></div>
 </div>
 
