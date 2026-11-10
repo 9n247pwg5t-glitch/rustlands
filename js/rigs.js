@@ -34,9 +34,9 @@ const RIG_FILES = {
   gangster: 'gangster-clown-td',
   brute: 'brute-td',
   player: 'player-body', // the player's own body (js/topdown.js), not an enemy body
-  // the crowd on Stage 1's bleachers (js/compound-extra.js): the same clowns at about a third of the
-  // detail (tools/optimize.mjs 2000 --tex 256 --meshopt 1 --error 0.15)
-  crowd1: 'strung-out-clown-crowd', crowd2: 'burnt-clown-crowd', crowd3: 'psycho-clown-showgirl-crowd', crowd4: 'gangster-clown-crowd',
+  // the crowd on Stage 1's bleachers (js/compound-extra.js): the most colourful clowns (not the dark
+  // burnt one) at about a third of the detail (tools/optimize.mjs 2000 --tex 512 --meshopt 1 --error 0.15)
+  crowd1: 'strung-out-clown-crowd', crowd3: 'psycho-clown-showgirl-crowd', crowd4: 'gangster-clown-crowd',
 };
 // Per enemy type: which bodies, and the gear pinned to the bones. The characters are shown as
 // authored; `cloth` (optional) would dye the dark parts of their clothes.
@@ -47,7 +47,7 @@ const RIG_LOOKS = {
   suicide: { bases: ['psycho1', 'ugly', 'female'], weapon: 'bomb' },
   nomad: { bases: ['heavy'], weapon: 'pistol', dual: true, style: 'clown' }, // the top-heavy brawler as a bloody clown, a pistol in each fist
   boss: { bases: ['brute'], pod: true }, // the Brute carries his own battle axe
-  crowd: { bases: ['crowd1', 'crowd2', 'crowd3', 'crowd4'] }, // spectators: unarmed, cheering
+  crowd: { bases: ['crowd1', 'crowd3', 'crowd4'] }, // spectators: unarmed, cheering
 };
 
 // Weapon models (glTF as .json, vertex coloured; barrel or blade toward +Z, up +Y, metres). The

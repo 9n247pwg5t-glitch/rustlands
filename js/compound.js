@@ -507,7 +507,6 @@ function cmpDetail(H) {
     const x = sx * 15.5, z = sz * 5.5;
     dblk(0.06, 0.06, 8, steel, x + sx * 2.05, 2.15, z);
     for (let i = 0; i < 5; i++) dblk(0.05, 0.8, 0.05, steel, x + sx * 2.05, 1.35, z - 3.8 + i * 1.9);
-    for (let t = 0; t < 3; t++) for (let i = 0; i < 4; i++) dblk(0.2, 0.05, 0.2, red, x + sx * (t * 1.3 - 1.3) + (cmpRng() - 0.5), 0.45 + t * 0.45, z - 3 + i * 2 + cmpRng()); // dropped cups
     for (let k = 0; k < 12; k++) CMP.scatter.push({ kind: 'litter', x: x + (cmpRng() - 0.5) * 6, z: z + (cmpRng() - 0.5) * 9, s: 0.5 });
   }
 

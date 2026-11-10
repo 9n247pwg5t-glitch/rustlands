@@ -306,8 +306,8 @@ function drawScreen(f) {
   for (let y = 0; y < H; y += 3) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, y, W, 1); } // scanlines
   tex.needsUpdate = true;
 }
-// The crowd on the bleachers (2026-11-10): the game's own clown characters (the strung-out clown, the
-// burnt clown, the showgirl and the gangster clown), unarmed, standing on the tiers and playing the
+// The crowd on the bleachers (2026-11-10): the game's own clown characters (the colourful ones: the strung-out
+// clown, the showgirl and the gangster clown), unarmed, standing on the tiers and playing the
 // uploaded Cheering clip, each at its own speed and point in the loop. They use low-detail copies of those bodies (models/*-crowd), and rigged bodies still cost far more
 // than simple props, so there are fewer of them (20 on phones, 28 on desktop), and on phones
 // their animation steps every other frame.
@@ -325,6 +325,7 @@ function cmpCrowd() {
       root.position.set(x, h, z);
       root.rotation.y = (sx < 0 ? Math.PI / 2 : -Math.PI / 2) + (Math.random() - 0.5) * 0.5; // facing the ring
       root.scale.setScalar(0.92 + Math.random() * 0.12);
+      root.traverse((o) => { if (o.isMesh && o.material && !o.material.userData.crowdLift) { const m = o.material; m.userData.crowdLift = true; if (m.map) { m.emissiveMap = m.map; m.emissive = new THREE.Color(0x5a5a5a); m.needsUpdate = true; } } }); // a colour lift so they read in the dim stands
       root.traverse((o) => { if (o.isMesh) { o.castShadow = !IS_TOUCH; o.frustumCulled = true; if (/lash|brow|eye/i.test(o.name + (o.material && o.material.name))) o.visible = false; } }); // (lashes: too small to see from up here)
       rigLoop(rig, 'Cheering', 0.85 + Math.random() * 0.3);
       rig.loop.time = Math.random() * rig.loop.getClip().duration;
