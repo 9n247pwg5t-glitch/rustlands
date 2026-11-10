@@ -259,8 +259,8 @@
   #fireBtn span { font-size: 25px; }
   #fireBtn small { font: 600 11px/1 var(--body); letter-spacing: 0.08em; opacity: 0.85; }
   #fireBtn.ads { background: rgba(255, 138, 28, 0.85); box-shadow: 0 0 0 4px rgba(255, 210, 58, 0.6), 2px 2px 0 var(--ink); }
-  /* two action buttons only (2026-11-10): STRIKE, and DODGE in the corner, which turns into COUNTER when a counter is open */
-  .tb[data-act="kick"] { width: 92px; height: 92px; right: calc(14px + var(--sar)); bottom: calc(14px + var(--sab)); font-size: 17px; flex-direction: column; align-content: center; gap: 2px; }
+  /* two action buttons only (2026-11-10): STRIKE, and DODGE above and right of it (clear of the thumb on STRIKE), which turns into COUNTER when a counter is open */
+  .tb[data-act="kick"] { width: 88px; height: 88px; right: calc(18px + var(--sar)); bottom: calc(150px + var(--sab)); font-size: 17px; flex-direction: column; align-content: center; gap: 2px; }
   .tb[data-act="kick"] small { font: 600 10px/1 var(--body); letter-spacing: 0.08em; opacity: 0.85; }
   .tb[data-act="kick"].counter { background: rgba(79, 198, 255, 0.9); border-color: #fff; color: var(--ink); animation: skPulse 0.4s ease-in-out infinite; opacity: 1; }
   .tb[data-act="kick"].cool { opacity: 0.45; }

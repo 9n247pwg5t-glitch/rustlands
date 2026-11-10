@@ -46,7 +46,7 @@ It also works on GitHub Pages: turn Pages on for the `main` branch.
 | --- | --- | --- |
 | Move / sprint / jump | WASD / Shift / Space | Left stick (push all the way to sprint) / JUMP |
 | Strike (auto-targeted) | Left click or J (push WASD toward an enemy to pick it) | STRIKE (push the left stick toward an enemy to pick it) |
-| Counter (when "!") / dodge | F / Space | DODGE (corner); it turns into COUNTER while a counter is open |
+| Counter (when "!") / dodge | F / Space | DODGE (above and right of STRIKE); it turns into COUNTER while a counter is open |
 | Skills / gear (mods) | K / I | ★ / ⚙ next to the level bar |
 | Interact (pick up, open, buy, hub console) | E | Pop-up TAKE / OPEN / BUY / STAGES button |
 | Skip intermission / leave a cleared stage / pause | N / N / Esc | — / pause menu / II button |
