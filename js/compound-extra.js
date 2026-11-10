@@ -203,35 +203,11 @@ function cmpExtra(H, T, det, dblk, chair) {
   for (const [x, z] of [[-3.6, 18.6], [3.6, 18.6], [-3.6, -18.6], [3.6, -18.6], [-23.2, -4.8], [-23.2, 4.8], [23.2, -4.8], [23.2, 4.8]]) drumT(x, z);
 }
 
-// A second pass: a crowd of mannequins in clown make-up on the bleachers and by the booths, string
-// lights crossing over the ring, the entrance tent dressed up, and the streets outside.
+// A second pass: string lights crossing over the ring, the entrance tent dressed up, and the streets outside.
 function cmpExtra2(H, T, det, dblk) {
   const { D, FX, FZ, R, bark, steel } = H, rnd = cmpRng;
-  const skin = cmpMat(0xf0e8e0), nose = cmpMat(0xd01020), shoe = cmpMat(0x161414), metal = cmpMat(0x6a6a72);
-  const shirts = [0xb3121a, 0x2a4a8a, 0x3a6a3a, 0xd8b23a, 0x6a2a8a, 0xe8e0d0, 0x2a2a2a, 0xd86a1a].map((c) => cmpMat(c));
-  const hairs = [0x2a8a3a, 0xff4a8a, 0x3a8aff, 0xffa02a, 0x1a1a1a, 0xd83a1a].map((c) => cmpMat(c));
-  const pants = [0x2a2a3a, 0x3a3028, 0x1a2a4a].map((c) => cmpMat(c));
-  const dummy = (x, y, z, ry, seated) => {
-    const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.name = 'Detail'; H.root.add(g);
-    const put = (geo, m, px, py, pz, rx = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); o.rotation.set(rx, 0, rz); g.add(o); return o; };
-    const shirt = shirts[Math.floor(rnd() * shirts.length)], leg = pants[Math.floor(rnd() * pants.length)];
-    const base = seated ? 0 : 0.8;
-    if (seated) { put(new THREE.BoxGeometry(0.36, 0.14, 0.42), leg, 0, 0.07, 0.15); put(new THREE.BoxGeometry(0.34, 0.42, 0.14), leg, 0, -0.2, 0.36); }
-    else { for (const o of [-0.1, 0.1]) put(new THREE.BoxGeometry(0.15, 0.8, 0.17), leg, o, 0.4, 0); }
-    put(new THREE.BoxGeometry(0.42, 0.55, 0.24), shirt, 0, base + 0.3, 0);
-    const cheer = rnd() < 0.45;
-    for (const o of [-1, 1]) put(new THREE.BoxGeometry(0.11, 0.5, 0.12), shirt, o * 0.27, base + (cheer ? 0.75 : 0.3), cheer ? 0 : 0.05, 0, cheer ? -o * 0.25 : o * 0.08);
-    put(new THREE.IcosahedronGeometry(0.15, 1), skin, 0, base + 0.75, 0);
-    put(new THREE.IcosahedronGeometry(0.035, 0), nose, 0, base + 0.74, 0.15);
-    const hair = hairs[Math.floor(rnd() * hairs.length)];
-    for (const o of [-1, 1]) put(new THREE.IcosahedronGeometry(0.09, 0), hair, o * 0.15, base + 0.8, -0.02);
-    if (rnd() < 0.35) put(new THREE.ConeGeometry(0.1, 0.25, 6), hair, 0, base + 0.98, 0);
-    g.traverse((o) => { o.name = 'Detail'; });
-  };
-  // the bleachers: three tiers either side of the ring, seats facing the ring
-  // (the bleachers hold the game's own clowns cheering: cmpCrowd, once the characters have loaded)
-  // standing about: at the booths, the food truck, the gate queue
-  for (const [x, z, ry] of [[-14.6, -24.3, Math.PI], [-13, -24.4, Math.PI + 0.3], [14.4, -24.2, Math.PI], [-29.6, 13.4, -Math.PI / 2], [-29.8, 10.6, -Math.PI / 2 + 0.4], [-15.4, 31.2, 0.2], [12.2, 29.6, Math.PI * 0.7], [-7.3, -22.6, Math.PI], [7.4, -22.7, Math.PI + 0.2], [27, -6.2, Math.PI * 0.8]]) dummy(x, 0, z, ry, false);
+  const metal = cmpMat(0x6a6a72);
+  // (no mannequins: 2026-11-10 "remove any blocky NPCs"; the bleachers hold the game's own clowns, cmpCrowd)
 
   // string lights in an X over the ring, tower to tower
   const BULB = [0xff4a5a, 0xffd23a, 0x4fc6ff, 0x9fff6a, 0xff8a2a, 0xd07aff];
@@ -333,7 +309,7 @@ function drawScreen(f) {
 // The crowd on the bleachers (2026-11-10): the game's own clown characters (the strung-out clown, the
 // burnt clown, the showgirl and the gangster clown), unarmed, standing on the tiers and playing the
 // uploaded Cheering clip, each at its own speed and point in the loop. They use low-detail copies of those bodies (models/*-crowd), and rigged bodies still cost far more
-// than the old mannequins, so there are fewer of them (20 on phones, 28 on desktop), and on phones
+// than simple props, so there are fewer of them (20 on phones, 28 on desktop), and on phones
 // their animation steps every other frame.
 function cmpCrowd() {
   if (CMP.crowd || !RIG.ready || !MAP.ready) return;
