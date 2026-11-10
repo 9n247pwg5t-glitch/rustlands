@@ -34,6 +34,9 @@ const RIG_FILES = {
   gangster: 'gangster-clown-td',
   brute: 'brute-td',
   player: 'player-body', // the player's own body (js/topdown.js), not an enemy body
+  // the crowd on Stage 1's bleachers (js/compound-extra.js): the same clowns at about a third of the
+  // detail (tools/optimize.mjs 2000 --tex 256 --meshopt 1 --error 0.15)
+  crowd1: 'strung-out-clown-crowd', crowd2: 'burnt-clown-crowd', crowd3: 'psycho-clown-showgirl-crowd', crowd4: 'gangster-clown-crowd',
 };
 // Per enemy type: which bodies, and the gear pinned to the bones. The characters are shown as
 // authored; `cloth` (optional) would dye the dark parts of their clothes.
@@ -44,6 +47,7 @@ const RIG_LOOKS = {
   suicide: { bases: ['psycho1', 'ugly', 'female'], weapon: 'bomb' },
   nomad: { bases: ['heavy'], weapon: 'pistol', dual: true, style: 'clown' }, // the top-heavy brawler as a bloody clown, a pistol in each fist
   boss: { bases: ['brute'], pod: true }, // the Brute carries his own battle axe
+  crowd: { bases: ['crowd1', 'crowd2', 'crowd3', 'crowd4'] }, // spectators: unarmed, cheering
 };
 
 // Weapon models (glTF as .json, vertex coloured; barrel or blade toward +Z, up +Y, metres). The
@@ -121,7 +125,7 @@ function loadRigs() {
   if (window.MeshoptDecoder) loader.setMeshoptDecoder(MeshoptDecoder);
   const get = (f) => new Promise((ok, fail) => loader.load('models/' + f + '.json', ok, undefined, fail));
   // (versioned, so a phone holding an older copy without the newer clips fetches it again)
-  const anims = fetch('models/enemy-anims.json?v=47').then((r) => { if (!r.ok) throw new Error('anims ' + r.status); return r.json(); });
+  const anims = fetch('models/enemy-anims.json?v=48').then((r) => { if (!r.ok) throw new Error('anims ' + r.status); return r.json(); });
   const names = Object.keys(RIG_FILES);
   RIG.loading = anims.then((data) => {
     RIG.data = data;
@@ -137,7 +141,7 @@ function loadRigs() {
       try { RIG.base[names[i]] = prepareRigBase(r.value); } catch (e) { console.warn('Enemy model unusable:', RIG_FILES[names[i]], e); }
     });
     // a type whose bodies all failed falls back to any loaded body
-    const loaded = Object.keys(RIG.base).filter((n) => n !== 'player');
+    const loaded = Object.keys(RIG.base).filter((n) => n !== 'player' && !/^crowd/.test(n));
     for (const look of Object.values(RIG_LOOKS)) {
       look.bases = look.bases.filter((b) => RIG.base[b]);
       if (!look.bases.length) look.bases = loaded.slice();

@@ -19,7 +19,7 @@ and Playwright (for the browser step).
    their full geometry), keeps colour textures and normal maps up to 2048 (without `--normals` they're
    dropped), packs the geometry with EXT_meshopt_compression (the game decodes it with
    `vendor/meshopt_decoder.js`), re-encodes textures as WebP and writes glTF JSON (buffer embedded) plus
-   texture files. The weapons use `30000 --meshopt 1`.
+   texture files. The weapons use `30000 --meshopt 1`. `--error` (default 0.01) lets the simplifier move the surface further to reach a small budget: the bleacher crowd's `-crowd` copies of the clowns are the `-td` ones run through `2000 --tex 256 --meshopt 1 --error 0.15` (2.6–4.7k vertices).
 4. Add the file to `RIG_FILES` in `js/rigs.js` and use it in `RIG_LOOKS`.
 
 For the top-down view every character and weapon uses a lower-detail copy (`-td`): enemies with

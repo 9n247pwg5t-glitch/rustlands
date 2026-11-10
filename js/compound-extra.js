@@ -229,11 +229,7 @@ function cmpExtra2(H, T, det, dblk) {
     g.traverse((o) => { o.name = 'Detail'; });
   };
   // the bleachers: three tiers either side of the ring, seats facing the ring
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (let t = 0; t < 3; t++) for (let i = 0; i < 9; i++) {
-    if (rnd() < 0.42) continue;
-    const x = sx * 15.5 + sx * (t * 1.3 - 1.3), z = sz * 5.5 - 3.4 + i * 0.85, h = 0.45 + t * 0.45;
-    dummy(x, h + 0.02, z, sx < 0 ? Math.PI / 2 : -Math.PI / 2, true);
-  }
+  // (the bleachers hold the game's own clowns cheering: cmpCrowd, once the characters have loaded)
   // standing about: at the booths, the food truck, the gate queue
   for (const [x, z, ry] of [[-14.6, -24.3, Math.PI], [-13, -24.4, Math.PI + 0.3], [14.4, -24.2, Math.PI], [-29.6, 13.4, -Math.PI / 2], [-29.8, 10.6, -Math.PI / 2 + 0.4], [-15.4, 31.2, 0.2], [12.2, 29.6, Math.PI * 0.7], [-7.3, -22.6, Math.PI], [7.4, -22.7, Math.PI + 0.2], [27, -6.2, Math.PI * 0.8]]) dummy(x, 0, z, ry, false);
 
@@ -334,7 +330,47 @@ function drawScreen(f) {
   for (let y = 0; y < H; y += 3) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, y, W, 1); } // scanlines
   tex.needsUpdate = true;
 }
+// The crowd on the bleachers (2026-11-10): the game's own clown characters (the strung-out clown, the
+// burnt clown, the showgirl and the gangster clown), unarmed, standing on the tiers and playing the
+// uploaded Cheering clip, each at its own speed and point in the loop. They use low-detail copies of those bodies (models/*-crowd), and rigged bodies still cost far more
+// than the old mannequins, so there are fewer of them (20 on phones, 28 on desktop), and on phones
+// their animation steps every other frame.
+function cmpCrowd() {
+  if (CMP.crowd || !RIG.ready || !MAP.ready) return;
+  const group = new THREE.Group(); group.name = 'crowd';
+  const per = IS_TOUCH ? 5 : 7, list = [];
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const slots = [];
+    for (let t = 0; t < 3; t++) for (let i = 0; i < 6; i++) slots.push([t, i]);
+    for (let k = 0; k < per; k++) {
+      const [t, i] = slots.splice(Math.floor(Math.random() * slots.length), 1)[0];
+      const x = sx * 15.5 + sx * (t * 1.3 - 1.3) + (Math.random() - 0.5) * 0.3, z = sz * 5.5 - 3.2 + i * 1.28 + (Math.random() - 0.5) * 0.3, h = 0.45 + t * 0.45;
+      const { root, rig } = makeRigEnemy('crowd', {});
+      root.position.set(x, h, z);
+      root.rotation.y = (sx < 0 ? Math.PI / 2 : -Math.PI / 2) + (Math.random() - 0.5) * 0.5; // facing the ring
+      root.scale.setScalar(0.92 + Math.random() * 0.12);
+      root.traverse((o) => { if (o.isMesh) { o.castShadow = !IS_TOUCH; o.frustumCulled = true; if (/lash|brow|eye/i.test(o.name + (o.material && o.material.name))) o.visible = false; } }); // (lashes: too small to see from up here)
+      rigLoop(rig, 'Cheering', 0.85 + Math.random() * 0.3);
+      rig.loop.time = Math.random() * rig.loop.getClip().duration;
+      group.add(root); list.push(rig);
+    }
+  }
+  scene.add(group);
+  worlds.arena.objects.push(group);
+  group.visible = WORLD.id === 'arena';
+  CMP.crowd = { group, list, f: 0, acc: 0 };
+}
+function updateCrowd(dt) {
+  if (!CMP.crowd) { cmpCrowd(); return; }
+  const C = CMP.crowd;
+  if (!C.group.visible) return;
+  C.acc += dt;
+  if (IS_TOUCH && (C.f++ & 1)) return; // phones: every other frame
+  for (const R of C.list) R.mixer.update(C.acc);
+  C.acc = 0;
+}
 function updateCompoundExtra(dt) {
+  updateCrowd(dt);
   const S = CMP.screen;
   if (S) { S.t += dt; if (S.t > 0.18) { S.t = 0; drawScreen(++S.frame); } }
   if (CMP.extraPts) { const sc = renderer.domElement.height * 0.5 * camera.projectionMatrix.elements[5]; for (const m of CMP.extraPts) { m.uniforms.uT.value += dt; m.uniforms.uScale.value = sc; } }

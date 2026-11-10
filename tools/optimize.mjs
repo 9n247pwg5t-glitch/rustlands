@@ -16,6 +16,7 @@ import path from 'path';
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = +args[i + 1]; args.splice(i, 2); return v; };
 const TEX = opt('--tex', 1024), NORMALS = opt('--normals', 0), MESHOPT = opt('--meshopt', 0);
+const SIMPLIFY_ERROR = opt('--error', 0.01); // how far simplification may move the surface (fraction of the mesh's size)
 const [inDir, outDir, budgetArg] = args;
 const BUDGET = +(budgetArg || 16000);
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
@@ -39,7 +40,7 @@ for (const f of fs.readdirSync(inDir).filter((f) => /\.(glb|gltf)$/.test(f))) {
     const n = p.getAttribute('POSITION').getCount();
     // small parts (eyes, earrings) keep more of their shape
     const r = n < 2000 ? Math.max(ratio, 0.5) : ratio;
-    if (r < 1) simplifyPrimitive(p, { simplifier: MeshoptSimplifier, ratio: r, error: 0.01, lockBorder: false });
+    if (r < 1) simplifyPrimitive(p, { simplifier: MeshoptSimplifier, ratio: r, error: SIMPLIFY_ERROR, lockBorder: false });
     after += p.getAttribute('POSITION').getCount();
   }
   if (!NORMALS) for (const m of root.listMaterials()) m.setNormalTexture(null);
