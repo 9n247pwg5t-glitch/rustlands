@@ -9,7 +9,7 @@
 // clown face from the ring mat"). Fire barrels get live flames, smoke and embers over the painting.
 // The 3D compound (js/compound.js) is kept; PM_USE picks which one Stage 1 loads.
 
-const PM_USE = true;                 // false: Stage 1 is the 3D compound in js/compound.js
+const PM_USE = false;                // false: Stage 1 is the 3D compound in js/compound.js
 const PM_IMG = 'maps/compound-painted.webp';
 const PM = { W: 1536, H: 1024, S: 16, ZK: 1.4, OX: 785, OY: 495 }; // px per metre, z stretch, origin (ring centre)
 const pmX = (px) => (px - PM.OX) / PM.S;

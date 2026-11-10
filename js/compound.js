@@ -168,7 +168,7 @@ function cmpBuild() {
 
   // --- ground: dark grass outside, trampled dirt inside, streets and sidewalks all round
   plane(260, 220, cmpMat(0xffffff, TEX.grass, 0, [26, 22]), 0, 0, 0);
-  plane(CMP_FENCE.x * 2, CMP_FENCE.z * 2, cmpMat(0xffffff, TEX.dirt, 0, [10, 8]), 0, 0.02, 0, 'Road');
+  // (the yard's ground is one painted picture: cmpGround in js/compound-extra.js)
   const road = cmpMat(0xffffff, TEX.asphalt, 0, [20, 2]), roadV = cmpMat(0xffffff, TEX.asphalt, 0, [2, 16]), walk = cmpMat(0xb8b0a6, TEX.concrete, 0, [40, 1]), walkV = cmpMat(0xb8b0a6, TEX.concrete, 0, [1, 32]);
   for (const s of [-1, 1]) {
     plane(140, 10, road, 0, 0.03, s * 49, 'Road'); plane(10, 118, roadV, s * 61, 0.03, 0, 'Road');
@@ -405,7 +405,9 @@ function updateCompound(dt) {
 // Builds the compound and hands it to js/map.js as Stage 1's map.
 function buildCompoundStage() {
   const { root, fx, D } = cmpBuild();
+  cmpExtraFx(fx, D); // (js/compound-extra.js; before cmpFx, which draws the glow pools it adds)
   cmpFx(fx);
+  cmpGround(fx, D);  // last: it bakes contact shadows under every collider
   applyStage(D, root, fx);
 }
 // Stage 1 is the painted map (js/painted.js) unless PM_USE is off.
@@ -748,6 +750,7 @@ function cmpDetailFx(group) {
 }
 const _swV = new THREE.Vector3(), _swD = new THREE.Vector3(), _swUp = new THREE.Vector3(0, -1, 0);
 function updateCompoundDetail(dt) {
+  updateCompoundExtra(dt);
   CMP.swT = (CMP.swT || 0) + dt;
   for (const w of CMP.sweeps || []) {
     if (!w.beam) continue;
@@ -935,6 +938,8 @@ function cmpFill(H, T, det, dblk, chair) {
   );
   spot(-30, -4, 6, 1.2); spot(27.5, 7.5, 5, 1); spot(-8, -32, 5, 0.9); spot(-43.5, 30, 4, 0.5); spot(46, 22.4, 4, 0.5); spot(-33, 12, 5, 0.4);
   spot(28, -8, 5, 0.4); spot(14, -25, 5, 0.5); spot(-14, -25, 5, 0.5); spot(-38, -30, 6, 0.4); spot(30, 33, 5, 0.4); spot(15, 0, 5, 0.6); spot(-15, 0, 5, 0.6); spot(0, 14, 4, 0.6); spot(0, -14, 4, 0.6);
+  cmpExtra(H, T, det, dblk, chair); // js/compound-extra.js
+  cmpExtra2(H, T, det, dblk);
 }
 
 // Smoke and embers: points whose rise, growth and fade are worked out in the shader (two draws).
