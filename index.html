@@ -75,7 +75,11 @@
   #rageBar { width: 68%; aspect-ratio: 592 / 98; max-height: 40px; margin-bottom: -3%; position: relative; z-index: 1; background: url(ui/rage-frame.webp) center / 100% 100% no-repeat; }
   #rageBar .rslot { position: absolute; left: 6.2%; right: 5.4%; top: 55%; bottom: 21%; overflow: hidden; clip-path: polygon(0 50%, 2% 0, 98% 0, 100% 50%, 98% 100%, 2% 100%); }
   #rageFill { position: absolute; inset: 0; background: linear-gradient(180deg, #e8c8ff, #a24cff 55%, #5a1ab0); transform-origin: left center; opacity: 0.55; }
-  #rageBar.ready #rageFill { opacity: 1; animation: rageGlow 0.8s ease-in-out infinite; }
+  /* ready: the creator's RAMPAGE READY! art over the bar (2026-11-11), bottoms lined up, its taller
+     lettering rising above; the plain frame and fill hide under it */
+  #rageBar.ready { background: none; }
+  #rageBar.ready .rslot { visibility: hidden; }
+  #rageBar.ready::before { content: ""; position: absolute; left: -3%; right: -3%; bottom: -4%; aspect-ratio: 637 / 134; background: url(ui/rage-ready.webp) center / 100% 100% no-repeat; }
   @keyframes rageGlow { 50% { filter: brightness(1.6); } }
   #rageBar.active #rageFill { opacity: 1; background: linear-gradient(180deg, #ffd0ff, #ff4ad8 55%, #8a1aa0); }
   .xpbar { width: 100%; aspect-ratio: 649 / 130; max-height: 64px; position: relative; background: url(ui/xp-frame.webp) center / 100% 100% no-repeat; }
@@ -361,6 +365,7 @@
 </style>
 
 <link rel="preload" as="image" href="ui/counter-btn.webp">
+<link rel="preload" as="image" href="ui/rage-ready.webp">
 <div id="game"></div>
 <canvas id="overlay"></canvas>
 <div id="vHurt" class="vig"></div>
