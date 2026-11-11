@@ -69,7 +69,16 @@
   #lvl { font: 26px/1 var(--display); color: var(--hazard); -webkit-text-stroke: 1px var(--ink); text-shadow: 2px 2px 0 var(--ink); min-width: 28px; text-align: center; }
   /* the level-up bar (2026-11-11): the creator's animated frame (ui/xp-frame.webp) with the XP
      filling its dark inner slot, clipped to the slot's pointed ends */
-  .xpbar { flex: 1; aspect-ratio: 649 / 130; max-height: 64px; position: relative; background: url(ui/xp-frame.webp) center / 100% 100% no-repeat; }
+  /* the Rampage Mode bar (2026-11-11), over the level-up bar once Rampage Psychosis is learned: the
+     creator's animated frame; full and pulsing when ready, draining while it's on, refilling on cooldown */
+  .xpcol { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  #rageBar { width: 100%; aspect-ratio: 592 / 98; max-height: 52px; position: relative; background: url(ui/rage-frame.webp) center / 100% 100% no-repeat; }
+  #rageBar .rslot { position: absolute; left: 6.2%; right: 5.4%; top: 55%; bottom: 21%; overflow: hidden; clip-path: polygon(0 50%, 2% 0, 98% 0, 100% 50%, 98% 100%, 2% 100%); }
+  #rageFill { position: absolute; inset: 0; background: linear-gradient(180deg, #e8c8ff, #a24cff 55%, #5a1ab0); transform-origin: left center; opacity: 0.55; }
+  #rageBar.ready #rageFill { opacity: 1; animation: rageGlow 0.8s ease-in-out infinite; }
+  @keyframes rageGlow { 50% { filter: brightness(1.6); } }
+  #rageBar.active #rageFill { opacity: 1; background: linear-gradient(180deg, #ffd0ff, #ff4ad8 55%, #8a1aa0); }
+  .xpbar { width: 100%; aspect-ratio: 649 / 130; max-height: 64px; position: relative; background: url(ui/xp-frame.webp) center / 100% 100% no-repeat; }
   .xpbar .xpslot { position: absolute; left: 3.2%; right: 4.1%; top: 37%; bottom: 25%; overflow: hidden; clip-path: polygon(0 50%, 2.2% 0, 97.8% 0, 100% 50%, 97.8% 100%, 2.2% 100%); }
   #xpFill { position: absolute; inset: 0; background: linear-gradient(180deg, #bfeaff, #3aa8ff 55%, #1a5adf); box-shadow: 0 0 8px #4fc6ff; transform-origin: left center; transition: transform 0.2s; }
   #xpPop { position: absolute; left: 50%; bottom: calc(40px + var(--sab)); transform: translateX(-50%); font: 22px/1 var(--display); color: var(--hazard); text-shadow: 2px 2px 0 var(--ink); letter-spacing: 0.05em; }
@@ -337,6 +346,10 @@
     /* the level-up bar gets the full width along the bottom (it was squeezed to nothing) */
     .bc { width: calc(100vw - 28px - var(--sal) - var(--sar)); }
     .xpbar { min-width: 150px; max-height: 40px; }
+    /* the action buttons sit higher, clear of the level and Rampage bars along the bottom */
+    #fireBtn { bottom: calc(92px + var(--sab)); }
+    .tb[data-act="rage"] { bottom: calc(92px + var(--sab)); }
+    .tb[data-act="kick"] { bottom: calc(200px + var(--sab)); }
   }
   @media (max-width: 700px) {
     .controls { grid-template-columns: minmax(0, 1fr); }
@@ -391,7 +404,7 @@
     <div class="bar"><div class="fill" id="shieldFill"></div><div class="txt"><i>SHIELD</i><span id="shieldTxt"></span></div></div>
     <div class="bar hp"><div class="fill" id="hpFill"></div><div class="txt"><i>HEALTH</i><span id="hpTxt"></span></div></div>
   </div>
-  <div class="bc"><div id="lvl">1</div><div class="xpbar"><div class="xpslot"><div id="xpFill"></div></div></div><button id="skillBtn" aria-label="Skills">★</button><button id="gearBtn" aria-label="Gear">⚙</button></div>
+  <div class="bc"><div id="lvl">1</div><div class="xpcol"><div id="rageBar" hidden><div class="rslot"><div id="rageFill"></div></div></div><div class="xpbar"><div class="xpslot"><div id="xpFill"></div></div></div></div><button id="skillBtn" aria-label="Skills">★</button><button id="gearBtn" aria-label="Gear">⚙</button></div>
   <div id="xpPop" hidden></div>
   <div class="br">
     <div class="kit" hidden>
@@ -532,22 +545,22 @@
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/SkeletonUtils.js"></script>
 <script src="vendor/meshopt_decoder.js"></script>
-<script src="js/util.js?v=70"></script>
-<script src="js/world.js?v=70"></script>
-<script src="js/loot.js?v=70"></script>
-<script src="js/arsenal.js?v=70"></script>
-<script src="js/rigs.js?v=70"></script>
-<script src="js/enemies.js?v=70"></script>
-<script src="js/player.js?v=70"></script>
-<script src="js/fparms.js?v=70"></script>
-<script src="js/topdown.js?v=70"></script>
-<script src="js/hud.js?v=70"></script>
-<script src="js/stages.js?v=70"></script>
-<script src="js/hub.js?v=70"></script>
-<script src="js/map.js?v=70"></script>
-<script src="js/blood.js?v=70"></script>
-<script src="js/painted.js?v=70"></script>
-<script src="js/compound-extra.js?v=70"></script>
-<script src="js/compound.js?v=70"></script>
-<script src="js/firefx.js?v=70"></script>
-<script src="js/main.js?v=70"></script>
+<script src="js/util.js?v=71"></script>
+<script src="js/world.js?v=71"></script>
+<script src="js/loot.js?v=71"></script>
+<script src="js/arsenal.js?v=71"></script>
+<script src="js/rigs.js?v=71"></script>
+<script src="js/enemies.js?v=71"></script>
+<script src="js/player.js?v=71"></script>
+<script src="js/fparms.js?v=71"></script>
+<script src="js/topdown.js?v=71"></script>
+<script src="js/hud.js?v=71"></script>
+<script src="js/stages.js?v=71"></script>
+<script src="js/hub.js?v=71"></script>
+<script src="js/map.js?v=71"></script>
+<script src="js/blood.js?v=71"></script>
+<script src="js/painted.js?v=71"></script>
+<script src="js/compound-extra.js?v=71"></script>
+<script src="js/compound.js?v=71"></script>
+<script src="js/firefx.js?v=71"></script>
+<script src="js/main.js?v=71"></script>
