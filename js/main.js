@@ -727,6 +727,7 @@ function update(dt) {
   updateDrops(dt);
   updateFx(dt);
   updateCompound(dt);
+  updateFireFx(dt); // js/firefx.js: Fire Axe's flames
   updateRigCorpses(dt);
   if (!hub) { updateWaves(dt); campaign.runT += dt; }
   updateInteraction(dt);
