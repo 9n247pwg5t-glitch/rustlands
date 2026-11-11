@@ -49,32 +49,74 @@ function genMod(level, opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// The Melee skill tree. Each rank costs one point; deeper tiers open at a player level.
+// The levelling tree (decisions.md 2026-11-11, the creator's design). One point per level up; each
+// rank costs a point.
+//  - Axe (from the first level up): Melee Swings +3% axe damage per rank, Quick Swing +3% swing
+//    speed per rank, 5 ranks each.
+//  - Rampage Psychosis (level 5): a cooldown skill (RAMPAGE button / R): for RAGE_TIME seconds
+//    the axe deals +20% damage and swings 25% faster, on top of everything else.
+//  - Under Rampage (once it's unlocked; they work while it's active): Fire Axe (hits set enemies
+//    burning for 3/7/12% of the hit's damage per second), Knockout (20/25/30% chance a hit kills
+//    outright; a Star loses half its health, bosses are immune), Damage Reduction (5/10/20% less
+//    damage taken).
+//  - The next tree opens once two Rampage skills are fully upgraded (not designed yet).
+// The Rampage timings are placeholders the creator hasn't set.
+const RAGE_TIME = 10, RAGE_COOLDOWN = 45;
 const SKILL_TREES = {
-  melee: {
-    label: 'Melee',
+  axe: {
+    label: 'Axe', note: 'from your first level up',
     skills: [
-      { id: 'mDmg', name: 'Heavy Swings', max: 5, tier: 1, desc: (r) => `+${8 * r}% axe damage` },
-      { id: 'mSpeed', name: 'Quick Swings', max: 3, tier: 1, desc: (r) => `+${8 * r}% swing speed` },
-      { id: 'mLeech', name: 'Bloodthirst', max: 3, tier: 1, desc: (r) => `Axe hits heal ${r}% of max health` },
-      { id: 'mKick', name: 'Steel Toes', max: 3, tier: 1, desc: (r) => `Counters and kicks deal +${40 * r}% damage` },
-      { id: 'mFinish', name: 'Finisher', max: 3, tier: 2, desc: (r) => `The third hit of a combo deals +${20 * r}% damage` },
-      { id: 'mArmor', name: 'Thick Skin', max: 3, tier: 2, desc: (r) => `Take ${6 * r}% less damage` },
-      { id: 'mExec', name: 'Executioner', max: 3, tier: 2, desc: (r) => `+${20 * r}% axe damage to enemies under 30% health` },
-      { id: 'mFlow', name: 'Momentum', max: 1, tier: 2, desc: () => 'Hits in a row build up to +50% damage (instead of +25%)' },
-      { id: 'mCap', name: 'Berserk', max: 1, tier: 3, desc: () => 'Axe kills give +25% axe damage and +20% move speed for 6 seconds' },
-      { id: 'mCounter', name: 'Counter Master', max: 1, tier: 3, desc: () => 'Counters deal triple damage' },
+      { id: 'lvDmg', name: 'Melee Swings', max: 5, desc: (r) => `+${3 * r}% axe damage`, req: () => (player.level >= 2 || TESTER.on ? null : 'Level 2') },
+      { id: 'lvSpeed', name: 'Quick Swing', max: 5, desc: (r) => `+${3 * r}% axe swing speed`, req: () => (player.level >= 2 || TESTER.on ? null : 'Level 2') },
+    ],
+  },
+  rage: {
+    label: 'Cooldown skill', note: 'unlocks at level 5',
+    skills: [
+      { id: 'rampage', name: 'Rampage Psychosis', max: 1, desc: () => `For ${RAGE_TIME}s: +20% axe damage and +25% swing speed on top of everything else (${RAGE_COOLDOWN}s cooldown). RAMPAGE button / R.`, req: () => (player.level >= 5 || TESTER.on ? null : 'Level 5') },
+    ],
+  },
+  rageSkills: {
+    label: 'While Rampage Psychosis is active', note: 'unlock Rampage Psychosis first',
+    skills: [
+      { id: 'rFire', name: 'Fire Axe', max: 3, desc: (r) => `Hits set enemies burning for ${[3, 7, 12][r - 1]}% of the hit's damage per second`, req: () => (rank('rampage') ? null : 'Rampage Psychosis') },
+      { id: 'rKO', name: 'Knockout', max: 3, desc: (r) => `${[20, 25, 30][r - 1]}% chance a hit kills outright (a Star loses half its health; not bosses)`, req: () => (rank('rampage') ? null : 'Rampage Psychosis') },
+      { id: 'rArmor', name: 'Damage Reduction', max: 3, desc: (r) => `Take ${[5, 10, 20][r - 1]}% less damage from enemies`, req: () => (rank('rampage') ? null : 'Rampage Psychosis') },
     ],
   },
 };
-const SKILL_TIER_LEVEL = { 1: 1, 2: 5, 3: 10 };
 const SKILL_BY_ID = {};
 for (const t of Object.values(SKILL_TREES)) for (const s of t.skills) SKILL_BY_ID[s.id] = s;
 const rank = (id) => (player.skills && player.skills[id]) || 0;
+// the next tree: two Rampage skills at full rank
+const nextTreeOpen = () => ['rFire', 'rKO', 'rArmor'].filter((id) => rank(id) >= 3).length >= 2;
 function canLearn(id) {
   const s = SKILL_BY_ID[id];
-  return player.skillPoints > 0 && rank(id) < s.max && player.level >= SKILL_TIER_LEVEL[s.tier];
+  return player.skillPoints > 0 && rank(id) < s.max && !s.req();
 }
+// Tester mode (pause menu): try the tree without levelling: level locks are off, Rampage has no
+// cooldown, and the skill screen can add points, level up and reset the tree. Kept on this device.
+const TESTER = { on: (() => { try { return localStorage.getItem('su-tester') === '1'; } catch (e) { return false; } })() };
+function setTester(on) { TESTER.on = on; try { localStorage.setItem('su-tester', on ? '1' : '0'); } catch (e) {} }
+function resetSkills() {
+  let n = 0;
+  for (const id of Object.keys(player.skills)) n += player.skills[id];
+  player.skills = {}; player.skillPoints += n;
+  if (player.buffs) player.buffs.rampage = 0;
+  player.rageCd = 0;
+  buildWeapons();
+}
+// Rampage Psychosis: start it (if learned and off cooldown)
+function rampage() {
+  if (!rank('rampage') || !player.alive || game.mode === 'hub') return false;
+  if ((player.rageCd || 0) > 0 && !TESTER.on) return false;
+  player.buffs = player.buffs || {};
+  player.buffs.rampage = RAGE_TIME; player.rageCd = RAGE_TIME + RAGE_COOLDOWN;
+  buildWeapons();
+  hud.popText('RAMPAGE!', '#ff3b2a'); game.shake(0.25); SFX.levelUp();
+  return true;
+}
+const raging = () => !!(player.buffs && player.buffs.rampage > 0);
 function learnSkill(id) {
   if (!canLearn(id)) return false;
   player.skills[id] = rank(id) + 1;
@@ -107,16 +149,17 @@ const axeOf = () => player.weapons[0];
 
 function buildWeapons() {
   const L = player.level, ls = levelScale(L);
+  const rage = player.buffs && player.buffs.rampage > 0; // Rampage Psychosis: +20% damage, +25% swing speed
   const buff = player.buffs && player.buffs.berserk > 0, frenzy = player.buffs && player.buffs.frenzy > 0 ? 1.3 : 1;
   const axe = {
     id: 'axe', kind: 'gun', type: 'melee', melee: true, model: 'axe', mfr: 'jakobs', label: 'Axe', name: 'Axe', level: L,
     rarity: bestRarity('melee'), ammo: null, auto: true, pellets: 1, special: null, kick: 0, zoom: 1, inMag: 1,
-    damage: 70 * ls * (1 + modSum('melee', 'dmg') + rank('mDmg') * 0.08) * (buff ? 1.25 : 1) * frenzy,
-    rate: 1.35 * (1 + modSum('melee', 'speed') + rank('mSpeed') * 0.08) * frenzy,
+    damage: 70 * ls * (1 + modSum('melee', 'dmg') + rank('lvDmg') * 0.03) * (buff ? 1.25 : 1) * frenzy * (rage ? 1.2 : 1),
+    rate: 1.35 * (1 + modSum('melee', 'speed') + rank('lvSpeed') * 0.03) * frenzy * (rage ? 1.25 : 1),
     reach: 2.5 * (1 + modSum('melee', 'reach')),
     critChance: 0.08 + modSum('melee', 'crit') * 0.5, crit: 1.8 * (1 + modSum('melee', 'crit')),
-    leech: modSum('melee', 'leech') + rank('mLeech') * 0.01 + (frenzy > 1 ? 0.012 : 0),
-    exec: rank('mExec') * 0.2, finisher: 1.0 + rank('mFinish') * 0.2, flowMax: rank('mFlow') ? 0.5 : 0.25,
+    leech: modSum('melee', 'leech') + (frenzy > 1 ? 0.012 : 0),
+    exec: 0, finisher: 1.0, flowMax: 0.25,
     element: 'none',
   };
   const me = modElem('melee');
@@ -276,6 +319,18 @@ function axeHit(e, g, mult, shove) {
   if (crit) player.stats.crits++;
   if (g.elemChance && e.alive && Math.random() < g.elemChance) applyDot(e, g.element, g.elemDps);
   if (g.leech) player.heal(player.maxHp * g.leech);
+  if (raging() && e.alive) {
+    // Fire Axe: a burn for a share of the hit's damage per second
+    const fr = rank('rFire');
+    if (fr) applyDot(e, 'fire', dealt * [0.03, 0.07, 0.12][fr - 1]);
+    // Knockout: a chance the hit kills outright (a Star loses half its health; bosses are immune)
+    const ko = rank('rKO');
+    if (ko && !e.def.boss && Math.random() < [0.2, 0.25, 0.3][ko - 1]) {
+      const extra = e.star ? e.maxHp * 0.5 : e.hp + (e.shield || 0) + 1;
+      player.stats.damage += damageEnemy(e, extra, 'none', { crit: true, fromPlayer: true, dir: _fwd.clone(), overkill: true });
+      hud.popText('KNOCKOUT!', '#ffd23a');
+    }
+  }
   e.vel.addScaledVector(_fwd, shove);
   hud.hitMarker(crit, !e.alive);
   if (!e.alive) onPlayerKill('axe');
@@ -300,14 +355,14 @@ function counter() {
     return kick();
   }
   if (player.kickCd > 0.6) return false;
-  const g = axeOf(), k = rank('mKick');
+  const g = axeOf(), k = 0;
   const e0 = list[0];
   player.yaw = Math.atan2(-(e0.pos.x - player.pos.x), -(e0.pos.z - player.pos.z));
   player.meleeT = 0; player.kickCd = 0.35; player.kickT = player.kickDur = 0.42; player.kickHit = true; player.countered = true;
   player.invuln = Math.max(player.invuln, 0.5);
   for (const e of list) {
     _fwd.set(e.pos.x - player.pos.x, 0, e.pos.z - player.pos.z).normalize();
-    const dealt = damageEnemy(e, g.damage * 0.6 * (1 + k * 0.4) * (rank('mCounter') ? 3 : 1), 'none', { fromPlayer: true, dir: _fwd.clone() });
+    const dealt = damageEnemy(e, g.damage * 0.6 * (1 + k * 0.4) * 1, 'none', { fromPlayer: true, dir: _fwd.clone() });
     player.stats.damage += dealt;
     e.threat = 0;
     if (e.alive && !e.def.boss) {
@@ -345,7 +400,7 @@ function kick() {
   return true;
 }
 function resolveKick() {
-  const g = axeOf(), k = rank('mKick');
+  const g = axeOf(), k = 0;
   camBasis();
   _fwd.y = 0; _fwd.normalize();
   const c = new THREE.Vector3();
@@ -434,17 +489,18 @@ function updatePlayerMelee(dt) {
 // Kill-triggered skills.
 function onPlayerKill(by) {
   player.buffs = player.buffs || {};
-  if (rank('mCap')) { const was = player.buffs.berserk > 0; player.buffs.berserk = 6; if (!was) { buildWeapons(); hud.log('Berserk!', '#ff5a3a'); } }
 }
 function updateBuffs(dt) {
   if (!player.buffs) return;
-  for (const k of ['berserk', 'frenzy']) {
+  if (player.rageCd > 0) player.rageCd -= dt;
+  if (player.buffs.rampage > 0 && player.buffs.rampage - dt <= 0) hud.log('Rampage over', '#ffb07a');
+  for (const k of ['berserk', 'frenzy', 'rampage']) {
     if (!(player.buffs[k] > 0)) continue;
     player.buffs[k] -= dt;
     if (player.buffs[k] <= 0) buildWeapons();
   }
 }
-const damageTakenScale = () => 1 - rank('mArmor') * 0.06;
+const damageTakenScale = () => 1 - (raging() ? [0, 0.05, 0.1, 0.2][rank('rArmor')] : 0); // Damage Reduction, during Rampage
 const moveSpeedScale = () => (player.buffs && player.buffs.berserk > 0 ? 1.2 : 1);
 // The shield grows with the player's level (shields aren't loot).
 function levelShield() { return genShield(player.level, { rarity: 0, kind: 'standard' }); }
@@ -452,33 +508,45 @@ function levelShield() { return genShield(player.level, { rarity: 0, kind: 'stan
 // ---------------------------------------------------------------------------
 // Skill screen
 function renderSkills() {
-  $('skillPts').textContent = player.skillPoints === 1 ? '1 point to spend' : player.skillPoints + ' points to spend';
+  $('skillPts').textContent = (player.skillPoints === 1 ? '1 point to spend' : player.skillPoints + ' points to spend') + ' · level ' + player.level;
   const wrap = $('skillTrees');
   wrap.textContent = '';
+  // tester tools
+  if (TESTER.on) {
+    const bar = document.createElement('div');
+    bar.className = 'tester';
+    bar.innerHTML = '<b>TESTER MODE</b><span>level locks off · Rampage has no cooldown</span>';
+    for (const [label, fn] of [['+5 POINTS', () => { player.skillPoints += 5; }], ['LEVEL UP', () => { player.addXp(player.xpNeeded() - player.xp + 1); }], ['RESET TREE', resetSkills]]) {
+      const b = document.createElement('button'); b.className = 'btn alt'; b.textContent = label;
+      b.addEventListener('click', () => { fn(); buildWeapons(); renderSkills(); });
+      bar.append(b);
+    }
+    wrap.append(bar);
+  }
   for (const T of Object.values(SKILL_TREES)) {
     const col = document.createElement('div');
     col.className = 'tree';
-    col.innerHTML = `<div class="tree-title">${T.label}</div>`;
-    for (const tier of [1, 2, 3]) {
-      const row = document.createElement('div');
-      row.className = 'tier';
-      const need = SKILL_TIER_LEVEL[tier];
-      if (tier > 1) row.dataset.label = player.level >= need ? '' : 'Level ' + need;
-      for (const s of T.skills.filter((x) => x.tier === tier)) {
-        const r = rank(s.id);
-        const b = document.createElement('button');
-        b.className = 'skill' + (r ? ' has' : '') + (canLearn(s.id) ? ' can' : '') + (player.level < need ? ' locked' : '');
-        b.innerHTML = `<div class="sk-name"></div><div class="sk-rank">${r}/${s.max}</div><div class="sk-desc"></div>`;
-        b.children[0].textContent = s.name;
-        b.children[2].textContent = s.desc(Math.max(1, r));
-        b.disabled = !canLearn(s.id);
-        b.addEventListener('click', () => { if (learnSkill(s.id)) renderSkills(); });
-        row.append(b);
-      }
-      col.append(row);
+    col.innerHTML = `<div class="tree-title">${T.label}</div><div class="tree-note">${T.note}</div>`;
+    const row = document.createElement('div');
+    row.className = 'tier';
+    for (const s of T.skills) {
+      const r = rank(s.id), lock = s.req();
+      const b = document.createElement('button');
+      b.className = 'skill' + (r ? ' has' : '') + (canLearn(s.id) ? ' can' : '') + (lock ? ' locked' : '');
+      b.innerHTML = `<div class="sk-name"></div><div class="sk-rank">${lock ? 'needs ' + lock : r + '/' + s.max}</div><div class="sk-desc"></div>`;
+      b.children[0].textContent = s.name;
+      b.children[2].textContent = s.desc(Math.max(1, r));
+      b.disabled = !canLearn(s.id);
+      b.addEventListener('click', () => { if (learnSkill(s.id)) renderSkills(); });
+      row.append(b);
     }
+    col.append(row);
     wrap.append(col);
   }
+  const next = document.createElement('div');
+  next.className = 'tree locked-tree';
+  next.innerHTML = `<div class="tree-title">Next skill tree</div><div class="tree-note">${nextTreeOpen() ? 'Unlocked: not designed yet' : 'Fully upgrade two Rampage skills to unlock'}</div>`;
+  wrap.append(next);
 }
 let skillsFrom = null;
 function openSkills() {

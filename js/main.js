@@ -523,6 +523,10 @@ $('gearBtn').addEventListener('click', openGear);
 $('btnPauseGear').addEventListener('click', openGear);
 $('btnGearDone').addEventListener('click', closeGear);
 $('btnPauseSkills').addEventListener('click', openSkills);
+// Tester mode: try the levelling tree without levelling up (js/arsenal.js, TESTER)
+const testerLabel = () => { $('btnTester').textContent = 'Tester mode: ' + (TESTER.on ? 'ON' : 'off'); };
+testerLabel();
+$('btnTester').addEventListener('click', () => { setTester(!TESTER.on); testerLabel(); if (TESTER.on) { player.skillPoints = Math.max(player.skillPoints, 20); hud.log('Tester mode: 20 skill points, level locks off', '#ff7ae8'); } });
 $('btnSkillsDone').addEventListener('click', closeSkills);
 $('btnMainMenu').addEventListener('click', () => { savePlayer(); game.mode = 'menu'; showMainMenu(); });
 $('btnMute').addEventListener('click', () => { $('btnMute').textContent = SFX.toggleMute() ? 'Sound: off' : 'Sound: on'; });
@@ -553,6 +557,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyE': interact(); break;
     case 'KeyF': case 'KeyV': case 'KeyQ': counter(); break;
     case 'KeyK': openSkills(); break;
+    case 'KeyR': rampage(); break;
     case 'KeyI': case 'Tab': e.preventDefault(); openGear(); break;
     case 'KeyN': if (game.phase === 'intermission') game.interT = 0; else if (game.phase === 'complete') finishStage(true); break;
     case 'KeyM': $('btnMute').textContent = SFX.toggleMute() ? 'Sound: off' : 'Sound: on'; break;
@@ -601,6 +606,16 @@ function updateWheelButton() {
   const kl = canCounter ? 'COUNTER' : 'DODGE', kh = canCounter ? 'now!' : danger ? 'dodge it!' : 'roll';
   if ($('kickLabel').textContent !== kl) $('kickLabel').textContent = kl;
   if ($('kickHint').textContent !== kh) $('kickHint').textContent = kh;
+  // Rampage Psychosis: shown once learned; ready / active / cooling down
+  const rb = $('rageBtn'), has = rank('rampage') > 0;
+  if (rb.hidden === has) rb.hidden = !has;
+  if (has) {
+    const on = raging(), cd = TESTER.on ? 0 : Math.max(0, player.rageCd || 0);
+    rb.classList.toggle('active', on); rb.classList.toggle('ready', !on && cd <= 0); rb.classList.toggle('cool', !on && cd > 0);
+    const h = on ? Math.ceil(player.buffs.rampage) + 's' : cd > 0 ? Math.ceil(cd) + 's' : 'ready';
+    if ($('rageHint').textContent !== h) $('rageHint').textContent = h;
+  }
+  $('vRage').style.opacity = raging() ? 0.6 + Math.sin(performance.now() / 160) * 0.2 : 0;
   const td = (player.flow || 0) >= TAKEDOWN_FLOW;
   fireBtn.classList.toggle('takedown', td);
   const lab = td ? 'TAKEDOWN' : 'STRIKE';
@@ -613,6 +628,7 @@ function openWheel() { /* no weapon wheel: the axe is the only weapon */ }
 function touchAct(act, btn) {
   if (game.state !== 'play') return;
   if (act === 'jump') dodge(); // the JUMP button is DODGE now
+  else if (act === 'rage') rampage();
   else if (act === 'kick') { if (counterThreat() && !dangerThreat()) counter(); else dodge(); } // DODGE, or COUNTER when it's lit
   else if (act === 'use') interact();
 }

@@ -206,6 +206,19 @@
   .skill.locked { opacity: 0.45; }
   .skill:disabled { cursor: default; }
   .sk-name { font: 18px/1 var(--display); letter-spacing: 0.05em; color: var(--hazard); }
+  .tree-note { font: 600 12px/1.2 var(--body); opacity: 0.7; margin: -2px 0 8px; }
+  .locked-tree { opacity: 0.6; }
+  .tester { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; border: 2px dashed #ff3bd0; background: rgba(255, 59, 208, 0.12); }
+  .tester b { font: 18px/1 var(--display); color: #ff7ae8; letter-spacing: 0.06em; }
+  .tester span { font: 600 12px/1 var(--body); opacity: 0.8; margin-right: auto; }
+  .tester .btn { padding: 6px 12px; font-size: 15px; }
+  /* Rampage Psychosis (2026-11-11): its button sits left of STRIKE, shown once learned */
+  .tb[data-act="rage"] { width: 72px; height: 72px; right: calc(226px + var(--sar)); bottom: calc(40px + var(--sab)); font-size: 14px; background: rgba(120, 10, 10, 0.75); flex-direction: column; align-content: center; gap: 2px; }
+  .tb[data-act="rage"] small { font: 600 10px/1 var(--body); opacity: 0.85; }
+  .tb[data-act="rage"].ready { background: rgba(214, 24, 24, 0.9); border-color: #fff; animation: skPulse 0.8s ease-in-out infinite; }
+  .tb[data-act="rage"].active { background: rgba(255, 120, 20, 0.95); color: var(--ink); }
+  .tb[data-act="rage"].cool { opacity: 0.5; }
+  #vRage { background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 40, 10, 0.45) 100%); }
   .sk-rank { font: 700 13px/1 var(--body); opacity: 0.85; }
   .sk-desc { font: 600 14px/1.25 var(--body); opacity: 0.9; }
   #saveLine, .note { font: 600 16px/1.2 var(--body); letter-spacing: 0.06em; opacity: 0.9; text-shadow: 1px 1px 0 var(--ink); }
@@ -326,6 +339,7 @@
 <div id="vShield" class="vig"></div>
 <div id="vLow" class="vig"></div>
 <div id="vBlood" class="vig"></div>
+<div id="vRage" class="vig"></div>
 <div id="scope" hidden></div>
 
 <div id="hud" hidden>
@@ -381,6 +395,7 @@
   <div id="aimBase" hidden><div id="aimKnob"></div></div>
   <div class="tb" data-act="fire" id="fireBtn"><span id="fireLabel">STRIKE</span><small id="fireHint">combo</small></div>
   <div class="tb" data-act="kick" id="kickBtn"><span id="kickLabel">DODGE</span><small id="kickHint">roll</small></div>
+  <div class="tb" data-act="rage" id="rageBtn" hidden><span>RAMPAGE</span><small id="rageHint">R</small></div>
   <div class="tb" data-act="jump" hidden>JUMP</div>
   <div class="tb" data-act="use" id="useBtn" hidden>USE</div>
   <div id="wheelBtn" data-act="wheel" hidden><i id="wbName">COUNTER</i><b id="wbAmmo">🦶</b><small id="wbPool">kick</small></div>
@@ -480,6 +495,7 @@
       <button class="btn alt" id="btnPauseSkills">SKILLS</button>
       <button class="btn alt" id="btnMainMenu" hidden>MAIN MENU</button>
       <button class="btn alt" id="btnMute">Sound: on</button>
+      <button class="btn alt" id="btnTester">Tester mode: off</button>
     </div>
     <div class="note" id="pauseNote">Leaving keeps your level, cash and gear.</div>
   </div>
