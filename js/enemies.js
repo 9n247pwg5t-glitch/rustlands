@@ -3,7 +3,7 @@
 
 // Difficulty knobs (2026-11-05: the game should be more challenging). Applied to every enemy and wave.
 const DIFFICULTY = {
-  hp: 1.25, dmg: 1.35, // enemy health and damage
+  hp: 2.5, dmg: 1.35, // enemy health (2026-11-11: doubled from 1.25, "enemies are too easy to kill") and damage
   waveSize: 1.25, levelPerWave: 1.0, maxAlive: 2, // bigger waves, faster-rising enemy levels, more at once
   healthDrop: 0.055, healCost: 1.4, // fewer health drops, dearer healing
 };
