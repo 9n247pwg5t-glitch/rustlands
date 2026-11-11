@@ -71,8 +71,8 @@
      filling its dark inner slot, clipped to the slot's pointed ends */
   /* the Rampage Mode bar (2026-11-11), over the level-up bar once Rampage Psychosis is learned: the
      creator's animated frame; full and pulsing when ready, draining while it's on, refilling on cooldown */
-  .xpcol { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  #rageBar { width: 100%; aspect-ratio: 592 / 98; max-height: 52px; position: relative; background: url(ui/rage-frame.webp) center / 100% 100% no-repeat; }
+  .xpcol { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 0; }
+  #rageBar { width: 68%; aspect-ratio: 592 / 98; max-height: 40px; margin-bottom: -3%; position: relative; z-index: 1; background: url(ui/rage-frame.webp) center / 100% 100% no-repeat; }
   #rageBar .rslot { position: absolute; left: 6.2%; right: 5.4%; top: 55%; bottom: 21%; overflow: hidden; clip-path: polygon(0 50%, 2% 0, 98% 0, 100% 50%, 98% 100%, 2% 100%); }
   #rageFill { position: absolute; inset: 0; background: linear-gradient(180deg, #e8c8ff, #a24cff 55%, #5a1ab0); transform-origin: left center; opacity: 0.55; }
   #rageBar.ready #rageFill { opacity: 1; animation: rageGlow 0.8s ease-in-out infinite; }
