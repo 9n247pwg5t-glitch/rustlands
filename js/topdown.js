@@ -152,20 +152,28 @@ function buildPlayerBody() {
   if (ar) pinToBone(rig.bones.rhand, ar.group, 1, handAlign(rig.bones.rhand));
   if (axe) pinToBone(rig.bones.rhand, axe.group, 1, handAlign(rig.bones.rhand));
   if (axe) rig.blade = axe.blade;
+  // the sword swapped in while Rampage Psychosis is on (2026-11-11)
+  const sword = rigGun('sword');
+  if (sword) { pinToBone(rig.bones.rhand, sword.group, 1, handAlign(rig.bones.rhand)); sword.group.visible = false; }
   root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   scene.add(root);
   const pe = {
     pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, def: { scale: 1, ai: 'ranged' }, state: 'move',
     flash: 0, flinchT: 0, aiming: true, reloadT: 0, burstLeft: 0, model: { root }, rig, gait: null, atk: null,
   };
-  TD.body = { root, rig, pe, ar, axe, meleeT: 0, kickT: 0, reloading: false };
+  TD.body = { root, rig, pe, ar, axe, sword, meleeT: 0, kickT: 0, reloading: false };
   tdSetWeapon(player.gun());
 }
 function tdSetWeapon(g) {
   const B = TD.body;
   if (!B || !g) return;
   if (B.ar) B.ar.group.visible = false; // axe only (decisions.md 2026-11-09)
-  if (B.axe) B.axe.group.visible = true;
+  // Rampage Psychosis swaps the axe for the sword (and the swing trail with it)
+  const rage = typeof raging === 'function' && raging() && !!B.sword;
+  if (B.axe) B.axe.group.visible = !rage;
+  if (B.sword) B.sword.group.visible = rage;
+  const blade = rage ? B.sword.blade : B.axe && B.axe.blade;
+  if (blade) B.rig.blade = blade;
   B.pe.def.ai = 'melee';
   B.pe.gait = GAIT_PLAYER_AXE;
   B.pe.aiming = false;
@@ -180,6 +188,8 @@ function updatePlayerBody(dt) {
   const B = TD.body;
   if (!B) return;
   const pe = B.pe, R = B.rig, g = player.gun();
+  const rg = typeof raging === 'function' && raging();
+  if (B.rageShown !== rg) { B.rageShown = rg; tdSetWeapon(g); } // sword in, sword out
   B.root.visible = player.alive && game.mode !== 'menu';
   pe.pos.copy(player.pos);
   pe.vel.set(player.vel.x, 0, player.vel.z);

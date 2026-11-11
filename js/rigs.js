@@ -54,12 +54,14 @@ const RIG_LOOKS = {
 // sockets are where the hand grips it and where shots leave. `size` scales the model in the fist.
 // All weapons use lower-detail copies (-td, made with tools/optimize.mjs) since the
 // top-down view shows them small; the full models were for first-person close-ups.
-const GUN_FILES = { pistol: 'gun-pistol-td', rifle: 'gun-rifle-td', shotgun: 'gun-shotgun-td', axe: 'gun-axe-td' };
+const GUN_FILES = { pistol: 'gun-pistol-td', rifle: 'gun-rifle-td', shotgun: 'gun-shotgun-td', axe: 'gun-axe-td', sword: 'gun-sword-td' }; // sword: the creator's last_laugh.glb (Rampage Psychosis), 205k -> 7k vertices
 const GUN_SOCKETS = {
   pistol: { grip: [0, -0.035, -0.052], muzzle: [0, 0.034, 0.282], size: 0.9 },
   rifle: { grip: [0, -0.03, -0.042], muzzle: [0, 0.046, 0.66], size: 0.8 },
   shotgun: { grip: [0, -0.01, -0.03], muzzle: [0.004, 0.045, 0.668], size: 0.8 },
   axe: { grip: [0, 0, 0], size: 0.85, edge: [0, 0.571, 0.246], inner: [0, 0.16, 0.02] },
+  // the player's Rampage sword: blade along +Y like the axe's handle, grip at the origin, tip at 1.22 m
+  sword: { grip: [0, 0, 0], size: 0.85, edge: [0, 1.15, 0.0], inner: [0, 0.3, 0], ownColours: true },
   // the player's assault rifle; `optic` is the eye point behind its sight
   ringmaster: { grip: [0, -0.034, -0.038], foregrip: [0, -0.01, 0.312], muzzle: [0, 0.06, 0.618], optic: [0, 0.113, -0.06], size: 1 },
 };
@@ -494,7 +496,7 @@ function rigGun(kind, left = false) {
   const src = RIG.guns[kind], sock = GUN_SOCKETS[kind];
   if (!src || !sock) return null;
   if (!_gunOutline) { _gunOutline = rigOutlineMaterial(0.007); _gunOutline.skinning = false; }
-  const hue = pick(GUN_HUES);
+  const hue = sock.ownColours ? 0 : pick(GUN_HUES); // (the sword keeps its own paint)
   const gun = src.clone();
   const meshes = [];
   gun.traverse((o) => { if (o.isMesh) meshes.push(o); });
@@ -517,7 +519,7 @@ function rigGun(kind, left = false) {
   gun.scale.setScalar(size);
   gun.position.fromArray(sock.grip).multiplyScalar(-size); // grip socket on w's origin
   const sx = left ? -1 : 1;
-  if (kind === 'axe') {
+  if (kind === 'axe' || kind === 'sword') {
     // handle (+Y) through the fist along +Z, blade (+Z) up
     w.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)));
     w.position.set(-0.06 * sx, -0.03, 0);
