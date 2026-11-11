@@ -259,7 +259,8 @@ function healCost() { return Math.ceil((1 - player.hp / player.maxHp) * 45 * DIF
 
 function tryAutoPickup(d) {
   if (d.kind === 'cash') { player.cash += d.amount; SFX.cash(); hud.log('+$' + d.amount, '#9fff6a'); return true; }
-  if (d.kind === 'health') { if (player.hp >= player.maxHp || player.downed) return false; player.heal(player.maxHp * 0.35); SFX.pickup(); hud.log('+Health', '#ff6a7a'); return true; }
+  // health vials are always taken (they fly to you); they heal what they can
+  if (d.kind === 'health') { if (player.hp < player.maxHp) { player.heal(player.maxHp * 0.35); hud.log('+Health', '#ff6a7a'); } SFX.pickup(); return true; }
   if (d.kind === 'grenade') { if (player.grenades >= player.maxGrenades) return false; player.grenades++; SFX.pickup(); hud.log('+1 Grenade', '#8fd06a'); return true; }
   if (d.kind === 'ammo') {
     if (!d.ammo) {
@@ -316,9 +317,9 @@ function updateInteraction(dt) {
     const d = drops[i];
     if (d.kind === 'item' || d.t < 0.4) continue;
     const dist = d.pos.distanceTo(player.center());
-    if (dist < 4 && d.grounded) {
-      const willTake = d.kind === 'cash' || (d.kind === 'health' && player.hp < player.maxHp) || (d.kind === 'grenade' && player.grenades < player.maxGrenades);
-      if (willTake) d.pos.lerp(player.center(), Math.min(1, dt * 6));
+    if (dist < (d.kind === 'health' ? 8 : 4) && d.grounded) {
+      const willTake = d.kind === 'cash' || d.kind === 'health' || (d.kind === 'grenade' && player.grenades < player.maxGrenades);
+      if (willTake) d.pos.lerp(player.center(), Math.min(1, dt * (d.kind === 'health' ? 4 : 6)));
     }
     if (dist < 1.4 && tryAutoPickup(d)) removeDrop(d);
   }
@@ -419,6 +420,11 @@ function updatePlayer(dt) {
     if (!player.shieldCharging) { player.shieldCharging = true; SFX.shieldUp(); }
     player.shield = Math.min(sm, player.shield + player.shieldItem.rate * dt);
   }
+  // health comes back after a few seconds out of combat (2026-11-11): no hits taken or dealt for
+  // REGEN_DELAY seconds and no enemy close by, then REGEN_RATE of max health a second
+  player.calmT = (player.calmT || 0) + dt;
+  if (enemies.some((e) => e.alive && Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < 6)) player.calmT = Math.min(player.calmT, REGEN_DELAY - 0.5);
+  if (player.alive && player.calmT > REGEN_DELAY && player.hp < player.maxHp) player.hp = Math.min(player.maxHp, player.hp + player.maxHp * REGEN_RATE * dt);
   player.invuln -= dt; player.hurtSoundT -= dt;
   if (player.downed) {
     player.downT -= dt;
@@ -490,6 +496,7 @@ function resumeGame() {
   show(null);
   lockPointer();
 }
+const REGEN_DELAY = 4, REGEN_RATE = 0.12;
 function playerDied() {
   game.state = 'dead';
   input.fire = false; input.ads = false;

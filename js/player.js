@@ -59,6 +59,7 @@ const player = {
     if (amount > 4 && Math.random() < 0.5) bloodSplat(this.pos, 0.7, 'spatter'); // the player bleeds too
     if (!this.alive || this.invuln > 0 || game.state !== 'play') return;
     this.flow = 0; // getting hit breaks your momentum
+    this.calmT = 0; // and stops health regeneration for a while
     amount *= damageTakenScale();
     if (srcPos) hud.hurtFrom(srcPos);
     if (this.downed) return;
@@ -86,12 +87,13 @@ const player = {
     }
     game.shake(clamp(amount / this.maxHp, 0.05, 0.35));
   },
+  // no Fight For Your Life (2026-11-11): at zero health you die and go to the respawn screen
   goDown() {
     this.hp = 0; this.shield = 0;
-    this.downed = true; this.downT = 12;
     this.reloadT = 0; input.ads = false;
     SFX.down();
-    hud.banner('FIGHT FOR YOUR LIFE', 'Kill an enemy to get a Second Wind');
+    this.alive = false;
+    playerDied();
   },
   secondWind() {
     this.downed = false;

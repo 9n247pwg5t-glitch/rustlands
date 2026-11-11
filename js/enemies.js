@@ -5,7 +5,7 @@
 const DIFFICULTY = {
   hp: 2.5, dmg: 1.35, // enemy health (2026-11-11: doubled from 1.25, "enemies are too easy to kill") and damage
   waveSize: 1.25, levelPerWave: 1.0, maxAlive: 2, // bigger waves, faster-rising enemy levels, more at once
-  healthDrop: 0.055, healCost: 1.4, // fewer health drops, dearer healing
+  healthDrop: 0.17, healCost: 1.4, // health vials from about one kill in six (2026-11-11), dearer healing
 };
 
 const ENEMY_DEFS = {
@@ -177,6 +177,7 @@ function enemyCenter(e, out) {
 // ---------------------------------------------------------------------------
 // Damage
 function damageEnemy(e, amount, elem, opts = {}) {
+  if (opts.fromPlayer) player.calmT = 0; // in combat: no health regeneration for a while
   if (!e.alive || amount <= 0) return 0;
   let remaining = amount, dealt = 0, broke = false;
   const E = ELEM[elem] || ELEM.none;

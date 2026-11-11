@@ -174,8 +174,9 @@ const hud = (() => {
       let k = p.downed ? 1 : clamp(hpK * 0.9 + shK * 0.12, 0, 1);
       const low = !p.downed && p.hp < p.maxHp * 0.3;
       const beat = low ? Math.pow(Math.max(0, Math.sin(performance.now() / 300)), 6) * 0.12 : 0;
-      const op = k < 0.02 && hurtA < 0.02 ? 0 : clamp(0.12 + k * 0.6 + hurtA * 0.35 + beat, 0, 0.82);
-      const inner = 74 - k * 40 - hurtA * 8 - beat * 40; // where the clear middle ends (% of the ellipse)
+      // (2026-11-11: about half as strong as before, with a wider clear middle)
+      const op = k < 0.02 && hurtA < 0.02 ? 0 : clamp(0.06 + k * 0.34 + hurtA * 0.2 + beat * 0.6, 0, 0.45);
+      const inner = 78 - k * 30 - hurtA * 6 - beat * 30; // where the clear middle ends (% of the ellipse)
       const key = op.toFixed(2) + '|' + inner.toFixed(0);
       if (el.blood.dataset.k !== key) { el.blood.dataset.k = key; el.blood.style.opacity = op; el.blood.style.setProperty('--bin', inner.toFixed(0) + '%'); el.blood.style.setProperty('--bout', Math.min(100, inner + 34).toFixed(0) + '%'); }
       xpFloatT -= dt;

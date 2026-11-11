@@ -328,7 +328,8 @@ function spawnDrop(kind, pos, data = {}) {
   } else if (kind === 'ammo') {
     box(0.34, 0.22, 0.22, 0x5b6b3a, 0, 0, 0, g, 0.025); box(0.36, 0.06, 0.24, 0, 0, 0.05, 0, g, 0, glow(0xffd23a)); color = 0xffd23a;
   } else if (kind === 'health') {
-    cyl(0.1, 0.1, 0.32, 0, 0, 0, 0, g, 0.02, 8, glow(0xff3b4a)); color = 0xff3b4a;
+    // a health vial: red glass, a neck and a cork
+    cyl(0.1, 0.1, 0.32, 0, 0, 0, 0, g, 0.02, 8, glow(0xff3b4a)); cyl(0.05, 0.05, 0.08, 0xd8c8c8, 0, 0.2, 0, g, 0.015, 8); cyl(0.055, 0.055, 0.06, 0x8a5a30, 0, 0.27, 0, g, 0.01, 8); color = 0xff3b4a;
   } else if (kind === 'grenade') {
     const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 1), toon(0x4f7a3a)); addOutline(m, 1.15); g.add(m); color = 0x8fd06a;
   }
