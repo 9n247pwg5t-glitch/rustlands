@@ -231,9 +231,10 @@
   /* Rampage Psychosis (2026-11-11): its button sits left of STRIKE, shown once learned */
   .tb[data-act="rage"] { width: 72px; height: 72px; right: calc(146px + var(--sar)); bottom: calc(34px + var(--sab)); font-size: 14px; background: rgba(120, 10, 10, 0.75); flex-direction: column; align-content: center; gap: 2px; }
   .tb[data-act="rage"] small { font: 600 10px/1 var(--body); opacity: 0.85; }
-  .tb[data-act="rage"].ready { background: rgba(214, 24, 24, 0.9); border-color: #fff; animation: skPulse 0.8s ease-in-out infinite; }
-  .tb[data-act="rage"].active { background: rgba(255, 120, 20, 0.95); color: var(--ink); }
-  .tb[data-act="rage"].cool { opacity: 0.5; }
+  /* (2026-11-11) the button only appears when Rampage is ready, as the creator's ACTIVATE RAMPAGE art */
+  .tb[data-act="rage"]:not(.ready) { display: none; }
+  .tb[data-act="rage"].ready { width: 86px; height: 82px; right: calc(140px + var(--sar)); background: url(ui/rage-btn.webp) center / contain no-repeat; border: 0; border-radius: 10px; box-shadow: none; animation: skPulse 0.9s ease-in-out infinite; }
+  .tb[data-act="rage"].ready span, .tb[data-act="rage"].ready small { visibility: hidden; }
   #vRage { background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 40, 10, 0.45) 100%); }
   .sk-rank { font: 700 13px/1 var(--body); opacity: 0.85; }
   .sk-desc { font: 600 14px/1.25 var(--body); opacity: 0.9; }
@@ -366,6 +367,7 @@
 
 <link rel="preload" as="image" href="ui/counter-btn.webp">
 <link rel="preload" as="image" href="ui/rage-ready.webp">
+<link rel="preload" as="image" href="ui/rage-btn.webp">
 <div id="game"></div>
 <canvas id="overlay"></canvas>
 <div id="vHurt" class="vig"></div>
