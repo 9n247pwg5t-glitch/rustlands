@@ -197,7 +197,15 @@ const AXE_SET = {
   spin: { name: 'spin', clip: 'Standing Melee Attack 360 High', start: 0.2, hit: 1.08, end: 1.75, dmg: 1.6, heavy: true, trail: [[0.68, 1.36]] },
   // the gap-closer: a running leap onto a target a few strides away
   leap: { name: 'leap', clip: 'Standing Melee Run Jump Attack', start: 0.35, hit: 1.7, end: 2.5, dmg: 1.3, leap: true, trail: [[1.38, 1.88]] },
+  // Rampage Psychosis: the sword's moves, from the uploaded Great Sword clips (2026-11-11). The Slash
+  // clip holds two blows (0.8 s and 1.77 s), Slide Attack lands at 1.2 s, Jump Attack at 1.1 s.
+  gs1: { name: 'sword slash', clip: 'Great Sword Slash', start: 0.3, hit: 0.8, end: 1.25, dmg: 1.1, trail: [[0.6, 0.95]] },
+  gs2: { name: 'sword cut', clip: 'Great Sword Slash', start: 1.25, hit: 1.77, end: 2.45, dmg: 1.2, trail: [[1.55, 1.95]] },
+  gsSlide: { name: 'slide attack', clip: 'Great Sword Slide Attack', start: 0.45, hit: 1.2, end: 1.8, dmg: 1.7, heavy: true, trail: [[0.95, 1.35]] },
+  gsJump: { name: 'jump attack', clip: 'Great Sword Jump Attack', start: 0.25, hit: 1.1, end: 1.85, dmg: 1.8, heavy: true, trail: [[0.85, 1.25]] },
+  gsLeap: { name: 'jump attack', clip: 'Great Sword Jump Attack', start: 0.25, hit: 1.1, end: 1.85, dmg: 1.3, leap: true, trail: [[0.85, 1.25]] },
 };
+const SWORD_COMBOS = [['gs1', 'gs2', 'gsSlide'], ['gs1', 'gs2', 'gsJump']];
 const AXE_PLAY = 1.5; // clip seconds per real second at base swing speed
 const AXE_COMBOS = [
   ['cleaver', 'hook', 'overhead'], // the three-blow combo clip, straight through
@@ -207,7 +215,8 @@ const AXE_COMBOS = [
 const COMBO_WINDOW = 0.9; // seconds after a strike ends to chain the next
 const STRIKE_RANGE = 9; // how far a strike looks for a target (beyond reach, it leaps)
 const TAKEDOWN_FLOW = 8;
-const axeMove = (step = player.combo || 0) => (player.leaping ? AXE_SET.leap : player.takedown ? AXE_SET.overhead : AXE_SET[(player.comboSeq || AXE_COMBOS[0])[step]]);
+// (during Rampage Psychosis the sword's moves: its own leap, takedown and combos)
+const axeMove = (step = player.combo || 0) => (player.leaping ? AXE_SET[raging() ? 'gsLeap' : 'leap'] : player.takedown ? AXE_SET[raging() ? 'gsJump' : 'overhead'] : AXE_SET[(player.comboSeq || AXE_COMBOS[0])[step]]);
 const AXE_COMBO = { get length() { return 3; } }; // (kept for older code that counts the moves)
 
 // Who a strike goes to: the enemy nearest the direction you're pushing (if you are), else the one
@@ -242,7 +251,7 @@ function meleeSwing() {
   if (!player.leaping) {
     const chained = player.comboT > -COMBO_WINDOW && player.meleeT <= 0 && player.comboSeq && !player.wasLeap;
     player.combo = chained ? ((player.combo || 0) + 1) % 3 : 0;
-    if (player.combo === 0) { const last = player.comboSeq; do player.comboSeq = pick(AXE_COMBOS); while (player.comboSeq === last); }
+    if (player.combo === 0) { const set = raging() ? SWORD_COMBOS : AXE_COMBOS, last = player.comboSeq; do player.comboSeq = pick(set); while (player.comboSeq === last); }
   } else player.combo = 0;
   player.wasLeap = player.leaping;
   // a takedown when 8 hits are flowing: the next strike on a regular enemy kills it outright

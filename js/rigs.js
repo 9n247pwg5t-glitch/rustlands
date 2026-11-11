@@ -61,7 +61,7 @@ const GUN_SOCKETS = {
   shotgun: { grip: [0, -0.01, -0.03], muzzle: [0.004, 0.045, 0.668], size: 0.8 },
   axe: { grip: [0, 0, 0], size: 0.85, edge: [0, 0.571, 0.246], inner: [0, 0.16, 0.02] },
   // the player's Rampage sword: blade along +Y like the axe's handle, grip at the origin, tip at 1.22 m
-  sword: { grip: [0, 0, 0], size: 0.85, edge: [0, 1.15, 0.0], inner: [0, 0.3, 0], ownColours: true },
+  sword: { grip: [0, 0, 0], size: 0.85, edge: [0, 1.12, 0.0], inner: [0, 0.78, 0], ownColours: true }, // (trail along the outer third of the blade)
   // the player's assault rifle; `optic` is the eye point behind its sight
   ringmaster: { grip: [0, -0.034, -0.038], foregrip: [0, -0.01, 0.312], muzzle: [0, 0.06, 0.618], optic: [0, 0.113, -0.06], size: 1 },
 };
@@ -127,7 +127,7 @@ function loadRigs() {
   if (window.MeshoptDecoder) loader.setMeshoptDecoder(MeshoptDecoder);
   const get = (f) => new Promise((ok, fail) => loader.load('models/' + f + '.json', ok, undefined, fail));
   // (versioned, so a phone holding an older copy without the newer clips fetches it again)
-  const anims = fetch('models/enemy-anims.json?v=48').then((r) => { if (!r.ok) throw new Error('anims ' + r.status); return r.json(); });
+  const anims = fetch('models/enemy-anims.json?v=49').then((r) => { if (!r.ok) throw new Error('anims ' + r.status); return r.json(); });
   const names = Object.keys(RIG_FILES);
   RIG.loading = anims.then((data) => {
     RIG.data = data;

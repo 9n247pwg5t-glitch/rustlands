@@ -141,6 +141,8 @@ function tdAim(dt) {
 // the player runs with the uploaded Unarmed Run Forward 3 / Unarmed Run Back clips (2026-11-09)
 // the dive-and-roll stretch of the uploaded Stand To Roll clip (seconds), played over the dodge
 const ROLL_CLIP = [0.8, 2.05];
+// with the Rampage sword: the uploaded Great Sword Walk and Run (2026-11-11)
+const GAIT_PLAYER_SWORD = { fwd: [['Great Sword Walk', 1.6], ['Great Sword Run', 2.4]], back: ['Unarmed Run Back', 2.6], side: ['Goalkeeper Sidestep', 1.8], idle: 'Unarmed Idle' };
 const GAIT_PLAYER_AXE = { fwd: [['Unarmed Run Forward 3', 2.4]], back: ['Unarmed Run Back', 2.6], side: ['Goalkeeper Sidestep', 1.8], idle: 'Unarmed Idle' };
 // Each combo move plays one of the enemy axe clips, timed so its blow lands when the swing does.
 // (Each move's clip, and where in it the blow lands, is in AXE_SET in js/arsenal.js.)
@@ -175,7 +177,7 @@ function tdSetWeapon(g) {
   const blade = rage ? B.sword.blade : B.axe && B.axe.blade;
   if (blade) B.rig.blade = blade;
   B.pe.def.ai = 'melee';
-  B.pe.gait = GAIT_PLAYER_AXE;
+  B.pe.gait = rage ? GAIT_PLAYER_SWORD : GAIT_PLAYER_AXE;
   B.pe.aiming = false;
 }
 // The rifle's muzzle on the body, for where shots leave.
