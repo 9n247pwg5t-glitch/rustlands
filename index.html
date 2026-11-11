@@ -67,8 +67,11 @@
 
   .bc { position: absolute; left: 50%; bottom: calc(14px + var(--sab)); transform: translateX(-50%); display: flex; align-items: center; gap: 8px; width: min(420px, 36vw); }
   #lvl { font: 26px/1 var(--display); color: var(--hazard); -webkit-text-stroke: 1px var(--ink); text-shadow: 2px 2px 0 var(--ink); min-width: 28px; text-align: center; }
-  .xpbar { flex: 1; height: 8px; background: var(--panel); border: 2px solid var(--ink); position: relative; overflow: hidden; }
-  #xpFill { position: absolute; inset: 0; background: var(--hazard); transform-origin: left center; transition: transform 0.2s; }
+  /* the level-up bar (2026-11-11): the creator's animated frame (ui/xp-frame.webp) with the XP
+     filling its dark inner slot, clipped to the slot's pointed ends */
+  .xpbar { flex: 1; aspect-ratio: 649 / 130; max-height: 64px; position: relative; background: url(ui/xp-frame.webp) center / 100% 100% no-repeat; }
+  .xpbar .xpslot { position: absolute; left: 3.2%; right: 4.1%; top: 37%; bottom: 25%; overflow: hidden; clip-path: polygon(0 50%, 2.2% 0, 97.8% 0, 100% 50%, 97.8% 100%, 2.2% 100%); }
+  #xpFill { position: absolute; inset: 0; background: linear-gradient(180deg, #bfeaff, #3aa8ff 55%, #1a5adf); box-shadow: 0 0 8px #4fc6ff; transform-origin: left center; transition: transform 0.2s; }
   #xpPop { position: absolute; left: 50%; bottom: calc(40px + var(--sab)); transform: translateX(-50%); font: 22px/1 var(--display); color: var(--hazard); text-shadow: 2px 2px 0 var(--ink); letter-spacing: 0.05em; }
 
   .br { position: absolute; right: calc(18px + var(--sar)); bottom: calc(18px + var(--sab)); display: grid; justify-items: end; gap: 4px; text-align: right; }
@@ -376,7 +379,7 @@
     <div class="bar"><div class="fill" id="shieldFill"></div><div class="txt"><i>SHIELD</i><span id="shieldTxt"></span></div></div>
     <div class="bar hp"><div class="fill" id="hpFill"></div><div class="txt"><i>HEALTH</i><span id="hpTxt"></span></div></div>
   </div>
-  <div class="bc"><div id="lvl">1</div><div class="xpbar"><div id="xpFill"></div></div><button id="skillBtn" aria-label="Skills">★</button><button id="gearBtn" aria-label="Gear">⚙</button></div>
+  <div class="bc"><div id="lvl">1</div><div class="xpbar"><div class="xpslot"><div id="xpFill"></div></div></div><button id="skillBtn" aria-label="Skills">★</button><button id="gearBtn" aria-label="Gear">⚙</button></div>
   <div id="xpPop" hidden></div>
   <div class="br">
     <div class="kit" hidden>
@@ -517,22 +520,22 @@
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/SkeletonUtils.js"></script>
 <script src="vendor/meshopt_decoder.js"></script>
-<script src="js/util.js?v=66"></script>
-<script src="js/world.js?v=66"></script>
-<script src="js/loot.js?v=66"></script>
-<script src="js/arsenal.js?v=66"></script>
-<script src="js/rigs.js?v=66"></script>
-<script src="js/enemies.js?v=66"></script>
-<script src="js/player.js?v=66"></script>
-<script src="js/fparms.js?v=66"></script>
-<script src="js/topdown.js?v=66"></script>
-<script src="js/hud.js?v=66"></script>
-<script src="js/stages.js?v=66"></script>
-<script src="js/hub.js?v=66"></script>
-<script src="js/map.js?v=66"></script>
-<script src="js/blood.js?v=66"></script>
-<script src="js/painted.js?v=66"></script>
-<script src="js/compound-extra.js?v=66"></script>
-<script src="js/compound.js?v=66"></script>
-<script src="js/firefx.js?v=66"></script>
-<script src="js/main.js?v=66"></script>
+<script src="js/util.js?v=67"></script>
+<script src="js/world.js?v=67"></script>
+<script src="js/loot.js?v=67"></script>
+<script src="js/arsenal.js?v=67"></script>
+<script src="js/rigs.js?v=67"></script>
+<script src="js/enemies.js?v=67"></script>
+<script src="js/player.js?v=67"></script>
+<script src="js/fparms.js?v=67"></script>
+<script src="js/topdown.js?v=67"></script>
+<script src="js/hud.js?v=67"></script>
+<script src="js/stages.js?v=67"></script>
+<script src="js/hub.js?v=67"></script>
+<script src="js/map.js?v=67"></script>
+<script src="js/blood.js?v=67"></script>
+<script src="js/painted.js?v=67"></script>
+<script src="js/compound-extra.js?v=67"></script>
+<script src="js/compound.js?v=67"></script>
+<script src="js/firefx.js?v=67"></script>
+<script src="js/main.js?v=67"></script>
