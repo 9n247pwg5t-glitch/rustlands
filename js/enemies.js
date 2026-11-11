@@ -234,6 +234,7 @@ const _bp2 = new THREE.Vector3();
 function killEnemy(e, opts = {}) {
   if (!e.alive) return;
   e.alive = false;
+  if (typeof chargeRampage === 'function') chargeRampage(e);
   e.threat = 0; if (e.warn) e.warn.visible = false;
   const center = enemyCenter(e, new THREE.Vector3());
   const violent = opts.explosive || opts.crit || opts.overkill;

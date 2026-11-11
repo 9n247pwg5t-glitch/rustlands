@@ -620,18 +620,18 @@ function updateWheelButton() {
   const rb = $('rageBtn'), has = rank('rampage') > 0;
   if (rb.hidden === has) rb.hidden = !has;
   if (has) {
-    const on = raging(), cd = TESTER.on ? 0 : Math.max(0, player.rageCd || 0);
-    rb.classList.toggle('active', on); rb.classList.toggle('ready', !on && cd <= 0); rb.classList.toggle('cool', !on && cd > 0);
-    const h = on ? Math.ceil(player.buffs.rampage) + 's' : cd > 0 ? Math.ceil(cd) + 's' : 'ready';
+    const on = raging(), rdy = rageReady();
+    rb.classList.toggle('active', on); rb.classList.toggle('ready', !on && rdy); rb.classList.toggle('cool', !on && !rdy);
+    const h = on ? Math.ceil(player.buffs.rampage) + 's' : rdy ? 'ready' : (player.rageCharge || 0) + '/' + RAGE_KILLS + ' kills';
     if ($('rageHint').textContent !== h) $('rageHint').textContent = h;
   }
-  // the Rampage Mode bar over the level bar: time left while on, the cooldown refilling, full when ready
+  // the Rampage Mode bar over the level bar: time left while on, kills charging it, full when ready
   const RB = $('rageBar');
   if (RB.hidden === has) RB.hidden = !has;
   if (has) {
-    const on = raging(), cd = TESTER.on ? 0 : Math.max(0, (player.rageCd || 0) - (on ? 0 : 0));
-    const k = on ? player.buffs.rampage / RAGE_TIME : cd > 0 ? 1 - cd / RAGE_COOLDOWN : 1;
-    RB.classList.toggle('active', on); RB.classList.toggle('ready', !on && cd <= 0);
+    const on = raging(), rdy = rageReady();
+    const k = on ? player.buffs.rampage / RAGE_TIME : rdy ? 1 : (player.rageCharge || 0) / RAGE_KILLS; // kills charge it
+    RB.classList.toggle('active', on); RB.classList.toggle('ready', !on && rdy);
     $('rageFill').style.transform = `scaleX(${clamp(k, 0, 1).toFixed(3)})`;
   }
   $('vRage').style.opacity = raging() ? 0.6 + Math.sin(performance.now() / 160) * 0.2 : 0;

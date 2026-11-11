@@ -61,7 +61,10 @@ function genMod(level, opts = {}) {
 //    damage taken).
 //  - The next tree opens once two Rampage skills are fully upgraded (not designed yet).
 // The Rampage timings are placeholders the creator hasn't set.
-const RAGE_TIME = 10, RAGE_COOLDOWN = 45;
+// (2026-11-11: Rampage charges from kills, not a timer: RAGE_KILLS kills fill it; a Star counts 3,
+// a boss fills it; kills made during Rampage don't count)
+const RAGE_TIME = 10, RAGE_KILLS = 10;
+const rageReady = () => TESTER.on || (player.rageCharge || 0) >= RAGE_KILLS;
 const SKILL_TREES = {
   axe: {
     label: 'Axe', note: 'from your first level up',
@@ -73,7 +76,7 @@ const SKILL_TREES = {
   rage: {
     label: 'Cooldown skill', note: 'unlocks at level 5',
     skills: [
-      { id: 'rampage', name: 'Rampage Psychosis', max: 1, desc: () => `For ${RAGE_TIME}s: +20% axe damage and +25% swing speed on top of everything else (${RAGE_COOLDOWN}s cooldown). RAMPAGE button / R.`, req: () => (player.level >= 5 || TESTER.on ? null : 'Level 5') },
+      { id: 'rampage', name: 'Rampage Psychosis', max: 1, desc: () => `For ${RAGE_TIME}s: +20% axe damage and +25% swing speed on top of everything else. Charges up as you kill (${RAGE_KILLS} kills). RAMPAGE button / R.`, req: () => (player.level >= 5 || TESTER.on ? null : 'Level 5') },
     ],
   },
   rageSkills: {
@@ -103,15 +106,15 @@ function resetSkills() {
   for (const id of Object.keys(player.skills)) n += player.skills[id];
   player.skills = {}; player.skillPoints += n;
   if (player.buffs) player.buffs.rampage = 0;
-  player.rageCd = 0;
+  player.rageCharge = 0;
   buildWeapons();
 }
 // Rampage Psychosis: start it (if learned and off cooldown)
 function rampage() {
   if (!rank('rampage') || !player.alive || game.mode === 'hub') return false;
-  if ((player.rageCd || 0) > 0 && !TESTER.on) return false;
+  if (raging() || !rageReady()) return false;
   player.buffs = player.buffs || {};
-  player.buffs.rampage = RAGE_TIME; player.rageCd = RAGE_TIME + RAGE_COOLDOWN;
+  player.buffs.rampage = RAGE_TIME; player.rageCharge = 0;
   buildWeapons();
   hud.popText('RAMPAGE!', '#ff3b2a'); game.shake(0.25); SFX.levelUp();
   return true;
@@ -301,7 +304,7 @@ function resolveMeleeHit() {
     player.stats.damage += damageEnemy(e, dmg, g.element, { crit: true, fromPlayer: true, dir: _fwd.clone(), overkill: true });
     for (let i = 0; i < 3; i++) bloodSplat(e.pos, 1.6, i ? 'spatter' : 'pool');
     hud.popText('TAKEDOWN!', '#ff3b2a'); hud.hitMarker(true, !e.alive);
-    if (!e.alive) onPlayerKill('axe');
+    if (!e.alive) onPlayerKill('axe', e);
     game.slowmo = Math.max(game.slowmo, 0.6); game.shake(0.6); game.hitstop = Math.max(game.hitstop, 0.12);
     SFX.chop(true);
     return;
@@ -342,7 +345,7 @@ function axeHit(e, g, mult, shove) {
   }
   e.vel.addScaledVector(_fwd, shove);
   hud.hitMarker(crit, !e.alive);
-  if (!e.alive) onPlayerKill('axe');
+  if (!e.alive) onPlayerKill('axe', e);
 }
 
 // COUNTER: when enemies close by are about to strike with a yellow "!", knock every one of them
@@ -379,7 +382,7 @@ function counter() {
       if (e.rig) { e.state = 'down'; e.stateT = 1.8; rigOnce(e.rig, 'Getting Up', 1.2, 0, Infinity, 0.05); }
       e.attackCd = 1.8; e.engaged = false; e.backoffT = 0;
     } else if (e.alive) e.state = 'move';
-    if (!e.alive) onPlayerKill('kick');
+    if (!e.alive) onPlayerKill('kick', e);
   }
   player.flow = (player.flow || 0) + list.length; player.flowT = 3.5;
   player.riposteT = 1.5; // the next strike comes quick
@@ -425,7 +428,7 @@ function resolveKick() {
     e.flinchT = Math.max(e.flinchT, 0.6); // staggered
     if (e.state === 'swing' && !e.def.boss) e.state = 'move';
     hud.hitMarker(false, !e.alive);
-    if (!e.alive) onPlayerKill('kick');
+    if (!e.alive) onPlayerKill('kick', e);
     any = true;
     break; // one at a time
   }
@@ -496,12 +499,18 @@ function updatePlayerMelee(dt) {
 }
 
 // Kill-triggered skills.
-function onPlayerKill(by) {
+function onPlayerKill(by, e) {
   player.buffs = player.buffs || {};
+}
+// Every enemy that dies charges Rampage (axe, kick, burn or barrel; not while it's running)
+function chargeRampage(e) {
+  if (!rank('rampage') || raging()) return;
+  const was = rageReady();
+  player.rageCharge = Math.min(RAGE_KILLS, (player.rageCharge || 0) + (e.def.boss ? RAGE_KILLS : e.star ? 3 : 1));
+  if (!was && rageReady()) { hud.popText('RAMPAGE READY!', '#c86bff'); SFX.shieldUp(); }
 }
 function updateBuffs(dt) {
   if (!player.buffs) return;
-  if (player.rageCd > 0) player.rageCd -= dt;
   if (player.buffs.rampage > 0 && player.buffs.rampage - dt <= 0) hud.log('Rampage over', '#ffb07a');
   for (const k of ['berserk', 'frenzy', 'rampage']) {
     if (!(player.buffs[k] > 0)) continue;
