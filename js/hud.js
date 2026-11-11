@@ -37,7 +37,7 @@ const hud = (() => {
     boss: $('boss'), bossName: $('bossName'), bossShield: $('bossShield'), bossHp: $('bossHp'),
     ffyl: $('ffyl'), ffylFill: $('ffylFill'),
     prompt: $('prompt'), card: $('card'), banner: $('banner'), bTitle: $('bTitle'), bSub: $('bSub'),
-    log: $('log'), hurt: $('vHurt'), shield: $('vShield'), low: $('vLow'), xpPop: $('xpPop'),
+    log: $('log'), blood: $('vBlood'), hurt: $('vHurt'), shield: $('vShield'), low: $('vLow'), xpPop: $('xpPop'),
     cross: $('crosshair'), game: $('game'), streak: $('streak'), sN: $('sN'), sM: $('sM'), sBar: $('sBar'),
   };
   let hurtA = 0, shieldA = 0;
@@ -166,9 +166,18 @@ const hud = (() => {
       if (bannerT <= 0) el.banner.hidden = true;
       for (let i = logs.length - 1; i >= 0; i--) { logs[i].t -= dt; if (logs[i].t <= 0) { logs[i].d.remove(); logs.splice(i, 1); } else if (logs[i].t < 0.6) logs[i].d.style.opacity = logs[i].t / 0.6; }
       hurtA = Math.max(0, hurtA - dt * 1.6); shieldA = Math.max(0, shieldA - dt * 2);
-      el.hurt.style.opacity = hurtA;
       el.shield.style.opacity = shieldA;
-      el.low.style.opacity = !p.downed && p.hp < p.maxHp * 0.3 ? 0.5 + Math.sin(performance.now() / 180) * 0.2 : 0;
+      // blood on the screen instead of health bars: nothing at full health, creeping in from the edges
+      // as health drops (a lost shield adds a little), pulsing like a heartbeat below 30%, a flash on
+      // each hit; the middle of the screen always stays clear
+      const hpK = clamp(1 - p.hp / p.maxHp, 0, 1), shK = sm ? clamp(1 - p.shield / sm, 0, 1) : 0;
+      let k = p.downed ? 1 : clamp(hpK * 0.9 + shK * 0.12, 0, 1);
+      const low = !p.downed && p.hp < p.maxHp * 0.3;
+      const beat = low ? Math.pow(Math.max(0, Math.sin(performance.now() / 300)), 6) * 0.12 : 0;
+      const op = k < 0.02 && hurtA < 0.02 ? 0 : clamp(0.12 + k * 0.6 + hurtA * 0.35 + beat, 0, 0.82);
+      const inner = 74 - k * 40 - hurtA * 8 - beat * 40; // where the clear middle ends (% of the ellipse)
+      const key = op.toFixed(2) + '|' + inner.toFixed(0);
+      if (el.blood.dataset.k !== key) { el.blood.dataset.k = key; el.blood.style.opacity = op; el.blood.style.setProperty('--bin', inner.toFixed(0) + '%'); el.blood.style.setProperty('--bout', Math.min(100, inner + 34).toFixed(0) + '%'); }
       xpFloatT -= dt;
       if (xpFloatT > 0) { el.xpPop.hidden = false; el.xpPop.textContent = '+' + Math.round(xpFloat) + ' XP'; el.xpPop.style.opacity = Math.min(1, xpFloatT * 2); }
       else { el.xpPop.hidden = true; xpFloat = 0; }

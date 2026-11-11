@@ -41,6 +41,13 @@
   #vHurt { background: radial-gradient(ellipse at center, transparent 45%, rgba(200, 20, 10, 0.75) 100%); }
   #vShield { background: radial-gradient(ellipse at center, transparent 50%, rgba(79, 198, 255, 0.6) 100%); }
   #vLow { background: radial-gradient(ellipse at center, transparent 55%, rgba(120, 0, 0, 0.7) 100%); }
+  /* health shown as blood on the screen (2026-11-11, replaces the shield and health bars): the
+     creator's blood texture, masked to the screen's edges; js/hud.js widens it inward and raises its
+     opacity as health drops, keeping the middle clear so the fight stays visible */
+  #vBlood { background: url(ui/blood-screen.webp) center / cover; --bin: 72%; --bout: 100%;
+    -webkit-mask-image: radial-gradient(ellipse at center, transparent var(--bin), #000 var(--bout));
+    mask-image: radial-gradient(ellipse at center, transparent var(--bin), #000 var(--bout)); }
+  .bl { display: none !important; }
   #scope { position: fixed; inset: 0; pointer-events: none; z-index: 2;
     background: radial-gradient(circle at center, transparent 0, transparent 31vmin, var(--ink) 31.4vmin); }
   #scope::before, #scope::after { content: ""; position: absolute; background: var(--ink); left: 50%; top: 50%; }
@@ -318,6 +325,7 @@
 <div id="vHurt" class="vig"></div>
 <div id="vShield" class="vig"></div>
 <div id="vLow" class="vig"></div>
+<div id="vBlood" class="vig"></div>
 <div id="scope" hidden></div>
 
 <div id="hud" hidden>
