@@ -524,9 +524,12 @@ $('btnPauseGear').addEventListener('click', openGear);
 $('btnGearDone').addEventListener('click', closeGear);
 $('btnPauseSkills').addEventListener('click', openSkills);
 // Tester mode: try the levelling tree without levelling up (js/arsenal.js, TESTER)
-const testerLabel = () => { $('btnTester').textContent = 'Tester mode: ' + (TESTER.on ? 'ON' : 'off'); };
+// (a toggle in the pause menu and on the skill screen itself)
+const testerLabel = () => { for (const id of ['btnTester', 'btnSkillsTester']) $(id).textContent = 'Tester mode: ' + (TESTER.on ? 'ON' : 'off'); };
 testerLabel();
-$('btnTester').addEventListener('click', () => { setTester(!TESTER.on); testerLabel(); if (TESTER.on) { player.skillPoints = Math.max(player.skillPoints, 20); hud.log('Tester mode: 20 skill points, level locks off', '#ff7ae8'); } });
+const toggleTester = () => { setTester(!TESTER.on); testerLabel(); if (TESTER.on) { player.skillPoints = Math.max(player.skillPoints, 20); hud.log('Tester mode: 20 skill points, level locks off', '#ff7ae8'); } if (!$('skills').hidden) renderSkills(); };
+$('btnTester').addEventListener('click', toggleTester);
+$('btnSkillsTester').addEventListener('click', toggleTester);
 $('btnSkillsDone').addEventListener('click', closeSkills);
 $('btnMainMenu').addEventListener('click', () => { savePlayer(); game.mode = 'menu'; showMainMenu(); });
 $('btnMute').addEventListener('click', () => { $('btnMute').textContent = SFX.toggleMute() ? 'Sound: off' : 'Sound: on'; });
