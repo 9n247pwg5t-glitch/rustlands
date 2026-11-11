@@ -326,6 +326,9 @@
     .br { right: auto; bottom: calc(210px + var(--sab)); left: calc(14px + var(--sal)); justify-items: start; text-align: left; transform-origin: bottom left; }
     #hud #log { top: calc(132px + var(--sat)); }
     #target, #boss { top: calc(126px + var(--sat)); }
+    /* the level-up bar gets the full width along the bottom (it was squeezed to nothing) */
+    .bc { width: calc(100vw - 28px - var(--sal) - var(--sar)); }
+    .xpbar { min-width: 150px; max-height: 40px; }
   }
   @media (max-width: 700px) {
     .controls { grid-template-columns: minmax(0, 1fr); }
@@ -520,22 +523,22 @@
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/SkeletonUtils.js"></script>
 <script src="vendor/meshopt_decoder.js"></script>
-<script src="js/util.js?v=67"></script>
-<script src="js/world.js?v=67"></script>
-<script src="js/loot.js?v=67"></script>
-<script src="js/arsenal.js?v=67"></script>
-<script src="js/rigs.js?v=67"></script>
-<script src="js/enemies.js?v=67"></script>
-<script src="js/player.js?v=67"></script>
-<script src="js/fparms.js?v=67"></script>
-<script src="js/topdown.js?v=67"></script>
-<script src="js/hud.js?v=67"></script>
-<script src="js/stages.js?v=67"></script>
-<script src="js/hub.js?v=67"></script>
-<script src="js/map.js?v=67"></script>
-<script src="js/blood.js?v=67"></script>
-<script src="js/painted.js?v=67"></script>
-<script src="js/compound-extra.js?v=67"></script>
-<script src="js/compound.js?v=67"></script>
-<script src="js/firefx.js?v=67"></script>
-<script src="js/main.js?v=67"></script>
+<script src="js/util.js?v=68"></script>
+<script src="js/world.js?v=68"></script>
+<script src="js/loot.js?v=68"></script>
+<script src="js/arsenal.js?v=68"></script>
+<script src="js/rigs.js?v=68"></script>
+<script src="js/enemies.js?v=68"></script>
+<script src="js/player.js?v=68"></script>
+<script src="js/fparms.js?v=68"></script>
+<script src="js/topdown.js?v=68"></script>
+<script src="js/hud.js?v=68"></script>
+<script src="js/stages.js?v=68"></script>
+<script src="js/hub.js?v=68"></script>
+<script src="js/map.js?v=68"></script>
+<script src="js/blood.js?v=68"></script>
+<script src="js/painted.js?v=68"></script>
+<script src="js/compound-extra.js?v=68"></script>
+<script src="js/compound.js?v=68"></script>
+<script src="js/firefx.js?v=68"></script>
+<script src="js/main.js?v=68"></script>
