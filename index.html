@@ -289,7 +289,11 @@
   /* two action buttons only (2026-11-10): STRIKE, and DODGE above and right of it (clear of the thumb on STRIKE), which turns into COUNTER when a counter is open */
   .tb[data-act="kick"] { width: 88px; height: 88px; right: calc(18px + var(--sar)); bottom: calc(150px + var(--sab)); font-size: 17px; flex-direction: column; align-content: center; gap: 2px; }
   .tb[data-act="kick"] small { font: 600 10px/1 var(--body); letter-spacing: 0.08em; opacity: 0.85; }
-  .tb[data-act="kick"].counter { background: rgba(79, 198, 255, 0.9); border-color: #fff; color: var(--ink); animation: skPulse 0.4s ease-in-out infinite; opacity: 1; }
+  /* the creator's button art (2026-11-11): grey DODGE, blue COUNTER when a counter is open; the painted
+     words replace the text */
+  .tb[data-act="kick"] { background: url(ui/dodge-btn.webp) center / contain no-repeat; border: 0; box-shadow: none; border-radius: 50%; }
+  .tb[data-act="kick"] span, .tb[data-act="kick"] small { visibility: hidden; }
+  .tb[data-act="kick"].counter { background: url(ui/counter-btn.webp) center / contain no-repeat; animation: skPulse 0.4s ease-in-out infinite; opacity: 1; box-shadow: 0 0 18px 4px rgba(79, 198, 255, 0.75); }
   .tb[data-act="kick"].cool { opacity: 0.45; }
   .tb[data-act="jump"] { width: 64px; height: 64px; right: calc(24px + var(--sar)); bottom: calc(118px + var(--sab)); font-size: 16px; }
   .tb[data-act="use"] { width: 64px; height: 64px; right: calc(232px + var(--sar)); bottom: calc(140px + var(--sab)); border-color: var(--hazard); background: rgba(255, 210, 58, 0.85); color: var(--ink); font-size: 17px; }
@@ -301,7 +305,7 @@
   #wheelBtn.down { background: rgba(255, 210, 58, 0.35); }
   #wheelBtn.threat { background: rgba(79, 198, 255, 0.85); border-color: #fff; animation: skPulse 0.4s ease-in-out infinite; }
   #wheelBtn.threat b { color: var(--ink); }
-  .tb[data-act="kick"].danger { background: rgba(255, 59, 42, 0.85); color: #fff; animation: skPulse 0.35s ease-in-out infinite; opacity: 1; }
+  .tb[data-act="kick"].danger { animation: skPulse 0.35s ease-in-out infinite; opacity: 1; box-shadow: 0 0 18px 5px rgba(255, 59, 42, 0.85); }
   #fireBtn.takedown { background: url(ui/strike-btn.webp) center / contain no-repeat, rgba(255, 59, 42, 0.95); box-shadow: 0 0 0 4px #ffd23a, 2px 2px 0 var(--ink); animation: skPulse 0.6s ease-in-out infinite; }
   #fireBtn.takedown span { font-size: 19px; }
   #wheel { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 50%, rgba(28, 17, 10, 0.6), rgba(28, 17, 10, 0.25) 60%); }
@@ -343,6 +347,7 @@
   }
 </style>
 
+<link rel="preload" as="image" href="ui/counter-btn.webp">
 <div id="game"></div>
 <canvas id="overlay"></canvas>
 <div id="vHurt" class="vig"></div>
@@ -527,22 +532,22 @@
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/SkeletonUtils.js"></script>
 <script src="vendor/meshopt_decoder.js"></script>
-<script src="js/util.js?v=69"></script>
-<script src="js/world.js?v=69"></script>
-<script src="js/loot.js?v=69"></script>
-<script src="js/arsenal.js?v=69"></script>
-<script src="js/rigs.js?v=69"></script>
-<script src="js/enemies.js?v=69"></script>
-<script src="js/player.js?v=69"></script>
-<script src="js/fparms.js?v=69"></script>
-<script src="js/topdown.js?v=69"></script>
-<script src="js/hud.js?v=69"></script>
-<script src="js/stages.js?v=69"></script>
-<script src="js/hub.js?v=69"></script>
-<script src="js/map.js?v=69"></script>
-<script src="js/blood.js?v=69"></script>
-<script src="js/painted.js?v=69"></script>
-<script src="js/compound-extra.js?v=69"></script>
-<script src="js/compound.js?v=69"></script>
-<script src="js/firefx.js?v=69"></script>
-<script src="js/main.js?v=69"></script>
+<script src="js/util.js?v=70"></script>
+<script src="js/world.js?v=70"></script>
+<script src="js/loot.js?v=70"></script>
+<script src="js/arsenal.js?v=70"></script>
+<script src="js/rigs.js?v=70"></script>
+<script src="js/enemies.js?v=70"></script>
+<script src="js/player.js?v=70"></script>
+<script src="js/fparms.js?v=70"></script>
+<script src="js/topdown.js?v=70"></script>
+<script src="js/hud.js?v=70"></script>
+<script src="js/stages.js?v=70"></script>
+<script src="js/hub.js?v=70"></script>
+<script src="js/map.js?v=70"></script>
+<script src="js/blood.js?v=70"></script>
+<script src="js/painted.js?v=70"></script>
+<script src="js/compound-extra.js?v=70"></script>
+<script src="js/compound.js?v=70"></script>
+<script src="js/firefx.js?v=70"></script>
+<script src="js/main.js?v=70"></script>
