@@ -178,6 +178,7 @@ function enemyCenter(e, out) {
 // Damage
 function damageEnemy(e, amount, elem, opts = {}) {
   if (opts.fromPlayer) player.calmT = 0; // in combat: no health regeneration for a while
+  if (opts.fromPlayer && !opts.drone) { player.lastHitE = e; player.lastHitT = performance.now(); } // the gun drone joins in on this one
   if (!e.alive || amount <= 0) return 0;
   let remaining = amount, dealt = 0, broke = false;
   const E = ELEM[elem] || ELEM.none;

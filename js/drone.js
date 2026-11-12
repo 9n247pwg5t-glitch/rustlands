@@ -3,7 +3,8 @@
 // skill points needed. DRONE (the button by STRIKE, or G) launches the creator's mini helicopter
 // (models/gun-drone.json, from military_helicopter_3d_model.glb) to hover over the player's shoulder
 // and fire its machine gun at the nearest enemy in sight for DRONE_TIME seconds; then it flies off
-// and the skill cools down for DRONE_COOLDOWN seconds (40, the creator's number). Its rotor is a
+// and the skill cools down for DRONE_COOLDOWN seconds (40, the creator's number). It shoots whatever
+// enemy the player is hitting; when the player isn't fighting it picks random enemies in range. Its rotor is a
 // spinning blurred disc (the model's fixed blades were taken off, tools/drone-convert.mjs).
 // PROPOSED, not set by the creator: how long it stays, its range, damage and fire rate.
 
@@ -69,7 +70,18 @@ function updateDrone(dt) {
   // target: the nearest enemy in range and in sight (the player's lock if it qualifies)
   if (D.t > 0) {
     const ok = (e) => e && e.alive && e.pos.distanceTo(D.pos) < DRONE_RANGE && lineOfSight(D.pos, enemyCenter(e, _dB));
-    if (!ok(D.target)) { D.target = null; let bd = Infinity; for (const e of enemies) { if (!e.alive) continue; const d = e.pos.distanceTo(player.pos); if (d < bd && ok(e)) { bd = d; D.target = e; } } if (ok(TD.lock)) D.target = TD.lock; }
+    // (2026-11-12) in a fight it shoots whatever the player is hitting; otherwise it picks enemies at
+    // random in range and in sight, switching to another one every few seconds
+    const fighting = player.lastHitE && performance.now() - (player.lastHitT || 0) < 3000;
+    if (fighting && ok(player.lastHitE)) { D.target = player.lastHitE; D.pickT = 0; }
+    else {
+      D.pickT = (D.pickT || 0) - dt;
+      if (!ok(D.target) || D.pickT <= 0) {
+        const pool = enemies.filter((e) => e.alive && e !== D.target && ok(e));
+        if (pool.length) D.target = pick(pool); else if (!ok(D.target)) D.target = null;
+        D.pickT = rand(2, 3.5);
+      }
+    }
   } else D.target = null;
   // face the target (else where the player faces), nose dipping toward it
   let want = yaw + Math.PI, pitch = 0.08;
@@ -89,7 +101,7 @@ function updateDrone(dt) {
         enemyCenter(D.target, _dB); _dB.x += rand(-0.25, 0.25); _dB.y += rand(-0.3, 0.3); _dB.z += rand(-0.25, 0.25);
         tracer(_dC, _dB, 0xffd070, 0.03, 0.06); muzzleFlash(_dC, 0.5);
         const dmg = 70 * levelScale(player.level) * 0.12 * (D.target.star ? 0.8 : 1);
-        damageEnemy(D.target, dmg, 'none', { fromPlayer: true, dir: _dB.clone().sub(_dC).normalize() });
+        damageEnemy(D.target, dmg, 'none', { fromPlayer: true, drone: true, dir: _dB.clone().sub(_dC).normalize() });
         if (Math.random() < 0.25) burst(_dB.clone(), 0xb3121a, 3, 2, 0.06, 0.3, 1);
         SFX.turret();
       }
