@@ -9,7 +9,7 @@
 // map (2026-11-12: "prevent player from leaving map boundaries").
 // The 3D compound (js/compound.js) and the painted picture (js/painted.js) are kept; MS_USE picks this.
 
-const MS_USE = true;
+const MS_USE = false; // (2026-11-12: switched back to the 3D compound)
 const MS_NAME = 'map-clown-yard';
 
 function buildSingleMapStage() {
