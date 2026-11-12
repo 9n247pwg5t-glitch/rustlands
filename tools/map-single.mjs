@@ -163,4 +163,8 @@ for (const t of root.listTextures()) {
 await doc.transform(prune(), unpartition(), meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
 await io.write(path.join(outDir, name + '.gltf'), doc);
 fs.renameSync(path.join(outDir, name + '.gltf'), path.join(outDir, name + '.json'));
+// the geometry goes inside the JSON (the game's other models are single .json files)
+{ const f = path.join(outDir, name + '.json'), j = JSON.parse(fs.readFileSync(f, 'utf8'));
+  for (const b of j.buffers || []) if (b.uri && b.uri.endsWith('.bin')) { const bin = path.join(outDir, b.uri); b.uri = 'data:application/octet-stream;base64,' + fs.readFileSync(bin).toString('base64'); fs.unlinkSync(bin); }
+  fs.writeFileSync(f, JSON.stringify(j)); }
 for (const f of fs.readdirSync(outDir)) if (f.startsWith(name)) console.log(f, fs.statSync(path.join(outDir, f)).size);
