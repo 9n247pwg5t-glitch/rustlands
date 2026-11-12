@@ -431,7 +431,7 @@ function cmpStage(H, det, dblk) {
   const { add, col, glowAt, FZ } = H, T = cmpStageTex(), front = -FZ + 5.52;
   const dark = cmpMat(0x1e1a1c), steel = cmpMat(0x4a4a52), gold = cmpMat(0xd8a83a);
   // the doorway (replaces the flat purple panel)
-  add(cmpArchGeo(3.6, 4.8), cmpMat(0xffffff, T.door, 0xffffff), 0, 0, front, 0, 'Detail').material.emissiveIntensity = 0.85;
+  add(cmpArchGeo(3.6, 4.8), cmpMat(0xffffff, T.door, 0xffffff), 0, 0, front, 0, 'Detail').material.emissiveIntensity = 0.6;
   // its frame: a gold moulding round the arch
   const arc = new THREE.Shape(); arc.absarc(0, 0, 1.95, 0, Math.PI, false); arc.absarc(0, 0, 1.75, Math.PI, 0, true);
   add(new THREE.ExtrudeGeometry(arc, { depth: 0.12, bevelEnabled: false, curveSegments: 16 }), gold, 0, 3.0, front - 0.02, 0, 'Detail');
@@ -452,7 +452,7 @@ function cmpStage(H, det, dblk) {
   CMP.smoke.push([-0.6, 0.3, front + 0.8, 0.7], [0.6, 0.3, front + 0.8, 0.7]);
 
   // the runway: carpet with gold borders, a low black edge, a lamp every metre each side
-  add(new THREE.PlaneGeometry(3.2, 12).rotateX(-Math.PI / 2), cmpMat(0xffffff, T.runway, 0x2a0a3a, [1, 3]), 0, 0.075, -FZ + 11.5, 0, 'Road');
+  add(new THREE.PlaneGeometry(3.2, 12).rotateX(-Math.PI / 2), cmpMat(0xffffff, T.runway, 0x140520, [1, 3]), 0, 0.075, -FZ + 11.5, 0, 'Road');
   for (const s of [-1, 1]) {
     dblk(0.12, 0.1, 12, dark, s * 1.66, 0, -FZ + 11.5);
     for (let i = 0; i < 12; i++) CMP.fx.push({ kind: 'bulb', x: s * 1.66, y: 0.14, z: -FZ + 6 + i, color: i % 2 ? 0xd07aff : 0xffffff, s: 0.55 });
@@ -474,7 +474,7 @@ function cmpStage(H, det, dblk) {
   // spotlights: a can, a yoke and a glowing lens, aimed at the doorway and down the runway
   const lensM = cmpMat(0xffffff, T.lens, 0xffffff);
   CMP.stageBeams = [];
-  const beamMat = (c) => new THREE.MeshBasicMaterial({ map: T.beam, color: c, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const beamMat = (c) => new THREE.MeshBasicMaterial({ map: T.beam, color: c, transparent: true, opacity: 0.1, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
   [[-5.5, 0xff40d0, -FZ + 9], [-3.3, 0xffffff, -FZ + 6.5], [-1.1, 0xb060ff, -FZ + 13], [1.1, 0xb060ff, -FZ + 13], [3.3, 0xffffff, -FZ + 6.5], [5.5, 0xff40d0, -FZ + 9]].forEach(([x, c, aimZ], i) => {
     const y = top - 0.45, aim = new THREE.Vector3(x * 0.35, 0, aimZ), from = new THREE.Vector3(x, y, tz), dir = aim.clone().sub(from).normalize();
     const g = new THREE.Group(); g.position.copy(from); g.name = 'Detail'; H.root.add(g);
@@ -487,7 +487,7 @@ function cmpStage(H, det, dblk) {
     cone.position.copy(from); cone.renderOrder = 2;
     H.fxRoot.add(cone);
     CMP.stageBeams.push({ cone, from, aim, ph: i * 1.3, L });
-    glowAt(aim.x, aim.z, 1.8, c);
+    glowAt(aim.x, aim.z, 1.3, c);
   });
 }
 

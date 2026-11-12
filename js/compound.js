@@ -270,7 +270,7 @@ function cmpBuild() {
   blk(15.4, 0.4, 0.5, cmpMat(0x2a1a18), 0, 5.9, -FZ + 5.3);
   for (let i = 0; i <= 14; i++) CMP.fx.push({ kind: 'bulb', x: -7 + i, y: 6.2, z: -FZ + 5.6 }); // marquee bulbs
   // (the doorway, runway and lighting truss: cmpStage in js/compound-extra.js)
-  glowAt(0, -FZ + 8, 7, 0xb040ff);
+  glowAt(0, -FZ + 7, 4.5, 0x8a30d0);
   D.points.TentDoor = [0, 0, -FZ + 7];
 
   // --- the front gate: an arch with red curtains, star panels and the clown sign
