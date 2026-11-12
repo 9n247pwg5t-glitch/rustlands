@@ -182,13 +182,12 @@ function cmpBuild() {
 
   // --- the ring: a raised platform (the ground heightmap lifts it), posts, red ropes
   const R = D.ring;
-  blk(R.half * 2, R.h, R.half * 2, cmpMat(0x1c1418), R.x, 0, R.z, 0, 'ring');
+  blk(R.half * 2, R.h, R.half * 2, cmpMat(0x1c1418), R.x, 0, R.z, 0, 'ring'); // (its skirt, apron and turnbuckles: cmpRing)
   add(new THREE.PlaneGeometry(R.half * 2 - 0.3, R.half * 2 - 0.3).rotateX(-Math.PI / 2), cmpMat(0x9c9284, TEX.mat), R.x, R.h + 0.01, R.z, 0, 'ringmat').castShadow = false;
   const postMat = cmpMat(0x2a2a2e), rope = cmpMat(0xb3121a, null, 0x300000), pad = cmpMat(0xb3121a);
   const P = R.half - 0.2;
   for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
     add(new THREE.CylinderGeometry(0.12, 0.12, 1.9, 8), postMat, R.x + sx * P, R.h + 0.95, R.z + sz * P);
-    for (let k = 0; k < 3; k++) blk(0.32, 0.18, 0.32, pad, R.x + sx * P, R.h + 0.32 + k * 0.42, R.z + sz * P);
     col(R.x + sx * P, R.z + sz * P, 0.4, 0.4, R.h + 1.9);
   }
   for (let k = 0; k < 3; k++) {
@@ -206,11 +205,20 @@ function cmpBuild() {
   for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
     const x = R.x + sx * 11.5, z = R.z + sz * 12.5;
     for (const [ox, oz] of [[0.5, 0], [-0.3, 0.45], [-0.3, -0.45]]) add(new THREE.CylinderGeometry(0.05, 0.08, 7, 6), steel, x + ox * 0.6, 3.5, z + oz * 0.6).rotation.set(oz * 0.12, 0, -ox * 0.12);
-    const head = blk(1.8, 1.2, 0.3, steel, x, 6.7, z, Math.atan2(-sx, -sz));
+    // the lamp bank: a frame holding four round lamps (cans with glowing lenses), tilted at the ring
+    const head = new THREE.Group(); head.position.set(x, 7.15, z); head.rotation.set(0.38, Math.atan2(-sx, -sz), 0, 'YXZ'); head.name = 'prop'; root.add(head);
+    const hm = (geo, m, px, py, pz) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); head.add(o); return o; };
+    for (const py of [-0.62, 0.62]) hm(new THREE.BoxGeometry(1.9, 0.08, 0.08), steel, 0, py, -0.1);
+    for (const px of [-0.95, 0.95]) hm(new THREE.BoxGeometry(0.08, 1.32, 0.08), steel, px, 0, -0.1);
+    hm(new THREE.CylinderGeometry(0.06, 0.06, 0.5, 6), steel, 0, -0.85, -0.1);
+    const lensM = cmpMat(0xffffff, cmpStageTex().lens, 0xffffff);
     for (let i = 0; i < 4; i++) {
-      const l = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.1), lamp);
-      l.position.set((i % 2 - 0.5) * 0.85, (Math.floor(i / 2) - 0.5) * 0.55 + 0.6, 0.18); head.add(l);
+      const lx = (i % 2 - 0.5) * 0.9, ly = (Math.floor(i / 2) - 0.5) * 0.62;
+      hm(new THREE.CylinderGeometry(0.27, 0.31, 0.36, 14).rotateX(Math.PI / 2), cmpMat(0x26262c), lx, ly, 0);
+      hm(new THREE.CircleGeometry(0.25, 16), lensM, lx, ly, 0.185);
+      hm(new THREE.BoxGeometry(0.6, 0.03, 0.18), steel, lx, ly + 0.3, 0.2).rotation.x = -0.5; // barn door
     }
+    head.traverse((o) => { o.name = 'prop'; });
     col(x, z, 1.2, 1.2, 7);
     CMP.fx.push({ kind: 'beam', from: new THREE.Vector3(x, 7.2, z), to: new THREE.Vector3(R.x + sx * 2, 0, R.z + sz * 2), color: 0xfff2d0 });
     glowAt(R.x + sx * 9, R.z + sz * 9, 5, 0x9a9080); // light spilling round the ring
@@ -258,12 +266,10 @@ function cmpBuild() {
   // --- the entrance tent at the back: red curtains, a purple doorway, the clown billboard on top
   const curtain = cmpMat(0xffffff, TEX.curtain, 0, [3, 1]);
   solid(14, 6, 5, curtain, 0, 0, -FZ + 3, 0);
-  add(new THREE.PlaneGeometry(3.4, 4.6), cmpMat(0x2a0840, null, 0x6a10b0), 0, 2.3, -FZ + 5.52); // the doorway, glowing purple
   sign(15, 6, TEX.billboard, 0, 9, -FZ + 5.4, 0, 0x2a2018);
   blk(15.4, 0.4, 0.5, cmpMat(0x2a1a18), 0, 5.9, -FZ + 5.3);
   for (let i = 0; i <= 14; i++) CMP.fx.push({ kind: 'bulb', x: -7 + i, y: 6.2, z: -FZ + 5.6 }); // marquee bulbs
-  for (let i = 0; i <= 6; i++) { CMP.fx.push({ kind: 'bulb', x: -2, y: 0.6 + i * 0.75, z: -FZ + 5.6 }); CMP.fx.push({ kind: 'bulb', x: 2, y: 0.6 + i * 0.75, z: -FZ + 5.6 }); }
-  plane(3.2, 12, cmpMat(0x5a1890, null, 0x220640), 0, 0.07, -FZ + 11.5, 'Road'); // purple runway
+  // (the doorway, runway and lighting truss: cmpStage in js/compound-extra.js)
   glowAt(0, -FZ + 8, 7, 0xb040ff);
   D.points.TentDoor = [0, 0, -FZ + 7];
 
@@ -354,7 +360,7 @@ function cmpBuild() {
   // a parked car by the north-east house
   blk(2, 1, 4.4, cmpMat(0x2a2a30), 66, 0.35, -56); blk(1.8, 0.7, 2.4, cmpMat(0x1c1c22), 66, 1.35, -56.4);
 
-  cmpDetail({ add, blk, col, solid, plane, sign, glowAt, root, D, FX, FZ, R, wood, steel, bark, tyreM, drum, crate, rustM, glassM });
+  cmpDetail({ add, blk, col, solid, plane, sign, glowAt, root, fxRoot: fx, D, FX, FZ, R, wood, steel, bark, tyreM, drum, crate, rustM, glassM });
 
   // --- markers
   D.points.PlayerSpawn = [0, 0, 30];
@@ -476,9 +482,7 @@ function cmpDetail(H) {
 
   // ===== the ring and ringside
   plane(R.half * 2 + 3, R.half * 2 + 3, cmpMat(0x2a3a6a), R.x, 0.04, R.z, 'Road'); // padded mats round the ring
-  for (const [sx, sz] of [[1, 1], [-1, -1]]) { // steel steps at two corners
-    for (let k = 0; k < 3; k++) dblk(1.2, 0.3 * (k + 1), 0.5, metal, R.x + sx * (R.half + 1.1 - k * 0.35), 0, R.z + sz * (R.half + 0.4));
-  }
+  // (steel steps at two corners: cmpRing in js/compound-extra.js)
   // announcer table: monitors, a bell, folding chairs
   const at = [-9.5, 9.5];
   solid(3.2, 0.85, 1, cmpMat(0x3a3a40), at[0], 0, at[1], 0);
@@ -939,6 +943,8 @@ function cmpFill(H, T, det, dblk, chair) {
   spot(28, -8, 5, 0.4); spot(14, -25, 5, 0.5); spot(-14, -25, 5, 0.5); spot(-38, -30, 6, 0.4); spot(30, 33, 5, 0.4); spot(15, 0, 5, 0.6); spot(-15, 0, 5, 0.6); spot(0, 14, 4, 0.6); spot(0, -14, 4, 0.6);
   cmpExtra(H, T, det, dblk, chair); // js/compound-extra.js
   cmpExtra2(H, T, det, dblk);
+  cmpStage(H, det, dblk); // js/compound-extra.js
+  cmpRing(H, det, dblk);
 }
 
 // Smoke and embers: points whose rise, growth and fade are worked out in the shader (two draws).

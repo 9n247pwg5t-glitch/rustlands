@@ -359,9 +359,182 @@ function updateCrowd(dt) {
   for (const R of C.list) R.mixer.update(C.acc);
   C.acc = 0;
 }
+const _sbD = new THREE.Vector3(), _sbU = new THREE.Vector3(0, -1, 0);
 function updateCompoundExtra(dt) {
   updateCrowd(dt);
+  // the stage spotlights' beams sway over the doorway and runway
+  if (CMP.stageBeams) { CMP.sbT = (CMP.sbT || 0) + dt; for (const b of CMP.stageBeams) { _sbD.set(b.aim.x + Math.sin(CMP.sbT * 0.6 + b.ph) * 1.6, 0, b.aim.z + Math.cos(CMP.sbT * 0.45 + b.ph) * 1.2).sub(b.from); const L = _sbD.length(); b.cone.scale.set(1, L / b.L, 1); b.cone.quaternion.setFromUnitVectors(_sbU, _sbD.normalize()); } }
   const S = CMP.screen;
   if (S) { S.t += dt; if (S.t > 0.18) { S.t = 0; drawScreen(++S.frame); } }
   if (CMP.extraPts) { const sc = renderer.domElement.height * 0.5 * camera.projectionMatrix.elements[5]; for (const m of CMP.extraPts) { m.uniforms.uT.value += dt; m.uniforms.uScale.value = sc; } }
+}
+
+// --- the entrance stage and the ring, in detail (decisions.md 2026-11-12) --------------------------
+// Painted textures for the doorway haze, the runway carpet, the ring skirt and lamp lenses.
+function cmpStageTex() {
+  if (CMP.stageTex) return CMP.stageTex;
+  const T = {};
+  // the doorway: purple haze lit from above and behind, light shafts, smoke, dark at the edges
+  T.door = cmpCanvas(256, 384, (g, W, H) => {
+    const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#1a0428'); bg.addColorStop(0.55, '#4a0c7a'); bg.addColorStop(1, '#c040ff');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 7; i++) { // light shafts fanning down from a lamp above the door
+      const x = W * (0.15 + i * 0.12); g.fillStyle = `rgba(255,200,255,${0.06 + (i % 2) * 0.05})`;
+      g.beginPath(); g.moveTo(W / 2 - 6, 0); g.lineTo(W / 2 + 6, 0); g.lineTo(x + 18, H); g.lineTo(x - 18, H); g.fill();
+    }
+    for (let i = 0; i < 40; i++) { const x = cmpRng() * W, y = H * (0.45 + cmpRng() * 0.55), r = 20 + cmpRng() * 50, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(230,170,255,0.16)'); gr.addColorStop(1, 'rgba(230,170,255,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); } // smoke
+    const glow = g.createRadialGradient(W / 2, H * 0.95, 4, W / 2, H * 0.95, H * 0.5); glow.addColorStop(0, 'rgba(255,230,255,0.85)'); glow.addColorStop(1, 'rgba(255,120,255,0)'); g.fillStyle = glow; g.fillRect(0, 0, W, H);
+    const v = g.createLinearGradient(0, 0, W, 0); v.addColorStop(0, 'rgba(10,0,20,0.85)'); v.addColorStop(0.18, 'rgba(10,0,20,0)'); v.addColorStop(0.82, 'rgba(10,0,20,0)'); v.addColorStop(1, 'rgba(10,0,20,0.85)'); g.fillStyle = v; g.fillRect(0, 0, W, H);
+  });
+  // the runway carpet: deep plum, gold borders, a row of stars, worn and bloodied
+  T.runway = cmpCanvas(128, 512, (g, W, H) => {
+    g.fillStyle = '#3a0a4a'; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${90 + cmpRng() * 60},20,${110 + cmpRng() * 60},0.18)`; g.fillRect(cmpRng() * W, cmpRng() * H, 2, 6); } // pile
+    g.fillStyle = '#d8a83a'; g.fillRect(6, 0, 7, H); g.fillRect(W - 13, 0, 7, H); g.fillStyle = '#7a1a8a'; g.fillRect(16, 0, 3, H); g.fillRect(W - 19, 0, 3, H);
+    g.font = '30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let y = 32; y < H; y += 64) { g.fillStyle = 'rgba(255,210,90,0.55)'; g.fillText('★', W / 2, y); }
+    grime(g, W, H, 30, 0.35);
+    for (let i = 0; i < 6; i++) { g.fillStyle = 'rgba(110,6,10,0.7)'; g.beginPath(); g.ellipse(20 + cmpRng() * 90, cmpRng() * H, 6 + cmpRng() * 14, 4 + cmpRng() * 30, cmpRng(), 0, TAU); g.fill(); }
+  });
+  // the ring skirt: black canvas, a red band top and bottom, white stars, a fringe, grime and blood
+  T.skirt = cmpCanvas(512, 128, (g, W, H) => {
+    g.fillStyle = '#121014'; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 1200; i++) { g.fillStyle = `rgba(60,55,70,${cmpRng() * 0.25})`; g.fillRect(cmpRng() * W, cmpRng() * H, 1, 3); }
+    g.fillStyle = '#a8121a'; g.fillRect(0, 0, W, 14); g.fillRect(0, H - 26, W, 12);
+    g.fillStyle = '#f0e8dc'; g.fillRect(0, 14, W, 3); g.fillRect(0, H - 29, W, 3);
+    for (let x = 0; x < W; x += 6) { g.fillStyle = x % 12 ? '#d8d0c0' : '#a8121a'; g.fillRect(x, H - 14, 4, 14); } // fringe
+    g.font = 'bold 44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let i = 0; i < 4; i++) { g.lineWidth = 3; g.strokeStyle = '#e8e0d0'; g.strokeText('★', 64 + i * 128, 58); }
+    grime(g, W, H, 40, 0.4);
+    for (let i = 0; i < 8; i++) { const x = cmpRng() * W; g.fillStyle = 'rgba(120,8,12,0.75)'; g.fillRect(x, 17, 3 + cmpRng() * 4, 20 + cmpRng() * 50); } // blood runs
+  });
+  T.skirt.wrapS = THREE.RepeatWrapping;
+  // a lamp lens: white-hot middle, warm rim
+  T.lens = cmpCanvas(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.45, '#fff2c8'); gr.addColorStop(0.8, '#e8b860'); gr.addColorStop(1, '#5a4020'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); for (let r = 8; r < 30; r += 6) { g.strokeStyle = 'rgba(255,255,255,0.25)'; g.beginPath(); g.arc(32, 32, r, 0, TAU); g.stroke(); } });
+  // a light beam fading from the lamp down
+  T.beam = cmpCanvas(16, 128, (g, W, H) => { const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.7, 'rgba(255,255,255,0.25)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, W, H); });
+  return (CMP.stageTex = T);
+}
+
+// An arch-topped panel (width w, height h), UVs spanning it 0..1.
+function cmpArchGeo(w, h) {
+  const r = w / 2, s = new THREE.Shape();
+  s.moveTo(-r, 0); s.lineTo(r, 0); s.lineTo(r, h - r); s.absarc(0, h - r, r, 0, Math.PI, false); s.lineTo(-r, 0);
+  const g = new THREE.ShapeGeometry(s, 16), P = g.attributes.position, U = g.attributes.uv;
+  for (let i = 0; i < P.count; i++) U.setXY(i, P.getX(i) / w + 0.5, P.getY(i) / h);
+  return g;
+}
+
+// The entrance stage: an arched glowing doorway with tied-back drapes and a bulb frame, a carpeted
+// runway with edge lights, a lighting truss over it with coloured spotlights whose beams sweep.
+function cmpStage(H, det, dblk) {
+  const { add, col, glowAt, FZ } = H, T = cmpStageTex(), front = -FZ + 5.52;
+  const dark = cmpMat(0x1e1a1c), steel = cmpMat(0x4a4a52), gold = cmpMat(0xd8a83a);
+  // the doorway (replaces the flat purple panel)
+  add(cmpArchGeo(3.6, 4.8), cmpMat(0xffffff, T.door, 0xffffff), 0, 0, front, 0, 'Detail').material.emissiveIntensity = 0.85;
+  // its frame: a gold moulding round the arch
+  const arc = new THREE.Shape(); arc.absarc(0, 0, 1.95, 0, Math.PI, false); arc.absarc(0, 0, 1.75, Math.PI, 0, true);
+  add(new THREE.ExtrudeGeometry(arc, { depth: 0.12, bevelEnabled: false, curveSegments: 16 }), gold, 0, 3.0, front - 0.02, 0, 'Detail');
+  for (const s of [-1, 1]) dblk(0.2, 3.0, 0.14, gold, s * 1.85, 0, front);
+  // bulbs following the arch (the old straight columns are dropped in cmpBuild)
+  for (let i = 0; i <= 5; i++) for (const s of [-1, 1]) CMP.fx.push({ kind: 'bulb', x: s * 2.05, y: 0.35 + i * 0.52, z: front + 0.12 });
+  for (let i = 0; i <= 10; i++) { const a = Math.PI * i / 10; CMP.fx.push({ kind: 'bulb', x: Math.cos(a) * 2.05, y: 3.0 + Math.sin(a) * 2.05, z: front + 0.12 }); }
+  // tied-back drapes either side (a trapezoid of curtain gathered to a tie)
+  const curtain = cmpMat(0xffffff, TEX.curtain);
+  for (const s of [-1, 1]) {
+    const g = new THREE.PlaneGeometry(1.4, 4.6, 1, 4), P = g.attributes.position;
+    for (let i = 0; i < P.count; i++) { const y = P.getY(i) + 2.3, k = Math.exp(-((y - 2.2) ** 2) / 1.2); P.setX(i, P.getX(i) * (1 - 0.65 * k) + s * 0.2 * k); }
+    g.computeVertexNormals();
+    const m = add(g, curtain, s * 2.55, 2.3, front + 0.08, 0, 'Detail'); m.material.side = THREE.DoubleSide;
+    det(new THREE.TorusGeometry(0.16, 0.04, 6, 12), gold, s * 2.55 + s * 0.15, 2.2, front + 0.14);
+  }
+  // stage smoke rolling out of the door
+  CMP.smoke.push([-0.6, 0.3, front + 0.8, 0.7], [0.6, 0.3, front + 0.8, 0.7]);
+
+  // the runway: carpet with gold borders, a low black edge, a lamp every metre each side
+  add(new THREE.PlaneGeometry(3.2, 12).rotateX(-Math.PI / 2), cmpMat(0xffffff, T.runway, 0x2a0a3a, [1, 3]), 0, 0.075, -FZ + 11.5, 0, 'Road');
+  for (const s of [-1, 1]) {
+    dblk(0.12, 0.1, 12, dark, s * 1.66, 0, -FZ + 11.5);
+    for (let i = 0; i < 12; i++) CMP.fx.push({ kind: 'bulb', x: s * 1.66, y: 0.14, z: -FZ + 6 + i, color: i % 2 ? 0xd07aff : 0xffffff, s: 0.55 });
+  }
+
+  // a lighting truss over the doorway: two towers and a span, spotlights hung under it
+  const truss = (ax, ay, az, bx, by, bz, w = 0.36) => {
+    const A = new THREE.Vector3(ax, ay, az), B = new THREE.Vector3(bx, by, bz), d = B.clone().sub(A), L = d.length(), dir = d.clone().normalize();
+    const up = Math.abs(dir.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0), u = new THREE.Vector3().crossVectors(dir, up).normalize().multiplyScalar(w / 2), v = new THREE.Vector3().crossVectors(dir, u).normalize().multiplyScalar(w / 2);
+    const bar = (p, q, r) => { const len = p.distanceTo(q), m = det(new THREE.CylinderGeometry(r, r, len, 5), steel, (p.x + q.x) / 2, (p.y + q.y) / 2, (p.z + q.z) / 2); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), q.clone().sub(p).normalize()); };
+    const C = [u.clone().add(v), u.clone().sub(v), u.clone().negate().sub(v), u.clone().negate().add(v)];
+    for (const c of C) bar(A.clone().add(c), B.clone().add(c), 0.03);
+    const n = Math.max(1, Math.round(L / 0.6));
+    for (let i = 0; i < n; i++) for (let k = 0; k < 4; k++) { const c0 = C[k], c1 = C[(k + 1) % 4]; bar(A.clone().addScaledVector(d, i / n).add(c0), A.clone().addScaledVector(d, (i + 1) / n).add(c1), 0.015); }
+  };
+  const tz = -FZ + 6.9, top = 7.0;
+  for (const s of [-1, 1]) { truss(s * 7.6, 0, tz, s * 7.6, top, tz); dblk(0.8, 0.12, 0.8, steel, s * 7.6, 0, tz); col(s * 7.6, tz, 0.6, 0.6, top); }
+  truss(-7.8, top, tz, 7.8, top, tz);
+  // spotlights: a can, a yoke and a glowing lens, aimed at the doorway and down the runway
+  const lensM = cmpMat(0xffffff, T.lens, 0xffffff);
+  CMP.stageBeams = [];
+  const beamMat = (c) => new THREE.MeshBasicMaterial({ map: T.beam, color: c, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  [[-5.5, 0xff40d0, -FZ + 9], [-3.3, 0xffffff, -FZ + 6.5], [-1.1, 0xb060ff, -FZ + 13], [1.1, 0xb060ff, -FZ + 13], [3.3, 0xffffff, -FZ + 6.5], [5.5, 0xff40d0, -FZ + 9]].forEach(([x, c, aimZ], i) => {
+    const y = top - 0.45, aim = new THREE.Vector3(x * 0.35, 0, aimZ), from = new THREE.Vector3(x, y, tz), dir = aim.clone().sub(from).normalize();
+    const g = new THREE.Group(); g.position.copy(from); g.name = 'Detail'; H.root.add(g);
+    const can = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.42, 12), dark); can.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().negate()); g.add(can);
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.16, 14), lensM); lens.position.copy(dir.clone().multiplyScalar(0.215)); lens.lookAt(dir.clone().multiplyScalar(5)); g.add(lens);
+    const yoke = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.025, 4, 10, Math.PI), steel); yoke.position.y = 0.05; yoke.rotation.z = Math.PI; g.add(yoke);
+    g.traverse((o) => { o.name = 'Detail'; });
+    // its beam: a soft cone that sways a little (js updateCompoundExtra)
+    const L = from.distanceTo(aim), cone = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 1.1, L, 14, 1, true).translate(0, -L / 2, 0), beamMat(c));
+    cone.position.copy(from); cone.renderOrder = 2;
+    H.fxRoot.add(cone);
+    CMP.stageBeams.push({ cone, from, aim, ph: i * 1.3, L });
+    glowAt(aim.x, aim.z, 1.8, c);
+  });
+}
+
+// The ring in detail: a printed skirt, a padded apron edge, proper turnbuckles (covered pads,
+// steel hooks), rope ties, post sleeves and caps, and steel steps with treads.
+function cmpRing(H, det, dblk) {
+  const { add, R } = H, T = cmpStageTex(), P = R.half - 0.2;
+  const red = cmpMat(0xb3121a), white = cmpMat(0xece4d8), black = cmpMat(0x16141a), steel = cmpMat(0x8a8a92), pad = cmpMat(0x1a1a22);
+  // the skirt, on each side just outside the platform
+  const skirt = cmpMat(0xffffff, T.skirt, 0, [3, 1]);
+  for (const [x, z, ry] of [[0, R.half + 0.02, 0], [0, -R.half - 0.02, Math.PI], [R.half + 0.02, 0, Math.PI / 2], [-R.half - 0.02, 0, -Math.PI / 2]]) add(new THREE.PlaneGeometry(R.half * 2 + 0.04, R.h - 0.02), skirt, R.x + x, (R.h - 0.02) / 2, R.z + z, ry, 'Detail');
+  // the apron's padded edge: a rolled lip, red with a white seam
+  for (const s of [-1, 1]) {
+    det(new THREE.CylinderGeometry(0.07, 0.07, R.half * 2 + 0.1, 8).rotateZ(Math.PI / 2), red, R.x, R.h - 0.02, R.z + s * (R.half - 0.02));
+    det(new THREE.CylinderGeometry(0.07, 0.07, R.half * 2 + 0.1, 8).rotateX(Math.PI / 2), red, R.x + s * (R.half - 0.02), R.h - 0.02, R.z);
+    dblk(R.half * 2 + 0.1, 0.02, 0.02, white, R.x, R.h + 0.04, R.z + s * (R.half - 0.02));
+    dblk(0.02, 0.02, R.half * 2 + 0.1, white, R.x + s * (R.half - 0.02), R.h + 0.04, R.z);
+  }
+  // corners: post sleeves, caps, base plates, and three turnbuckles with covered pads facing in
+  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const x = R.x + sx * P, z = R.z + sz * P, inward = Math.atan2(-sx, -sz);
+    det(new THREE.CylinderGeometry(0.15, 0.15, 1.5, 10), pad, x, R.h + 1.1, z);
+    det(new THREE.SphereGeometry(0.16, 10, 6, 0, TAU, 0, Math.PI / 2), black, x, R.h + 1.9, z);
+    dblk(0.42, 0.04, 0.42, steel, x, R.h, z);
+    for (let k = 0; k < 3; k++) {
+      const y = R.h + 0.42 + k * 0.42, dx = -sx * 0.7071, dz = -sz * 0.7071;
+      // the steel turnbuckle: a threaded barrel and an eye bolt into the post
+      const tb = det(new THREE.CylinderGeometry(0.03, 0.03, 0.22, 6), steel, x + dx * 0.2, y, z + dz * 0.2); tb.rotation.set(Math.PI / 2, inward, 0, 'YXZ');
+      // the pad over it: a rounded cushion, red with a white end cap
+      const g = new THREE.Group(); g.position.set(x + dx * 0.24, y, z + dz * 0.24); g.rotation.y = inward; g.name = 'Detail'; H.root.add(g);
+      const cush = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.34, 12).rotateX(Math.PI / 2), red); g.add(cush);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 6, 0, TAU, 0, Math.PI / 2).rotateX(Math.PI / 2), white); cap.position.z = 0.17; g.add(cap);
+      const back = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 6, 0, TAU, 0, Math.PI / 2).rotateX(-Math.PI / 2), red); back.position.z = -0.17; g.add(back);
+      g.traverse((o) => { o.name = 'Detail'; });
+    }
+  }
+  // rope ties: white straps binding the three ropes together at each side's third points
+  for (const t of [-1 / 3, 1 / 3]) for (const s of [-1, 1]) {
+    dblk(0.05, 0.92, 0.05, white, R.x + t * 2 * P, R.h + 0.38, R.z + s * P);
+    dblk(0.05, 0.92, 0.05, white, R.x + s * P, R.h + 0.38, R.z + t * 2 * P);
+  }
+  // the steel steps at two corners: three treads with diamond plate, side rails
+  const plate = cmpMat(0x9a9aa2, TEX.metal, 0, [1, 1]);
+  for (const [sx, sz] of [[1, 1], [-1, -1]]) {
+    const g = new THREE.Group(); g.position.set(R.x + sx * (R.half + 0.9), 0, R.z + sz * (R.half + 0.9)); g.rotation.y = Math.atan2(sx, sz); g.name = 'Detail'; H.root.add(g);
+    for (let k = 0; k < 3; k++) { const s = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 0.42), plate); s.position.set(0, 0.3 * (k + 1), -k * 0.38); g.add(s); const r = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.3 * (k + 1), 0.04), steel); r.position.set(0, 0.15 * (k + 1), -k * 0.38 + 0.19); g.add(r); }
+    for (const s of [-0.53, 0.53]) { const side = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.9, 1.2), steel); side.position.set(s, 0.45, -0.38); g.add(side); }
+    g.traverse((o) => { o.name = 'Detail'; });
+  }
 }
