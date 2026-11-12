@@ -40,7 +40,8 @@ const hud = (() => {
     log: $('log'), blood: $('vBlood'), hurt: $('vHurt'), shield: $('vShield'), low: $('vLow'), xpPop: $('xpPop'),
     cross: $('crosshair'), game: $('game'), streak: $('streak'), sN: $('sN'), sM: $('sM'), sBar: $('sBar'),
   };
-  let hurtA = 0, shieldA = 0;
+  let hurtA = 0, shieldA = 0, refreshT = 0;
+  const refreshEl = $('refreshed');
 
   function project(p) {
     const v = p.clone().project(camera);
@@ -60,6 +61,7 @@ const hud = (() => {
     targetHit(e) { target = e; targetT = 2.5; },
     hurtFrom(src) { hurtArcs.push({ a: Math.atan2(-(src.x - player.pos.x), -(src.z - player.pos.z)), t: 1 }); if (hurtArcs.length > 8) hurtArcs.shift(); },
     flash(kind, k = 1) { if (kind === 'hurt') hurtA = Math.max(hurtA, k * 0.8); else shieldA = 0.9; },
+    refreshed() { refreshT = 2; },
     floatXp(n) { xpFloat += n; xpFloatT = 1.4; },
     streak(n, t, mult, frenzy) {
       const on = n >= 2;
@@ -179,6 +181,18 @@ const hud = (() => {
       const inner = 78 - k * 30 - hurtA * 6 - beat * 30; // where the clear middle ends (% of the ellipse)
       const key = op.toFixed(2) + '|' + inner.toFixed(0);
       if (el.blood.dataset.k !== key) { el.blood.dataset.k = key; el.blood.style.opacity = op; el.blood.style.setProperty('--bin', inner.toFixed(0) + '%'); el.blood.style.setProperty('--bout', Math.min(100, inner + 34).toFixed(0) + '%'); }
+      // REFRESHED! pops in over the player's head, holds, then fades
+      if (refreshT > 0) {
+        refreshT -= dt;
+        const at = project(player.center().add(new THREE.Vector3(0, 1.3, 0)));
+        if (refreshT > 0 && at) {
+          const age = 2 - refreshT, sc = age < 0.15 ? 0.5 + age / 0.15 * 0.6 : age < 0.3 ? 1.1 - (age - 0.15) / 0.15 * 0.1 : 1;
+          refreshEl.hidden = false;
+          refreshEl.style.left = at.x + 'px'; refreshEl.style.top = (at.y - age * 12) + 'px';
+          refreshEl.style.transform = `translate(-50%, -100%) scale(${sc.toFixed(3)})`;
+          refreshEl.style.opacity = Math.min(1, refreshT / 0.4).toFixed(2);
+        } else refreshEl.hidden = true;
+      }
       xpFloatT -= dt;
       if (xpFloatT > 0) { el.xpPop.hidden = false; el.xpPop.textContent = '+' + Math.round(xpFloat) + ' XP'; el.xpPop.style.opacity = Math.min(1, xpFloatT * 2); }
       else { el.xpPop.hidden = true; xpFloat = 0; }

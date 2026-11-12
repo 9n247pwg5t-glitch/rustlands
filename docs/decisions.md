@@ -58,3 +58,4 @@ they conflict. Only the creator approves entries.
 | 2026-11-11 | When Rampage is ready, the Rampage bar shows the creator's animated RAMPAGE READY! art (`ui/rage-ready.webp`) instead of the plain frame. | §10 HUD, user request |
 | 2026-11-11 | Rampage Psychosis charges from kills instead of a 45 s cooldown: 10 kills fill the Rampage bar (a Star counts 3, a boss fills it; every kill counts, burns and barrels too; kills during Rampage don't). PROPOSED: the 10-kill count. | §6 progression, user request |
 | 2026-11-11 | The Rampage button is the creator's ACTIVATE RAMPAGE art (`ui/rage-btn.webp`) and only appears, left of STRIKE, when Rampage is charged and ready. | §10 mobile controls, user request |
+| 2026-11-12 | Picking up a health vial pops the creator's REFRESHED! art (`ui/refreshed.webp`) over the player for 2 seconds (replacing the "+Health" log line). | §10 HUD, user request |
