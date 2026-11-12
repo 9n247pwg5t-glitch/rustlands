@@ -410,8 +410,8 @@ function buildCompoundStage() {
   cmpGround(fx, D);  // last: it bakes contact shadows under every collider
   applyStage(D, root, fx);
 }
-// Stage 1 is the painted map (js/painted.js) unless PM_USE is off.
-MAP.promise = (typeof PM_USE !== 'undefined' && PM_USE ? buildPaintedStage() : Promise.resolve().then(buildCompoundStage))
+// Stage 1 is the uploaded map (js/map-single.js, MS_USE), else the painted map (PM_USE), else this compound.
+MAP.promise = (typeof MS_USE !== 'undefined' && MS_USE ? buildSingleMapStage() : typeof PM_USE !== 'undefined' && PM_USE ? buildPaintedStage() : Promise.resolve().then(buildCompoundStage))
   .catch((e) => { console.warn('Stage map failed to build:', e); MAP.failed = true; });
 
 // ---------------------------------------------------------------------------

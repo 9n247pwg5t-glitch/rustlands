@@ -315,7 +315,20 @@ function cmpCrowd() {
   if (CMP.crowd || !RIG.ready || !MAP.ready) return;
   const group = new THREE.Group(); group.name = 'crowd';
   const per = IS_TOUCH ? 5 : 7, list = [];
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+  const place = (x, h, z, ry) => {
+    const { root, rig } = makeRigEnemy('crowd', {});
+    root.position.set(x, h, z); root.rotation.y = ry; root.scale.setScalar(0.92 + Math.random() * 0.12);
+    root.traverse((o) => { if (o.isMesh && o.material && !o.material.userData.crowdLift) { const m = o.material; m.userData.crowdLift = true; if (m.map) { m.emissiveMap = m.map; m.emissive = new THREE.Color(0x5a5a5a); m.needsUpdate = true; } } });
+    root.traverse((o) => { if (o.isMesh) { o.castShadow = !IS_TOUCH; o.frustumCulled = true; if (/lash|brow|eye/i.test(o.name + (o.material && o.material.name))) o.visible = false; } });
+    rigLoop(rig, 'Cheering', 0.85 + Math.random() * 0.3);
+    rig.loop.time = Math.random() * rig.loop.getClip().duration;
+    group.add(root); list.push(rig);
+  };
+  // a map that lists its own seats (js/map-single.js): a share of them, per bleacher-sized group
+  if (CMP.seats) {
+    const seats = CMP.seats.slice().sort(() => Math.random() - 0.5).slice(0, per * 4);
+    for (const [x, h, z, ry] of seats) place(x + (Math.random() - 0.5) * 0.3, h, z + (Math.random() - 0.5) * 0.2, ry + (Math.random() - 0.5) * 0.5);
+  } else for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     const slots = [];
     for (let t = 0; t < 3; t++) for (let i = 0; i < 6; i++) slots.push([t, i]);
     for (let k = 0; k < per; k++) {

@@ -300,7 +300,9 @@ function applyStage(D, root, fx) {
     const x = x0 + (ix + 0.5) * cell, z = z0 + (iz + 0.5) * cell;
     if (R && Math.abs(x - R.x) <= R.half && Math.abs(z - R.z) <= R.half) h[iz * nx + ix] = Math.round(R.h * 100);
   }
-  Object.assign(MAPG, { x0, z0, cell, nx, nz, h, ready: true });
+  // (a map can bring its own baked heightmap, in centimetres: js/map-single.js)
+  if (D.heightmap) { const H = D.heightmap; Object.assign(MAPG, { x0: H.x0, z0: H.z0, cell: H.cell, nx: H.nx, nz: H.nz, h: Int16Array.from(H.h), ready: true }); }
+  else Object.assign(MAPG, { x0, z0, cell, nx, nz, h, ready: true });
   worlds.arena.bounds = Object.assign({}, D.bounds);
   if (WORLD.id === 'arena') WORLD.bounds = worlds.arena.bounds;
   // navigation: 1 m cells, blocked where a body would touch a collider

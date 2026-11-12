@@ -55,3 +55,15 @@ marker nodes (`PlayerSpawn`, `EnemySpawn_N`, `Loot_*`, `StoreEntrance`...) and `
 
 The map's graffiti texture (`models/map-clown-station-T_Graffiti.webp`) had its "HA HA HA" blood lettering (the top-left
 patch, 510 × 262 px of the 1024 px texture) erased by hand after conversion; redo that if the map is re-converted.
+
+### A single-mesh map (one textured mesh with baked lighting)
+
+`node map-single.mjs <map.glb> ../models <name> --scale 70 --ground <y> --ring x0,z0,x1,z1 --ringK 0.42
+--clear x,z,r --clearRect x0,z0,x1,z1 --tris 160000 --tex 2048` scales the mesh to metres with the yard
+at y = 0, squashes the ring's height, flattens and repaints (as a dried-blood pool) whatever stands on
+the mat inside the clear zones, simplifies to the triangle budget and keeps only the colour texture.
+Stage 1's clown_map_1.glb used `--ground -0.0839 --ring " -0.064,-0.090,0.095,0.072" --clear
+0.0157,-0.0086,0.030 --clearRect 0.0115,-0.050,0.0205,0.042` (model units). Its gameplay data
+(`<name>-data.json`: heightmap in cm, collider boxes, points, seats, bounds) was baked from a
+top-down height render of the converted mesh (0.25 m pixels, max-pooled to 0.5 m cells; anything
+more than 0.55 m above the local floor is solid; the ring platform is walkable but its posts).

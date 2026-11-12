@@ -52,10 +52,12 @@ When something is approved, add a dated line to `docs/decisions.md` in the same 
   animated body, and the cutaway (`CUT` in `js/world.js`) that hides geometry above the player's
   head; world materials get it through `addCutaway`. Gameplay aims from `aimEye()` along
   `TD.aimDir` (`camBasis()` returns the aim basis, not the camera's).
-- Stage maps (`js/map.js`): Stage 1's "arena" world is the 3D compound built in code by
-  `js/compound.js`, with its extra detail layer in `js/compound-extra.js` (loaded first). The painted
-  picture version (`js/painted.js`, `PM_USE = false`) is kept but off. Both hand their data to
-  `applyStage()`. A map can also be an uploaded glTF; convert one with
+- Stage maps (`js/map.js`): Stage 1's "arena" world is the creator's uploaded map
+  (`models/map-clown-yard.json` + `-data.json`, loaded by `js/map-single.js`, `MS_USE`); convert a
+  single-mesh map with `tools/map-single.mjs` (see `tools/README.md`). The 3D compound built in code
+  (`js/compound.js` + `js/compound-extra.js`) and the painted picture (`js/painted.js`) are kept but
+  off; `js/compound*.js` also hold the shared effects (glow pools, bulbs, smoke, the crowd). All hand
+  their data to `applyStage()`. A map can also be an uploaded glTF; convert one with
   `tools/map-optimize.mjs` (rendering) and `tools/map-bake.mjs` (ground, colliders, nav grid,
   spawn/loot markers); see `tools/README.md`. Collider queries go through `colsNear`/`rayWorld`
   (a spatial grid), never a loop over all of `boxCols`.
