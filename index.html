@@ -231,17 +231,17 @@
   .tester span { font: 600 12px/1 var(--body); opacity: 0.8; margin-right: auto; }
   .tester .btn { padding: 6px 12px; font-size: 15px; }
   /* Rampage Psychosis (2026-11-11): its button sits left of STRIKE, shown once learned */
-  .tb[data-act="rage"] { width: 72px; height: 72px; right: calc(146px + var(--sar)); bottom: calc(16px + var(--sab)); font-size: 14px; background: rgba(120, 10, 10, 0.75); flex-direction: column; align-content: center; gap: 2px; }
+  .tb[data-act="rage"] { width: 72px; height: 72px; right: calc(128px + var(--sar)); bottom: calc(16px + var(--sab)); font-size: 14px; background: rgba(120, 10, 10, 0.75); flex-direction: column; align-content: center; gap: 2px; }
   .tb[data-act="rage"] small { font: 600 10px/1 var(--body); opacity: 0.85; }
   /* the gun drone (2026-11-12): always available; cyan and pulsing when ready, dim with a countdown */
-  .tb[data-act="drone"] { width: 66px; height: 66px; right: calc(134px + var(--sar)); bottom: calc(104px + var(--sab)); font-size: 13px; flex-direction: column; align-content: center; gap: 2px; background: rgba(20, 40, 52, 0.8); border-color: #8fe0ff; color: #dff6ff; }
+  .tb[data-act="drone"] { width: 66px; height: 66px; right: calc(114px + var(--sar)); bottom: calc(104px + var(--sab)); font-size: 13px; flex-direction: column; align-content: center; gap: 2px; background: rgba(20, 40, 52, 0.8); border-color: #8fe0ff; color: #dff6ff; }
   .tb[data-act="drone"] small { font: 600 10px/1 var(--body); opacity: 0.9; }
   .tb[data-act="drone"].ready { box-shadow: 0 0 14px 3px rgba(79, 198, 255, 0.7); animation: skPulse 1.1s ease-in-out infinite; }
   .tb[data-act="drone"].cool { opacity: 0.5; }
   .tb[data-act="drone"].active { background: rgba(79, 198, 255, 0.85); color: var(--ink); }
   /* (2026-11-11) the button only appears when Rampage is ready, as the creator's ACTIVATE RAMPAGE art */
   .tb[data-act="rage"]:not(.ready) { display: none; }
-  .tb[data-act="rage"].ready { width: 86px; height: 82px; right: calc(140px + var(--sar)); background: url(ui/rage-btn.webp) center / contain no-repeat; border: 0; border-radius: 10px; box-shadow: none; animation: skPulse 0.9s ease-in-out infinite; }
+  .tb[data-act="rage"].ready { width: 86px; height: 82px; right: calc(118px + var(--sar)); background: url(ui/rage-btn.webp) center / contain no-repeat; border: 0; border-radius: 10px; box-shadow: none; animation: skPulse 0.9s ease-in-out infinite; }
   .tb[data-act="rage"].ready span, .tb[data-act="rage"].ready small { visibility: hidden; }
   #vRage { background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 40, 10, 0.45) 100%); }
   .sk-rank { font: 700 13px/1 var(--body); opacity: 0.85; }
@@ -302,14 +302,14 @@
   /* Right thumb: the weapon wheel sits in the corner, FIRE one reach up-left of it, JUMP above it. */
   /* STRIKE (2026-11-11): the creator's button art, a little smaller and nearer the right edge; the
      painted word replaces the text, which only shows for TAKEDOWN */
-  #fireBtn { width: 82px; height: 82px; right: calc(44px + var(--sar)); bottom: calc(16px + var(--sab)); background: url(ui/strike-btn.webp) center / contain no-repeat; border: 0; box-shadow: none; align-content: center; gap: 2px; }
+  #fireBtn { width: 82px; height: 82px; right: calc(26px + var(--sar)); bottom: calc(16px + var(--sab)); background: url(ui/strike-btn.webp) center / contain no-repeat; border: 0; box-shadow: none; align-content: center; gap: 2px; }
   #fireBtn:not(.takedown) span, #fireBtn:not(.takedown) small { visibility: hidden; }
   #fireBtn.down { filter: brightness(1.3); transform: scale(0.95); }
   #fireBtn span { font-size: 25px; }
   #fireBtn small { font: 600 11px/1 var(--body); letter-spacing: 0.08em; opacity: 0.85; }
   #fireBtn.ads { background: rgba(255, 138, 28, 0.85); box-shadow: 0 0 0 4px rgba(255, 210, 58, 0.6), 2px 2px 0 var(--ink); }
   /* two action buttons only (2026-11-10): STRIKE, and DODGE above and right of it (clear of the thumb on STRIKE), which turns into COUNTER when a counter is open */
-  .tb[data-act="kick"] { width: 76px; height: 76px; right: calc(26px + var(--sar)); bottom: calc(100px + var(--sab)); font-size: 17px; flex-direction: column; align-content: center; gap: 2px; }
+  .tb[data-act="kick"] { width: 76px; height: 76px; right: calc(10px + var(--sar)); bottom: calc(100px + var(--sab)); font-size: 17px; flex-direction: column; align-content: center; gap: 2px; }
   .tb[data-act="kick"] small { font: 600 10px/1 var(--body); letter-spacing: 0.08em; opacity: 0.85; }
   /* the creator's button art (2026-11-11): grey DODGE, blue COUNTER when a counter is open; the painted
      words replace the text */
