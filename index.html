@@ -233,6 +233,12 @@
   /* Rampage Psychosis (2026-11-11): its button sits left of STRIKE, shown once learned */
   .tb[data-act="rage"] { width: 72px; height: 72px; right: calc(146px + var(--sar)); bottom: calc(34px + var(--sab)); font-size: 14px; background: rgba(120, 10, 10, 0.75); flex-direction: column; align-content: center; gap: 2px; }
   .tb[data-act="rage"] small { font: 600 10px/1 var(--body); opacity: 0.85; }
+  /* the gun drone (2026-11-12): always available; cyan and pulsing when ready, dim with a countdown */
+  .tb[data-act="drone"] { width: 66px; height: 66px; right: calc(140px + var(--sar)); bottom: calc(132px + var(--sab)); font-size: 13px; flex-direction: column; align-content: center; gap: 2px; background: rgba(20, 40, 52, 0.8); border-color: #8fe0ff; color: #dff6ff; }
+  .tb[data-act="drone"] small { font: 600 10px/1 var(--body); opacity: 0.9; }
+  .tb[data-act="drone"].ready { box-shadow: 0 0 14px 3px rgba(79, 198, 255, 0.7); animation: skPulse 1.1s ease-in-out infinite; }
+  .tb[data-act="drone"].cool { opacity: 0.5; }
+  .tb[data-act="drone"].active { background: rgba(79, 198, 255, 0.85); color: var(--ink); }
   /* (2026-11-11) the button only appears when Rampage is ready, as the creator's ACTIVATE RAMPAGE art */
   .tb[data-act="rage"]:not(.ready) { display: none; }
   .tb[data-act="rage"].ready { width: 86px; height: 82px; right: calc(140px + var(--sar)); background: url(ui/rage-btn.webp) center / contain no-repeat; border: 0; border-radius: 10px; box-shadow: none; animation: skPulse 0.9s ease-in-out infinite; }
@@ -357,6 +363,7 @@
     #fireBtn { bottom: calc(92px + var(--sab)); }
     .tb[data-act="rage"] { bottom: calc(92px + var(--sab)); }
     .tb[data-act="kick"] { bottom: calc(184px + var(--sab)); }
+    .tb[data-act="drone"] { bottom: calc(190px + var(--sab)); }
   }
   @media (max-width: 700px) {
     .controls { grid-template-columns: minmax(0, 1fr); }
@@ -433,6 +440,7 @@
   <div id="aimBase" hidden><div id="aimKnob"></div></div>
   <div class="tb" data-act="fire" id="fireBtn"><span id="fireLabel">STRIKE</span><small id="fireHint">combo</small></div>
   <div class="tb" data-act="kick" id="kickBtn"><span id="kickLabel">DODGE</span><small id="kickHint">roll</small></div>
+  <div class="tb" data-act="drone" id="droneBtn"><span>DRONE</span><small id="droneHint">ready</small></div>
   <div class="tb" data-act="rage" id="rageBtn" hidden><span>RAMPAGE</span><small id="rageHint">R</small></div>
   <div class="tb" data-act="jump" hidden>JUMP</div>
   <div class="tb" data-act="use" id="useBtn" hidden>USE</div>
@@ -555,23 +563,24 @@
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/SkeletonUtils.js"></script>
 <script src="vendor/meshopt_decoder.js"></script>
-<script src="js/util.js?v=76"></script>
-<script src="js/world.js?v=76"></script>
-<script src="js/loot.js?v=76"></script>
-<script src="js/arsenal.js?v=76"></script>
-<script src="js/rigs.js?v=76"></script>
-<script src="js/enemies.js?v=76"></script>
-<script src="js/player.js?v=76"></script>
-<script src="js/fparms.js?v=76"></script>
-<script src="js/topdown.js?v=76"></script>
-<script src="js/hud.js?v=76"></script>
-<script src="js/stages.js?v=76"></script>
-<script src="js/hub.js?v=76"></script>
-<script src="js/map.js?v=76"></script>
-<script src="js/blood.js?v=76"></script>
-<script src="js/painted.js?v=76"></script>
-<script src="js/map-single.js?v=76"></script>
-<script src="js/compound-extra.js?v=76"></script>
-<script src="js/compound.js?v=76"></script>
-<script src="js/firefx.js?v=76"></script>
-<script src="js/main.js?v=76"></script>
+<script src="js/util.js?v=77"></script>
+<script src="js/world.js?v=77"></script>
+<script src="js/loot.js?v=77"></script>
+<script src="js/arsenal.js?v=77"></script>
+<script src="js/rigs.js?v=77"></script>
+<script src="js/enemies.js?v=77"></script>
+<script src="js/player.js?v=77"></script>
+<script src="js/fparms.js?v=77"></script>
+<script src="js/topdown.js?v=77"></script>
+<script src="js/hud.js?v=77"></script>
+<script src="js/stages.js?v=77"></script>
+<script src="js/hub.js?v=77"></script>
+<script src="js/map.js?v=77"></script>
+<script src="js/blood.js?v=77"></script>
+<script src="js/painted.js?v=77"></script>
+<script src="js/map-single.js?v=77"></script>
+<script src="js/compound-extra.js?v=77"></script>
+<script src="js/compound.js?v=77"></script>
+<script src="js/firefx.js?v=77"></script>
+<script src="js/drone.js?v=77"></script>
+<script src="js/main.js?v=77"></script>

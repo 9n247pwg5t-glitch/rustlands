@@ -67,3 +67,5 @@ Stage 1's clown_map_1.glb used `--ground -0.0839 --ring " -0.064,-0.090,0.095,0.
 (`<name>-data.json`: heightmap in cm, collider boxes, points, seats, bounds) was baked from a
 top-down height render of the converted mesh (0.25 m pixels, max-pooled to 0.5 m cells; anything
 more than 0.55 m above the local floor is solid; the ring platform is walkable but its posts).
+
+The gun drone: `node drone-convert.mjs military_helicopter_3d_model.glb ../models/gun-drone.json --tris 2500` drops the helicopter's main rotor blades (the game spins a disc instead), paints it with vertex colours and simplifies it (10.9k -> 2.5k triangles).

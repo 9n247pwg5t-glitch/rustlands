@@ -568,6 +568,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyF': case 'KeyV': case 'KeyQ': counter(); break;
     case 'KeyK': openSkills(); break;
     case 'KeyR': rampage(); break;
+    case 'KeyG': launchDrone(); break;
     case 'KeyI': case 'Tab': e.preventDefault(); openGear(); break;
     case 'KeyN': if (game.phase === 'intermission') game.interT = 0; else if (game.phase === 'complete') finishStage(true); break;
     case 'KeyM': $('btnMute').textContent = SFX.toggleMute() ? 'Sound: off' : 'Sound: on'; break;
@@ -634,6 +635,11 @@ function updateWheelButton() {
     RB.classList.toggle('active', on); RB.classList.toggle('ready', !on && rdy);
     $('rageFill').style.transform = `scaleX(${clamp(k, 0, 1).toFixed(3)})`;
   }
+  // the gun drone's button: ready, flying (seconds left) or recharging (seconds to go)
+  { const b = $('droneBtn'), on = DRONE.t > 0, rdy = droneReady();
+    b.classList.toggle('ready', rdy); b.classList.toggle('active', on); b.classList.toggle('cool', !on && !rdy);
+    const h = on ? Math.ceil(DRONE.t) + 's' : rdy ? 'ready' : Math.ceil(DRONE.cd) + 's';
+    if ($('droneHint').textContent !== h) $('droneHint').textContent = h; }
   $('vRage').style.opacity = raging() ? 0.6 + Math.sin(performance.now() / 160) * 0.2 : 0;
   const td = (player.flow || 0) >= TAKEDOWN_FLOW;
   fireBtn.classList.toggle('takedown', td);
@@ -648,6 +654,7 @@ function touchAct(act, btn) {
   if (game.state !== 'play') return;
   if (act === 'jump') dodge(); // the JUMP button is DODGE now
   else if (act === 'rage') rampage();
+  else if (act === 'drone') launchDrone();
   else if (act === 'kick') { if (counterThreat() && !dangerThreat()) counter(); else dodge(); } // DODGE, or COUNTER when it's lit
   else if (act === 'use') interact();
 }
@@ -744,6 +751,7 @@ function update(dt) {
   updateFx(dt);
   updateCompound(dt);
   updateFireFx(dt); // js/firefx.js: Fire Axe's flames
+  updateDrone(dt); // js/drone.js
   updateRigCorpses(dt);
   if (!hub) { updateWaves(dt); campaign.runT += dt; }
   updateInteraction(dt);
