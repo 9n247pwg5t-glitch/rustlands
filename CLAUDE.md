@@ -49,8 +49,8 @@ When something is approved, add a dated line to `docs/decisions.md` in the same 
   `switchWorld(id)`; a new stage map is a new world made with `defineWorld(id, def, build)`, and its
   `load()` switches to it. The hub room is `js/hub.js`; stage select is opened from its console.
 - View (`js/topdown.js`): angled overhead follow camera, automatic aiming (iOS-first; no cursor aiming; optional right-stick override), the player's
-  animated body, and the cutaway (`CUT` in `js/world.js`) that hides geometry above the player's
-  head; world materials get it through `addCutaway`. Gameplay aims from `aimEye()` along
+  animated body. The cutaway (`CUT` in `js/world.js`, applied to materials through `addCutaway`)
+  is switched off (2026-11-13: nothing turns see-through near the player). Gameplay aims from `aimEye()` along
   `TD.aimDir` (`camBasis()` returns the aim basis, not the camera's).
 - Stage maps (`js/map.js`): Stage 1's "arena" world is the 3D compound built in code by
   `js/compound.js`, with its extra detail layer in `js/compound-extra.js` (loaded first). Two

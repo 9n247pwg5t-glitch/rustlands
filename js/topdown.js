@@ -44,8 +44,8 @@ function updateCamera(dt) {
   sky.position.copy(camera.position);
   sun.position.copy(player.pos).addScaledVector(SUN_DIR, 80);
   sun.target.position.copy(player.pos);
-  // cut away what's above the player's head, on the camera's side of them
-  CUT.value.set(player.pos.x, player.pos.y + TD_VIEW.cutUp, player.pos.z + 2, TD_VIEW.cutR);
+  // (no cutaway, 2026-11-13: nothing turns see-through near the player any more; CUT stays off)
+  cutawayOff();
 }
 // Menus and the main menu's views see everything.
 function cutawayOff() { CUT.value.y = 1e6; }
