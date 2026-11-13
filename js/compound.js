@@ -800,14 +800,7 @@ function cmpFill(H, T, det, dblk, chair) {
   container(46.2, -20, Math.PI / 2, 0x8a6a2a, 0, 1);
 
   // --- a food truck with a lit hatch, an awning and a menu board
-  solid(2.4, 2.9, 6.2, cmpMat(0xe8d8b0), -33, 0.4, 12, 0);
-  blk(2.3, 1.2, 1.7, cmpMat(0xe8d8b0), -33, 0.4, 15.9, 0); dblk(2.0, 0.6, 0.05, cmpMat(0x1a1c22), -33, 1.0, 16.76);
-  dblk(0.05, 0.9, 3, cmpMat(0xffd27a, null, 0xffa040), -31.78, 1.7, 11.5);
-  dblk(1.4, 0.06, 3.4, cmpMat(0xffffff, TEX.stripes, 0, [3, 1]), -31.1, 2.75, 11.5);
-  dblk(1.6, 0.08, 3, metal, -31.7, 1.55, 11.5); // counter
-  sign(2.2, 0.7, T.popcorn, -31.77, 3.0, 11.5, Math.PI / 2).name = 'Detail';
-  for (const [a, b] of [[-1.2, -2.3], [1.2, -2.3], [-1.2, 2.3], [1.2, 2.3]]) det(new THREE.CylinderGeometry(0.42, 0.42, 0.3, 10).rotateZ(Math.PI / 2), tyreM, -33 + a, 0.42, 12 + b);
-  glowAt(-30.5, 11.5, 4, 0xffb050);
+  cmpFoodTruck(H, -33, 11.6); // js/compound-extra.js
   for (let i = 0; i < 3; i++) chair(-29.4, 9.6 + i * 1.4, -Math.PI / 2 + (cmpRng() - 0.5) * 0.6, i === 1);
 
   // --- the strength tester: a tall striped post, the scale, a bell, a pad and the mallet

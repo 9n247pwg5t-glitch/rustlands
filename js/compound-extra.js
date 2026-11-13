@@ -534,15 +534,26 @@ function cmpRing(H, det, dblk) {
 // A box with bevelled edges (2026-11-13: "the map looks blocky"): boxes whose smallest side is at
 // least 35 cm get a chamfer (up to 6 cm) round every edge and corner; thinner ones stay plain boxes.
 const _cmpBoxCache = new Map();
-function cmpBox(w, h, d) {
+function cmpBox(w, h, d, round) {
   const m = Math.min(w, h, d);
-  if (m < 0.35) return new THREE.BoxGeometry(w, h, d);
-  const key = [w, h, d].map((v) => v.toFixed(3)).join(',');
+  if (m < 0.35 && !round) return new THREE.BoxGeometry(w, h, d);
+  const key = [w, h, d, round || 0].map((v) => v.toFixed(3)).join(',');
   const c = _cmpBoxCache.get(key); if (c) return c;
-  const b = Math.min(0.06, m / 6), hw = w / 2, hh = h / 2, hd = d / 2;
-  const g = new THREE.BoxGeometry(w, h, d, 3, 3, 3), P = g.attributes.position;
+  const b = round ? Math.min(round, m / 2.2) : Math.min(0.06, m / 6), hw = w / 2, hh = h / 2, hd = d / 2;
+  const seg = round ? 7 : 3;
+  const g = new THREE.BoxGeometry(w, h, d, seg, seg, seg), P = g.attributes.position;
   const v = new THREE.Vector3(), inner = new THREE.Vector3(), off = new THREE.Vector3();
-  const snap = (c, half) => (Math.abs(c) > half * 0.99 ? c : Math.sign(c) * (half - b));
+  // grid points: the outermost stay on the face, the next ring goes to the bevel's inner edge, the
+  // ones between the bevel edges spread evenly across the face; with a big radius (round) the extra
+  // rings inside the bevel band curve it
+  const snap = (c, half) => {
+    if (Math.abs(c) > half * 0.999) return c;
+    if (seg === 3) return Math.sign(c) * (half - b);
+    const t = (c + half) / (2 * half), k = Math.round(t * seg); // grid index 0..seg
+    if (k === 1 || k === seg - 1) return Math.sign(c) * (half - b * 0.5);
+    if (k === 2 || k === seg - 2) return Math.sign(c) * (half - b);
+    return (half - b) * ((k - seg / 2) / (seg / 2 - 2));
+  };
   for (let i = 0; i < P.count; i++) {
     v.set(snap(P.getX(i), hw), snap(P.getY(i), hh), snap(P.getZ(i), hd));
     inner.set(THREE.MathUtils.clamp(v.x, -hw + b, hw - b), THREE.MathUtils.clamp(v.y, -hh + b, hh - b), THREE.MathUtils.clamp(v.z, -hd + b, hd - b));
@@ -605,4 +616,76 @@ function cmpAnnounceTable(H, x, z) {
 function cmpDetailTexturesMonitor() {
   if (CMP._monTex) return CMP._monTex;
   return (CMP._monTex = cmpCanvas(64, 48, (g, W, H) => { g.fillStyle = '#103040'; g.fillRect(0, 0, W, H); for (let y = 0; y < H; y += 3) { g.fillStyle = `rgba(80,200,255,${0.15 + cmpRng() * 0.2})`; g.fillRect(0, y, W, 1); } g.fillStyle = '#e9f6ff'; g.fillRect(10, 14, 20, 16); g.fillStyle = '#ff3bd0'; g.fillRect(36, 10, 18, 4); g.fillRect(36, 18, 12, 4); }));
+}
+
+// The food truck (2026-11-13: "this thing is still super blocky"): a rounded box body in a painted
+// livery, a cab with a raked windscreen, headlights, grille and bumpers, wheels with hubs under dark
+// arches, a framed serving hatch with a scalloped striped awning on struts, a counter with condiments,
+// a roof vent, an exhaust stack and bulbs along the roofline. Placeholder words only.
+function cmpFoodTruck(H, x, z) {
+  const { add, col, glowAt } = H;
+  const livery = cmpMat(0xffffff, cmpCanvas(512, 256, (g, W, Hh) => {
+    g.fillStyle = '#efe4c8'; g.fillRect(0, 0, W, Hh);
+    g.fillStyle = '#b3121a'; g.fillRect(0, Hh * 0.62, W, Hh * 0.38);
+    g.fillStyle = '#e8b820'; g.beginPath(); g.moveTo(0, Hh * 0.6); for (let x0 = 0; x0 <= W; x0 += 8) g.lineTo(x0, Hh * 0.6 + Math.sin(x0 / 30) * 9); g.lineTo(W, Hh * 0.68); for (let x0 = W; x0 >= 0; x0 -= 8) g.lineTo(x0, Hh * 0.68 + Math.sin(x0 / 30) * 9); g.fill();
+    for (let i = 0; i < 40; i++) { g.fillStyle = ['#b3121a', '#2a6ac8', '#e8b820', '#3a9a4a'][i % 4]; g.beginPath(); g.arc((i * 53) % W, 12 + ((i * 37) % 60), 5, 0, TAU); g.fill(); } // polka dots up top
+    g.font = 'bold 64px Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 8; g.strokeStyle = '#1a0c0c'; g.strokeText('EATS', W * 0.5, Hh * 0.42); g.fillStyle = '#b3121a'; g.fillText('EATS', W * 0.5, Hh * 0.42);
+    grime(g, W, Hh, 50, 0.35);
+    for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(120,60,20,${0.2 + cmpRng() * 0.3})`; g.fillRect(cmpRng() * W, Hh * 0.62 + cmpRng() * 40, 2 + cmpRng() * 3, 20 + cmpRng() * 50); } // rust runs
+  }));
+  const cream = cmpMat(0xc4b494), dark = cmpMat(0x1a1a1e), glass = cmpMat(0x1a2a38), chrome = cmpMat(0xc8c8d0), tyre = cmpMat(0x141414), lit = cmpMat(0xffd27a, null, 0xffa040), lamp = cmpMat(0xfff0c0, null, 0xffe8a0), redM = cmpMat(0xb3121a), steel = cmpMat(0x6a6a72);
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.name = 'prop'; H.root.add(g);
+  const put = (geo, m, px, py, pz, rx = 0, ry = 0, rz = 0, name) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); o.rotation.set(rx, ry, rz); g.add(o); return o; };
+  // the body: a well-rounded box, livery on both long sides
+  put(cmpBox(2.4, 2.6, 6.2, 0.32), cream, 0, 2.0, 0);
+  for (const s of [-1, 1]) put(new THREE.PlaneGeometry(5.6, 2.1), livery, s * 1.205, 1.95, 0, 0, s * Math.PI / 2);
+  put(cmpBox(2.36, 0.25, 6.0, 0.1), dark, 0, 0.62, 0); // chassis skirt
+  // the cab: a lower nose and a cab with a raked windscreen
+  put(cmpBox(2.3, 1.0, 1.4, 0.3), cream, 0, 1.15, 3.75);
+  put(cmpBox(2.3, 1.15, 1.2, 0.25), cream, 0, 2.15, 3.45);
+  put(new THREE.PlaneGeometry(2.0, 0.9), glass, 0, 2.25, 4.07, -0.35);
+  for (const s of [-1, 1]) put(new THREE.PlaneGeometry(0.85, 0.7), glass, s * 1.16, 2.25, 3.45, 0, s * Math.PI / 2);
+  put(cmpBox(2.0, 0.36, 0.08, 0.03), chrome, 0, 1.05, 4.47); // grille
+  for (let i = 0; i < 5; i++) put(new THREE.BoxGeometry(1.8, 0.03, 0.02), dark, 0, 0.93 + i * 0.06, 4.52);
+  for (const s of [-1, 1]) { put(new THREE.CircleGeometry(0.13, 14), lamp, s * 0.85, 1.12, 4.47); put(new THREE.TorusGeometry(0.13, 0.02, 4, 14), chrome, s * 0.85, 1.12, 4.47); }
+  put(cmpBox(2.45, 0.2, 0.25, 0.08), chrome, 0, 0.62, 4.55); put(cmpBox(2.45, 0.2, 0.25, 0.08), chrome, 0, 0.62, -3.2); // bumpers
+  for (const s of [-1, 1]) { put(new THREE.BoxGeometry(0.04, 0.3, 0.04), dark, s * 1.3, 2.35, 3.8); put(cmpBox(0.08, 0.22, 0.14, 0.03), dark, s * 1.36, 2.4, 3.85); } // mirrors
+  // wheels: tyres with chrome hubs, under dark arches
+  for (const [s, wz] of [[-1, -2.0], [1, -2.0], [-1, 2.9], [1, 2.9]]) {
+    put(new THREE.CylinderGeometry(0.44, 0.44, 0.32, 16).rotateZ(Math.PI / 2), tyre, s * 1.05, 0.44, wz);
+    put(new THREE.CylinderGeometry(0.2, 0.2, 0.34, 12).rotateZ(Math.PI / 2), chrome, s * 1.06, 0.44, wz);
+    put(new THREE.CylinderGeometry(0.56, 0.56, 0.1, 16, 1, true, 0, Math.PI).rotateZ(Math.PI / 2).rotateX(Math.PI / 2), dark, s * 1.15, 0.5, wz, 0, 0, 0);
+  }
+  // the serving hatch on the +x side: lit, with a chrome frame, a counter, condiments
+  put(new THREE.PlaneGeometry(3.0, 0.95), lit, 1.215, 2.15, -0.4, 0, Math.PI / 2);
+  for (const dy of [-0.5, 0.5]) put(new THREE.BoxGeometry(0.06, 0.06, 3.1), chrome, 1.24, 2.15 + dy, -0.4);
+  for (const dz of [-1.55, 1.55]) put(new THREE.BoxGeometry(0.06, 1.06, 0.06), chrome, 1.24, 2.15, -0.4 + dz);
+  put(cmpBox(0.55, 0.06, 3.1, 0.02), steel, 1.45, 1.6, -0.4);
+  for (let i = 0; i < 4; i++) put(new THREE.CylinderGeometry(0.035, 0.04, 0.2, 8), [redM, cmpMat(0xe8b820), redM, cmpMat(0xe8b820)][i], 1.45, 1.73, -1.4 + i * 0.35);
+  // the awning: striped canvas tilted out, scalloped edge, two struts
+  const aw = put(new THREE.PlaneGeometry(1.3, 3.3), cmpMat(0xffffff, TEX.stripes, 0, [4, 1]), 1.85, 2.82, -0.4, 0, Math.PI / 2, 0); aw.rotation.set(-Math.PI / 2 + 0.38, 0, Math.PI / 2, 'YXZ'); aw.material.side = THREE.DoubleSide;
+  for (let i = 0; i < 9; i++) put(new THREE.CylinderGeometry(0.18, 0.18, 0.02, 10, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateY(Math.PI / 2), i % 2 ? cmpMat(0xe8e0d0) : redM, 2.45, 2.52, -1.85 + i * 0.36, 0, 0, Math.PI);
+  for (const dz of [-1.9, 1.1]) put(new THREE.CylinderGeometry(0.025, 0.025, 1.4, 6), chrome, 2.2, 1.95, -0.4 + dz, 0, 0, 0.55);
+  // roof: weathered panels with seams, rust and a red trim, a lit sign facing the street, a vent
+  const roofTex = cmpCanvas(128, 320, (c, W, Hh) => {
+    c.fillStyle = '#8a8070'; c.fillRect(0, 0, W, Hh);
+    for (let y = 0; y < Hh; y += 32) { c.fillStyle = 'rgba(30,24,20,0.6)'; c.fillRect(0, y, W, 2); c.fillStyle = 'rgba(255,255,240,0.12)'; c.fillRect(0, y + 2, W, 1); for (let x0 = 8; x0 < W; x0 += 16) { c.fillStyle = 'rgba(40,30,25,0.6)'; c.fillRect(x0, y + 5, 2, 2); } }
+    c.fillStyle = '#9a1a1a'; c.fillRect(0, 0, 8, Hh); c.fillRect(W - 8, 0, 8, Hh);
+    grime(c, W, Hh, 60, 0.45);
+    for (let i = 0; i < 12; i++) { c.fillStyle = `rgba(130,60,20,${0.25 + cmpRng() * 0.35})`; c.beginPath(); c.ellipse(cmpRng() * W, cmpRng() * Hh, 4 + cmpRng() * 14, 3 + cmpRng() * 10, cmpRng() * 3, 0, TAU); c.fill(); }
+    for (let i = 0; i < 5; i++) { c.fillStyle = 'rgba(100,4,8,0.7)'; c.beginPath(); c.ellipse(cmpRng() * W, cmpRng() * Hh, 5 + cmpRng() * 10, 4 + cmpRng() * 8, 0, 0, TAU); c.fill(); }
+  });
+  put(new THREE.PlaneGeometry(1.9, 5.7).rotateX(-Math.PI / 2), cmpMat(0xffffff, roofTex), 0, 3.305, 0);
+  const signTex = cmpCanvas(256, 96, (c, W, Hh) => { c.fillStyle = '#1a0a10'; c.fillRect(0, 0, W, Hh); c.strokeStyle = '#e8b820'; c.lineWidth = 6; c.strokeRect(5, 5, W - 10, Hh - 10); c.font = 'bold 62px Impact, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = '#ff4040'; c.shadowBlur = 14; c.fillStyle = '#ff6a5a'; c.fillText('EATS', W / 2, Hh / 2 + 3); });
+  put(cmpBox(1.7, 0.66, 0.12, 0.04), dark, 0, 3.75, 1.9, -0.35);
+  put(new THREE.PlaneGeometry(1.6, 0.58), cmpMat(0xffffff, signTex, 0xffffff), 0, 3.76, 1.97, -0.35);
+  for (const sx of [-0.6, 0.6]) put(new THREE.BoxGeometry(0.05, 0.4, 0.05), steel, sx, 3.42, 1.8);
+  glowAt(x, z + 3.2, 2.5, 0xff5040);
+  put(cmpBox(0.7, 0.3, 0.9, 0.08), steel, 0, 3.42, -1.4);
+  put(new THREE.CylinderGeometry(0.07, 0.07, 1.2, 8), chrome, -1.0, 3.3, -2.6);
+  for (let i = 0; i < 10; i++) CMP.fx.push({ kind: 'bulb', x: x + 1.22, y: 3.22, z: z - 2.9 + i * 0.64, color: [0xff4a5a, 0xffd23a, 0xffffff][i % 3], s: 0.6 });
+  g.traverse((o) => { o.name = 'prop'; });
+  glowAt(x + 2.4, z - 0.4, 3.5, 0xffb050);
+  col(x, z + 0.4, 2.5, 7.8, 3.2);
+  CMP.smoke.push([x - 1.0, 4.0, z - 2.6, 0.3]);
 }
