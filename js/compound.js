@@ -158,7 +158,8 @@ function cmpBuild() {
   const root = new THREE.Group(), fx = new THREE.Group();
   const D = { boxes: [], spheres: [], points: {}, barrels: [], bloodSpots: [], ring: { x: 0, z: 0, half: 6, h: 0.9 } };
   const add = (geo, mat, x, y, z, ry = 0, name = 'prop') => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; m.name = name; m.castShadow = m.receiveShadow = true; root.add(m); return m; };
-  const blk = (w, h, d, mat, x, y, z, ry = 0, name) => add(new THREE.BoxGeometry(w, h, d), mat, x, y + h / 2, z, ry, name);
+  // (boxes bigger than about 35 cm get bevelled edges: cmpBox in js/compound-extra.js, 2026-11-13)
+  const blk = (w, h, d, mat, x, y, z, ry = 0, name) => add(cmpBox(w, h, d), mat, x, y + h / 2, z, ry, name);
   const col = (x, z, w, d, h, y0 = 0) => D.boxes.push([x - w / 2, z - d / 2, x + w / 2, z + d / 2, y0 - 0.3, y0 + h]);
   // a solid box, with its collider (for quarter turns, w/d swap)
   const solid = (w, h, d, mat, x, y, z, ry = 0) => { blk(w, h, d, mat, x, y, z, ry); const q = Math.abs(Math.sin(ry)) > 0.5; col(x, z, q ? d : w, q ? w : d, y + h, y); };
@@ -293,7 +294,10 @@ function cmpBuild() {
   };
   bus(-41, -8);
   // trailer
-  solid(9, 3.2, 3.4, cmpMat(0xb8b0a2, TEX.siding, 0, [3, 1]), 38, 0.4, -24, 0);
+  solid(9, 2.8, 3.4, cmpMat(0x9a9286, TEX.siding, 0, [3, 1]), 38, 0.4, -24, 0);
+  // its rounded roof (a classic travel trailer, not a box), a stripe down the side
+  add(new THREE.CylinderGeometry(1.7, 1.7, 9, 18, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2).scale(1, 0.35, 1), cmpMat(0x8a8478, TEX.siding, 0, [3, 1]), 38, 3.2, -24, Math.PI / 2);
+  blk(9.02, 0.2, 3.42, cmpMat(0x6a3a2a), 38, 1.5, -24, 0, 'Detail');
   sign(2.4, 1.8, TEX.banner, 38, 2.1, -22.25, 0);
   blk(1.4, 1.6, 0.06, cmpMat(0x3a2a20), 34.5, 0.4, -22.28);
   // the striped tent, purple light inside
@@ -414,6 +418,7 @@ function buildCompoundStage() {
   cmpExtraFx(fx, D); // (js/compound-extra.js; before cmpFx, which draws the glow pools it adds)
   cmpFx(fx);
   cmpGround(fx, D);  // last: it bakes contact shadows under every collider
+  MAP.groundAO = true; // props a little darker toward the ground (js/map.js mergeStatics)
   applyStage(D, root, fx);
 }
 // Stage 1 is the uploaded map (js/map-single.js, MS_USE), else the painted map (PM_USE), else this compound.
@@ -485,9 +490,7 @@ function cmpDetail(H) {
   // (steel steps at two corners: cmpRing in js/compound-extra.js)
   // announcer table: monitors, a bell, folding chairs
   const at = [-9.5, 9.5];
-  solid(3.2, 0.85, 1, cmpMat(0x3a3a40), at[0], 0, at[1], 0);
-  for (let i = 0; i < 2; i++) { dblk(0.6, 0.4, 0.06, dark, at[0] - 0.7 + i * 1.4, 0.85, at[1] - 0.2); det(new THREE.PlaneGeometry(0.52, 0.32), cmpMat(0xffffff, T.monitor, 0x4ab0e0), at[0] - 0.7 + i * 1.4, 1.07, at[1] - 0.16, 0); }
-  det(new THREE.CylinderGeometry(0.14, 0.18, 0.18, 10), yellow, at[0] + 1.2, 0.95, at[1] + 0.1);
+  cmpAnnounceTable(H, at[0], at[1]); // js/compound-extra.js
   const chair = (x, z, ry, tipped) => {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; g.name = 'Detail'; H.root.add(g);
     const seat = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 0.42), metal); seat.position.y = 0.45; g.add(seat);
@@ -497,12 +500,10 @@ function cmpDetail(H) {
   };
   chair(at[0] - 0.8, at[1] + 1, Math.PI, false); chair(at[0] + 0.8, at[1] + 1, Math.PI, false);
   for (const [x, z, t] of [[8, 9, 1], [-8, -9, 0], [9.5, -3, 1], [-3, -9.5, 1], [4, 10.5, 0], [-10.5, 3, 1], [18, -13, 1], [-19, 14, 0], [12, 26, 0], [-12, -22, 1]]) chair(x, z, cmpRng() * TAU, t);
-  // a ladder lying by the ring, a broken table
+  // a ladder lying by the ring
   const lad = new THREE.Group(); lad.position.set(-2, 0.08, 8.6); lad.rotation.y = 0.3; lad.name = 'Detail'; H.root.add(lad);
   for (const s of [-0.25, 0.25]) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 3.2), yellow); r.position.x = s; lad.add(r); }
   for (let i = 0; i < 8; i++) { const r = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.04), yellow); r.position.z = -1.4 + i * 0.4; lad.add(r); }
-  const tb = dblk(1.8, 0.05, 0.75, cmpMat(0xd8d0c4), 8.5, 0.35, -8.5, 0.5); tb.rotation.z = 0.35;
-  dblk(1.0, 0.05, 0.75, cmpMat(0xd8d0c4), 9.8, 0.02, -7.6, 1.1);
   // trash cans inside the barriers
   for (const [x, z] of [[19, 14.5], [-19, -14.5], [19, -14.5], [-19, 14.5]]) { solid(0.6, 0.9, 0.6, metal, x, 0, z, 0); det(new THREE.CylinderGeometry(0.34, 0.34, 0.06, 10), metal, x, 0.95, z); }
 

@@ -151,13 +151,12 @@ function cmpExtra(H, T, det, dblk, chair) {
   det(new THREE.CylinderGeometry(0.3, 0.3, 1.1, 10), white, 43.1, 0.55, -23);
   det(new THREE.CylinderGeometry(0.45, 0.45, 0.3, 12).rotateX(Math.PI / 2), tyreM, 36, 0.45, -22.2);
 
-  // ringside: weapons and debris from the matches (bats, a crowbar, a chain, lids, broken boards, belts of tape)
+  // ringside: weapons from the matches (bats, a crowbar, a chain)
   const bat = (x, z, ry) => { dblk(0.07, 0.07, 0.9, cmpMat(0x9a7a50), x, 0.04, z, ry); for (let k = 0; k < 5; k++) det(new THREE.ConeGeometry(0.02, 0.12, 4), metal, x + S(ry) * (0.15 + k * 0.06), 0.12, z + C(ry) * (0.15 + k * 0.06), 0); };
   bat(-7.5, 7.6, 0.6); bat(7.8, -7.2, 2.2); bat(-9.4, -4, 1.4); bat(4.6, 8.2, -0.9);
   dblk(0.04, 0.04, 0.8, cmpMat(0x6a2020), 6.8, 0.03, 7.4, 1.1); // crowbar
   for (let k = 0; k < 10; k++) det(new THREE.TorusGeometry(0.06, 0.018, 3, 6), metal, -6.6 + k * 0.1, 0.03, -8 + S(k) * 0.08).rotation.x = Math.PI / 2 * (k % 2); // chain
-  for (const [x, z] of [[-8.2, 3], [8.8, 4.6], [-3, -8.4]]) det(new THREE.CylinderGeometry(0.34, 0.34, 0.03, 12), metal, x, 0.02, z);
-  for (let k = 0; k < 8; k++) dblk(0.15 + rnd() * 0.5, 0.03, 0.2 + rnd() * 0.6, cmpMat(0xd8d0c4), (rnd() - 0.5) * 18, 0.01, (rnd() < 0.5 ? -1 : 1) * (7 + rnd() * 3), rnd() * 3);
+  // (no lids or broken boards lying round the ring: removed 2026-11-13, they read as stray white shapes)
   // apron trim
   for (const s of [-1, 1]) { dblk(R.half * 2 + 0.06, 0.08, 0.04, red, R.x, R.h - 0.1, R.z + s * (R.half + 0.02)); dblk(0.04, 0.08, R.half * 2 + 0.06, red, R.x + s * (R.half + 0.02), R.h - 0.1, R.z); }
 
@@ -529,12 +528,81 @@ function cmpRing(H, det, dblk) {
     dblk(0.05, 0.92, 0.05, white, R.x + t * 2 * P, R.h + 0.38, R.z + s * P);
     dblk(0.05, 0.92, 0.05, white, R.x + s * P, R.h + 0.38, R.z + t * 2 * P);
   }
-  // the steel steps at two corners: three treads with diamond plate, side rails
-  const plate = cmpMat(0x9a9aa2, TEX.metal, 0, [1, 1]);
-  for (const [sx, sz] of [[1, 1], [-1, -1]]) {
-    const g = new THREE.Group(); g.position.set(R.x + sx * (R.half + 0.9), 0, R.z + sz * (R.half + 0.9)); g.rotation.y = Math.atan2(sx, sz); g.name = 'Detail'; H.root.add(g);
-    for (let k = 0; k < 3; k++) { const s = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 0.42), plate); s.position.set(0, 0.3 * (k + 1), -k * 0.38); g.add(s); const r = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.3 * (k + 1), 0.04), steel); r.position.set(0, 0.15 * (k + 1), -k * 0.38 + 0.19); g.add(r); }
-    for (const s of [-0.53, 0.53]) { const side = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.9, 1.2), steel); side.position.set(s, 0.45, -0.38); g.add(side); }
-    g.traverse((o) => { o.name = 'Detail'; });
+  // (no steps to the ring: removed 2026-11-13)
+}
+
+// A box with bevelled edges (2026-11-13: "the map looks blocky"): boxes whose smallest side is at
+// least 35 cm get a chamfer (up to 6 cm) round every edge and corner; thinner ones stay plain boxes.
+const _cmpBoxCache = new Map();
+function cmpBox(w, h, d) {
+  const m = Math.min(w, h, d);
+  if (m < 0.35) return new THREE.BoxGeometry(w, h, d);
+  const key = [w, h, d].map((v) => v.toFixed(3)).join(',');
+  const c = _cmpBoxCache.get(key); if (c) return c;
+  const b = Math.min(0.06, m / 6), hw = w / 2, hh = h / 2, hd = d / 2;
+  const g = new THREE.BoxGeometry(w, h, d, 3, 3, 3), P = g.attributes.position;
+  const v = new THREE.Vector3(), inner = new THREE.Vector3(), off = new THREE.Vector3();
+  const snap = (c, half) => (Math.abs(c) > half * 0.99 ? c : Math.sign(c) * (half - b));
+  for (let i = 0; i < P.count; i++) {
+    v.set(snap(P.getX(i), hw), snap(P.getY(i), hh), snap(P.getZ(i), hd));
+    inner.set(THREE.MathUtils.clamp(v.x, -hw + b, hw - b), THREE.MathUtils.clamp(v.y, -hh + b, hh - b), THREE.MathUtils.clamp(v.z, -hd + b, hd - b));
+    off.subVectors(v, inner);
+    if (off.lengthSq() > 1e-9) v.copy(inner).addScaledVector(off.normalize(), b);
+    P.setXYZ(i, v.x, v.y, v.z);
   }
+  g.computeVertexNormals();
+  _cmpBoxCache.set(key, g);
+  return g;
+}
+
+// The announcer's table (2026-11-13: it was a plain box): a folding table under a crimson cloth with a
+// gold trim that hangs in folds to the ground, two monitors on stands, microphones, a ring bell with
+// its hammer, papers, water bottles and a cable run to the ring.
+function cmpAnnounceTable(H, x, z) {
+  const { add, col } = H, W = 3.2, Dp = 1.0, Ht = 0.78;
+  const cloth = cmpMat(0xffffff, cmpCanvas(256, 128, (g, w, hgt) => {
+    g.fillStyle = '#5a0a12'; g.fillRect(0, 0, w, hgt);
+    for (let i = 0; i < 18; i++) { const x0 = i * w / 18; const gr = g.createLinearGradient(x0, 0, x0 + w / 18, 0); gr.addColorStop(0, 'rgba(0,0,0,0.28)'); gr.addColorStop(0.5, 'rgba(255,120,120,0.12)'); gr.addColorStop(1, 'rgba(0,0,0,0.28)'); g.fillStyle = gr; g.fillRect(x0, 0, w / 18, hgt); } // folds
+    g.fillStyle = '#d8a83a'; g.fillRect(0, 6, w, 6); g.fillRect(0, hgt - 14, w, 4); // gold trim
+    for (let x0 = 4; x0 < w; x0 += 8) { g.fillStyle = '#d8a83a'; g.fillRect(x0, hgt - 9, 3, 9); } // fringe
+    grime(g, w, hgt, 14, 0.3);
+    for (let i = 0; i < 3; i++) { g.fillStyle = 'rgba(20,0,2,0.6)'; g.beginPath(); g.ellipse(cmpRng() * w, 20 + cmpRng() * 60, 6 + cmpRng() * 10, 10 + cmpRng() * 24, 0, 0, TAU); g.fill(); } // blood
+  }));
+  const top = cmpMat(0x3a1016), dark = cmpMat(0x1c1a1e), metal = cmpMat(0x8a8a92), screen = cmpMat(0xffffff, cmpDetailTexturesMonitor(), 0x4ab0e0), white = cmpMat(0xece6da), gold = cmpMat(0xd8b23a), blue = cmpMat(0x3a7ab8);
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.name = 'Detail'; H.root.add(g);
+  const put = (geo, m, px, py, pz, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); o.rotation.set(rx, ry, rz); g.add(o); return o; };
+  // the top: a padded slab with rounded edges, cloth over it
+  put(cmpBox(W, 0.06, Dp), top, 0, Ht, 0);
+  // the skirt: cloth panels with folds, front, back and ends, hanging to just above the ground
+  const skirt = (len, px, pz, ry) => {
+    const geo = new THREE.PlaneGeometry(len, Ht - 0.03, Math.round(len * 10), 1), P = geo.attributes.position;
+    for (let i = 0; i < P.count; i++) { const y = P.getY(i), k = 0.5 - y / (Ht - 0.03); P.setZ(i, Math.sin(P.getX(i) * 18) * 0.025 * (0.4 + k)); } // folds, deeper at the hem
+    geo.computeVertexNormals();
+    const m = put(geo, cloth, px, (Ht - 0.03) / 2 + 0.03, pz, 0, ry); m.material.side = THREE.DoubleSide;
+  };
+  skirt(W, 0, Dp / 2 + 0.01, 0); skirt(W, 0, -Dp / 2 - 0.01, Math.PI); skirt(Dp, W / 2 + 0.01, 0, Math.PI / 2); skirt(Dp, -W / 2 - 0.01, 0, -Math.PI / 2);
+  // monitors on stands, facing the ring (+z), slightly turned
+  for (const [mx, ry] of [[-0.75, 0.12], [0.75, -0.12]]) {
+    put(new THREE.CylinderGeometry(0.12, 0.14, 0.03, 12), dark, mx, Ht + 0.045, -0.2);
+    put(new THREE.CylinderGeometry(0.025, 0.025, 0.2, 6), dark, mx, Ht + 0.15, -0.22);
+    const mon = new THREE.Group(); mon.position.set(mx, Ht + 0.38, -0.22); mon.rotation.set(-0.12, ry, 0); g.add(mon);
+    const bez = new THREE.Mesh(cmpBox(0.62, 0.4, 0.05), dark); mon.add(bez);
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.34), screen); scr.position.z = 0.027; mon.add(scr);
+  }
+  // microphones on short stands, a ring bell and hammer, papers, water bottles
+  for (const mx of [-1.3, 0.1]) { put(new THREE.CylinderGeometry(0.05, 0.06, 0.02, 10), dark, mx, Ht + 0.04, 0.2); put(new THREE.CylinderGeometry(0.008, 0.008, 0.22, 4), metal, mx, Ht + 0.15, 0.17, 0.35); put(new THREE.CylinderGeometry(0.02, 0.016, 0.1, 8), dark, mx, Ht + 0.27, 0.12, 0.9); put(new THREE.SphereGeometry(0.03, 8, 6), metal, mx, Ht + 0.3, 0.08); }
+  put(new THREE.CylinderGeometry(0.16, 0.16, 0.03, 14), dark, 1.25, Ht + 0.045, 0.05);
+  put(new THREE.SphereGeometry(0.13, 14, 8, 0, TAU, 0, Math.PI / 2), gold, 1.25, Ht + 0.06, 0.05);
+  put(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 5), cmpMat(0x6a4a30), 0.95, Ht + 0.045, 0.25, 0, 0.4, Math.PI / 2);
+  put(new THREE.SphereGeometry(0.035, 8, 6), metal, 0.82, Ht + 0.045, 0.2);
+  for (let i = 0; i < 4; i++) put(new THREE.PlaneGeometry(0.21, 0.3).rotateX(-Math.PI / 2), white, -0.25 + i * 0.07, Ht + 0.036 + i * 0.002, 0.18 + (i % 2) * 0.03, 0, 0.2 * (i - 1.5));
+  for (const bx of [-1.45, 0.45, 1.5]) { put(new THREE.CylinderGeometry(0.03, 0.03, 0.2, 8), blue, bx, Ht + 0.13, -0.3); put(new THREE.CylinderGeometry(0.012, 0.012, 0.03, 6), white, bx, Ht + 0.245, -0.3); }
+  // a cable from the back of the table toward the ring
+  for (let k = 0; k < 8; k++) put(new THREE.BoxGeometry(0.03, 0.03, 0.42), dark, 0.6 + k * 0.38, 0.015, -0.6 - Math.sin(k) * 0.1, 0, 1.45 + Math.sin(k * 1.3) * 0.25);
+  g.traverse((o) => { o.name = 'Detail'; });
+  col(x, z, W + 0.05, Dp + 0.05, Ht + 0.1);
+}
+function cmpDetailTexturesMonitor() {
+  if (CMP._monTex) return CMP._monTex;
+  return (CMP._monTex = cmpCanvas(64, 48, (g, W, H) => { g.fillStyle = '#103040'; g.fillRect(0, 0, W, H); for (let y = 0; y < H; y += 3) { g.fillStyle = `rgba(80,200,255,${0.15 + cmpRng() * 0.2})`; g.fillRect(0, y, W, 1); } g.fillStyle = '#e9f6ff'; g.fillRect(10, 14, 20, 16); g.fillStyle = '#ff3bd0'; g.fillRect(36, 10, 18, 4); g.fillRect(36, 18, 12, 4); }));
 }

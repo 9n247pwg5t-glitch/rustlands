@@ -226,6 +226,8 @@ function mergeStatics(root, group, cache) {
       _nm.getNormalMatrix(o.matrixWorld);
       const remap = new Map();
       const tint = cache.get(o.material).color, vc = cache.get(o.material).vertexColors && C;
+      let top = o; while (top.parent && top.parent !== root) top = top.parent;
+      const groundAO = MAP.groundAO && !/^(Terrain|Road|ringmat|Ground)/.test(top.name);
       for (const t of tris) for (let k = 0; k < 3; k++) {
         const i = idx ? idx.getX(t * 3 + k) : t * 3 + k;
         let j = remap.get(i);
@@ -237,7 +239,9 @@ function mergeStatics(root, group, cache) {
           nor.push(_n.x, _n.y, _n.z);
           if (uv) { if (U) uvs.push(attrComp(U, i, 0), attrComp(U, i, 1)); else uvs.push(0, 0); }
           // each part's own colour (times its vertex colours) is baked into the vertices
-          if (vc) cols.push(attrComp(C, i, 0) * tint.r, attrComp(C, i, 1) * tint.g, attrComp(C, i, 2) * tint.b); else cols.push(tint.r, tint.g, tint.b);
+          // (a map may ask for grounded shading: props a little darker toward their base, 2026-11-13)
+          const ao = groundAO ? 0.62 + 0.38 * THREE.MathUtils.smoothstep(_v.y, 0, 1.3) : 1;
+          if (vc) cols.push(attrComp(C, i, 0) * tint.r * ao, attrComp(C, i, 1) * tint.g * ao, attrComp(C, i, 2) * tint.b * ao); else cols.push(tint.r * ao, tint.g * ao, tint.b * ao);
         }
         index[ni++] = j;
       }
