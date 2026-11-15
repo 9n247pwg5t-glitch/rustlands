@@ -127,8 +127,8 @@ function carnageKill(e) {
 function sponsorDrop() {
   const p = player.pos.clone().add(new THREE.Vector3(rand(-3, 3), 9, rand(-3, 3)));
   const lvl = Math.max(game.enemyLevel, player.level);
-  const d = spawnDrop('item', p, { item: genMod(lvl, { luck: 1.5 + game.streak / 20, rarity: game.streak >= 40 ? weighted([[3, 2], [4, 1]]) : undefined }) });
-  d.vel.set(0, -4, 0);
+  // (2026-11-15: materials instead of a mod)
+  for (let i = 0; i < 3 + (game.streak >= 40 ? 3 : 0); i++) spawnDrop('mat', p.clone().add(new THREE.Vector3(rand(-0.5, 0.5), 0, rand(-0.5, 0.5))), { mat: pick(Object.keys(MATERIALS)), amount: 1 }).vel.set(0, -4, 0);
   spawnDrop('health', p.clone().add(new THREE.Vector3(1, 0, 0))).vel.set(0, -4, 0);
   for (const c of [0xff3b6b, 0xffd23a, 0x4fc6ff, 0x9fff6a]) burst(p.clone().setY(player.pos.y + 4), c, 10, 6, 0.12, 1.2, 0.6, true); // confetti
 }
@@ -187,20 +187,19 @@ function dropLoot(e) {
   const p = enemyCenter(e, new THREE.Vector3());
   const lvl = e.level;
   const luck = (e.def.badass ? 0.8 : 0) + game.wave * 0.03;
-  // loot is axe mods (js/arsenal.js)
+  // loot is cash and crafting materials (2026-11-15: no more mod drops)
+  const mats = (n) => { for (let i = 0; i < n; i++) spawnDrop('mat', p, { mat: pick(Object.keys(MATERIALS)), amount: 1 + (Math.random() < 0.3 ? 1 : 0) }); };
   if (e.def.boss) {
-    spawnDrop('item', p, { item: genMod(lvl, { rarity: Math.random() < 0.45 ? 4 : 3 }) });
-    spawnDrop('item', p, { item: genMod(lvl, { luck: 2 }) });
-    spawnDrop('item', p, { item: genMod(lvl, { luck: 2 }) });
+    mats(12);
     for (let i = 0; i < 6; i++) spawnDrop('cash', p, { amount: Math.round(rand(10, 20) * levelScale(lvl)) });
     spawnDrop('health', p);
     return;
   }
   if (e.star) { // a star always drops something good, and a pile of cash
-    spawnDrop('item', p, { item: genMod(lvl, { rarity: weighted([[2, 5], [3, 3], [4, 1]]) }) });
+    mats(4 + Math.floor(Math.random() * 3));
     for (let i = 0; i < 4; i++) spawnDrop('cash', p, { amount: Math.round(rand(8, 14) * levelScale(lvl) * game.streakMult) });
   }
-  if (Math.random() < (e.def.badass ? 0.8 : 0.1)) spawnDrop('item', p, { item: genMod(lvl, { luck }) });
+  if (Math.random() < (e.def.badass ? 1 : 0.6)) mats(e.def.badass ? 3 : 1 + (Math.random() < 0.25 ? 1 : 0));
   if (Math.random() < 0.55) spawnDrop('cash', p, { amount: Math.round(rand(3, 8) * levelScale(lvl) * (e.def.badass ? 4 : 1) * game.streakMult) });
   if (Math.random() < DIFFICULTY.healthDrop) spawnDrop('health', p);
 }
@@ -239,8 +238,8 @@ function openChest() {
   const p = c.pos.clone(); p.y += 1.2;
   const lvl = Math.max(game.enemyLevel, player.level);
   const luck = c.boss ? 2.5 : 0.4 + game.wave * 0.06;
-  spawnDrop('item', p, { item: genMod(lvl, { luck, rarity: c.boss ? (Math.random() < 0.3 ? 4 : 3) : undefined }) });
-  spawnDrop('item', p, { item: genMod(lvl, { luck }) });
+  // (2026-11-15: materials instead of mods)
+  for (let i = 0; i < (c.boss ? 12 : 6); i++) spawnDrop('mat', p, { mat: pick(Object.keys(MATERIALS)), amount: 1 + (Math.random() < 0.3 ? 1 : 0) });
   for (let i = 0; i < 3; i++) spawnDrop('cash', p, { amount: Math.round(rand(6, 12) * levelScale(lvl)) });
 }
 
@@ -259,6 +258,7 @@ function healCost() { return Math.ceil((1 - player.hp / player.maxHp) * 45 * DIF
 
 function tryAutoPickup(d) {
   if (d.kind === 'cash') { player.cash += d.amount; SFX.cash(); hud.log('+$' + d.amount, '#9fff6a'); return true; }
+  if (d.kind === 'mat') { const M = MATERIALS[d.mat]; player.mats = player.mats || {}; player.mats[d.mat] = (player.mats[d.mat] || 0) + d.amount; SFX.pickup(); hud.log('+' + d.amount + ' ' + M.label, M.css); return true; }
   // health vials are always taken (they fly to you); they heal what they can
   if (d.kind === 'health') { if (player.hp < player.maxHp) player.heal(player.maxHp * 0.35); hud.refreshed(); SFX.pickup(); return true; }
   if (d.kind === 'grenade') { if (player.grenades >= player.maxGrenades) return false; player.grenades++; SFX.pickup(); hud.log('+1 Grenade', '#8fd06a'); return true; }
@@ -318,7 +318,7 @@ function updateInteraction(dt) {
     if (d.kind === 'item' || d.t < 0.4) continue;
     const dist = d.pos.distanceTo(player.center());
     if (dist < (d.kind === 'health' ? 8 : 4) && d.grounded) {
-      const willTake = d.kind === 'cash' || d.kind === 'health' || (d.kind === 'grenade' && player.grenades < player.maxGrenades);
+      const willTake = d.kind === 'cash' || d.kind === 'mat' || d.kind === 'health' || (d.kind === 'grenade' && player.grenades < player.maxGrenades);
       if (willTake) d.pos.lerp(player.center(), Math.min(1, dt * (d.kind === 'health' ? 4 : 6)));
     }
     if (dist < 1.4 && tryAutoPickup(d)) removeDrop(d);

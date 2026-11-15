@@ -52,7 +52,7 @@ const stageUnlocked = (i) => i === 0 || !!(campaign.save.stages[STAGES[i - 1].id
 function snapshotPlayer() {
   return {
     level: player.level, xp: player.xp, cash: player.cash, cur: player.cur, grenades: player.grenades, ammo: player.ammo,
-    mods: player.mods, stash: player.stash, skills: player.skills, skillPoints: player.skillPoints,
+    mods: player.mods, stash: player.stash, skills: player.skills, skillPoints: player.skillPoints, mats: player.mats,
   };
 }
 function savePlayer() { campaign.save.player = JSON.parse(JSON.stringify(snapshotPlayer())); return writeSave(); }
@@ -62,6 +62,7 @@ function restorePlayer(p) {
   Object.assign(player, { level: p.level, xp: p.xp, cash: p.cash, cur: 0, grenades: 0, skillPoints: p.skillPoints || 0 });
   player.mods = { ar: Object.assign({}, p.mods && p.mods.ar), melee: Object.assign({}, p.mods && p.mods.melee) };
   player.skills = Object.assign({}, p.skills);
+  for (const k of Object.keys(MATERIALS)) player.mats[k] = (p.mats && p.mats[k]) || 0; // (older saves: none yet)
   refundRetiredSkills();
   player.stash = Array.isArray(p.stash) ? p.stash.slice(0, BAG_MAX) : [];
   // new items must not reuse the ids of saved ones

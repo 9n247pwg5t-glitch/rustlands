@@ -312,8 +312,17 @@ function itemCardHTML(it, cmp) {
 const drops = [];
 const BEAM_GEO = new THREE.CylinderGeometry(0.06, 0.12, 1, 6, 1, true); BEAM_GEO.translate(0, 0.5, 0);
 
+// Crafting materials (decisions.md 2026-11-15): what enemies drop besides cash, kept in the
+// backpack for crafting attire in the hub later (crafting isn't built yet).
+const MATERIALS = {
+  plastic: { label: 'Plastic', color: 0xff5ab4, css: '#ff6ac0' },
+  metal: { label: 'Metal', color: 0xa8b0bc, css: '#c0c8d4' },
+  wood: { label: 'Wood', color: 0xa86a32, css: '#c88a4a' },
+  hair: { label: 'Hair', color: 0x4ad06a, css: '#6ae08a' },
+  cloth: { label: 'Cloth', color: 0x5a8aff, css: '#7aa8ff' },
+};
 function spawnDrop(kind, pos, data = {}) {
-  const d = { kind, pos: pos.clone(), vel: new THREE.Vector3(rand(-3, 3), rand(5, 8), rand(-3, 3)), t: 0, item: data.item || null, amount: data.amount || 0, ammo: data.ammo || null, grounded: false };
+  const d = { kind, pos: pos.clone(), vel: new THREE.Vector3(rand(-3, 3), rand(5, 8), rand(-3, 3)), t: 0, item: data.item || null, amount: data.amount || 0, ammo: data.ammo || null, mat: data.mat || null, grounded: false };
   const g = new THREE.Group();
   let color = 0xffffff, beamH = 0;
   if (kind === 'item') {
@@ -330,6 +339,15 @@ function spawnDrop(kind, pos, data = {}) {
   } else if (kind === 'health') {
     // a health vial: red glass, a neck and a cork
     cyl(0.1, 0.1, 0.32, 0, 0, 0, 0, g, 0.02, 8, glow(0xff3b4a)); cyl(0.05, 0.05, 0.08, 0xd8c8c8, 0, 0.2, 0, g, 0.015, 8); cyl(0.055, 0.055, 0.06, 0x8a5a30, 0, 0.27, 0, g, 0.01, 8); color = 0xff3b4a;
+  } else if (kind === 'mat') {
+    // each material looks like what it is: a plastic bottle, a scrap of sheet metal, a plank, a tuft
+    // of clown hair, a folded rag; tinted and glowing faintly in its colour
+    const M = MATERIALS[d.mat]; color = M.color;
+    if (d.mat === 'plastic') { cyl(0.08, 0.08, 0.24, M.color, 0, 0, 0, g, 0.02, 8, glow(M.color)); cyl(0.035, 0.035, 0.06, 0xffffff, 0, 0.15, 0, g, 0.01, 6); }
+    else if (d.mat === 'metal') { box(0.3, 0.04, 0.22, M.color, 0, 0, 0, g, 0.02, glow(0x8090a0)); box(0.08, 0.08, 0.08, 0x6a7078, 0.08, 0.05, 0.04, g, 0.01); }
+    else if (d.mat === 'wood') { box(0.42, 0.07, 0.12, M.color, 0, 0, 0, g, 0.02, glow(0x6a3a10)); box(0.3, 0.07, 0.1, 0x8a5a2a, 0.04, 0.07, 0.02, g, 0.02).rotation.y = 0.4; }
+    else if (d.mat === 'hair') { for (let i = 0; i < 5; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.08, 0), toon(M.color)); m.position.set(rand(-0.08, 0.08), rand(0, 0.08), rand(-0.08, 0.08)); addOutline(m, 1.15); g.add(m); } }
+    else { box(0.3, 0.06, 0.24, M.color, 0, 0, 0, g, 0.02, glow(M.color)); box(0.3, 0.02, 0.06, 0xffffff, 0, 0.04, 0.05, g, 0); }
   } else if (kind === 'grenade') {
     const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 1), toon(0x4f7a3a)); addOutline(m, 1.15); g.add(m); color = 0x8fd06a;
   }

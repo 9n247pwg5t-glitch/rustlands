@@ -115,6 +115,7 @@ function resetPlayer() {
     stats: { kills: 0, crits: 0, shots: 0, damage: 0 },
     // the arsenal (js/arsenal.js): rifle and axe, built from level, mods and skills
     mods: { melee: {} }, stash: [], skills: {}, skillPoints: 0, buffs: {},
+    mats: { plastic: 0, metal: 0, wood: 0, hair: 0, cloth: 0 }, // crafting materials in the backpack
   });
   buildWeapons();
   player.shieldItem = levelShield();

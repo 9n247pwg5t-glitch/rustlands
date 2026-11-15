@@ -623,6 +623,20 @@ function gearScrap(m) {
 function renderGear() {
   const el = $('gearBody');
   el.textContent = '';
+  // the backpack: cash and crafting materials (crafting attire in the hub comes later)
+  const pack = document.createElement('div');
+  pack.className = 'tree backpack';
+  pack.innerHTML = '<div class="tree-title">Backpack</div><div class="tree-note">Materials for crafting attire (coming to the hub)</div>';
+  const mg = document.createElement('div'); mg.className = 'mats';
+  const cashEl = document.createElement('div'); cashEl.className = 'mat'; cashEl.innerHTML = '<i style="background:#5fbf4a"></i><b></b><small>Cash</small>'; cashEl.children[1].textContent = '$' + Math.floor(player.cash).toLocaleString(); mg.append(cashEl);
+  for (const [k, M] of Object.entries(MATERIALS)) {
+    const t = document.createElement('div'); t.className = 'mat';
+    t.innerHTML = `<i style="background:${M.css}"></i><b></b><small></small>`;
+    t.children[1].textContent = String((player.mats && player.mats[k]) || 0); t.children[2].textContent = M.label;
+    mg.append(t);
+  }
+  pack.append(mg);
+  el.append(pack);
   const tile = (m, where, slotLabel) => {
     const b = document.createElement('button');
     b.className = 'gtile' + (m ? '' : ' empty') + (gearSel && gearSel.mod === m && m ? ' sel' : '');
