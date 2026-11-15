@@ -75,6 +75,10 @@
   #refreshed { position: absolute; width: min(220px, 46vw); transform: translate(-50%, -100%); pointer-events: none; filter: drop-shadow(2px 3px 0 rgba(0,0,0,0.6)); }
   /* "picked up: <material>" under the player's feet for a moment (2026-11-15) */
   #pickedUp { position: absolute; width: min(170px, 40vw); transform: translate(-50%, 0); pointer-events: none; filter: drop-shadow(1px 2px 0 rgba(0,0,0,0.6)); }
+  /* LOW HEALTH across the top while health is low (2026-11-15): fades in below 30%, out above 45% */
+  #lowHealth { position: absolute; left: 50%; top: calc(8px + var(--sat)); width: min(230px, 44vw); transform: translateX(-50%); pointer-events: none; opacity: 0; transition: opacity 0.4s; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6)); }
+  #lowHealth.on { opacity: 1; animation: lowPulse 0.9s ease-in-out infinite; }
+  @keyframes lowPulse { 50% { transform: translateX(-50%) scale(1.06); } }
   .xpcol { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 0; }
   #rageBar { width: 68%; aspect-ratio: 592 / 98; max-height: 40px; margin-bottom: -3%; position: relative; z-index: 1; background: url(ui/rage-frame.webp) center / 100% 100% no-repeat; }
   #rageBar .rslot { position: absolute; left: 6.2%; right: 5.4%; top: 55%; bottom: 21%; overflow: hidden; clip-path: polygon(0 50%, 2% 0, 98% 0, 100% 50%, 98% 100%, 2% 100%); }
@@ -376,6 +380,7 @@
     .tb[data-act="rage"] { bottom: calc(80px + var(--sab)); }
     .tb[data-act="kick"] { bottom: calc(164px + var(--sab)); }
     .tb[data-act="drone"] { bottom: calc(244px + var(--sab)); }
+    #lowHealth { top: calc(92px + var(--sat)); width: min(260px, 62vw); }
   }
   @media (max-width: 700px) {
     .controls { grid-template-columns: minmax(0, 1fr); }
@@ -437,6 +442,7 @@
   <div id="xpPop" hidden></div>
   <img id="refreshed" src="ui/refreshed.webp" alt="" hidden>
   <img id="pickedUp" alt="" hidden>
+  <img id="lowHealth" src="ui/low-health.webp" alt="Low health">
   <div class="br">
     <div class="kit" hidden>
       <div class="gren" title="Grenades">G·<span id="grenCount">3</span></div>
@@ -577,24 +583,24 @@
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/SkeletonUtils.js"></script>
 <script src="vendor/meshopt_decoder.js"></script>
-<script src="js/util.js?v=84"></script>
-<script src="js/world.js?v=84"></script>
-<script src="js/loot.js?v=84"></script>
-<script src="js/arsenal.js?v=84"></script>
-<script src="js/rigs.js?v=84"></script>
-<script src="js/enemies.js?v=84"></script>
-<script src="js/player.js?v=84"></script>
-<script src="js/fparms.js?v=84"></script>
-<script src="js/topdown.js?v=84"></script>
-<script src="js/hud.js?v=84"></script>
-<script src="js/stages.js?v=84"></script>
-<script src="js/hub.js?v=84"></script>
-<script src="js/map.js?v=84"></script>
-<script src="js/blood.js?v=84"></script>
-<script src="js/painted.js?v=84"></script>
-<script src="js/map-single.js?v=84"></script>
-<script src="js/compound-extra.js?v=84"></script>
-<script src="js/compound.js?v=84"></script>
-<script src="js/firefx.js?v=84"></script>
-<script src="js/drone.js?v=84"></script>
-<script src="js/main.js?v=84"></script>
+<script src="js/util.js?v=85"></script>
+<script src="js/world.js?v=85"></script>
+<script src="js/loot.js?v=85"></script>
+<script src="js/arsenal.js?v=85"></script>
+<script src="js/rigs.js?v=85"></script>
+<script src="js/enemies.js?v=85"></script>
+<script src="js/player.js?v=85"></script>
+<script src="js/fparms.js?v=85"></script>
+<script src="js/topdown.js?v=85"></script>
+<script src="js/hud.js?v=85"></script>
+<script src="js/stages.js?v=85"></script>
+<script src="js/hub.js?v=85"></script>
+<script src="js/map.js?v=85"></script>
+<script src="js/blood.js?v=85"></script>
+<script src="js/painted.js?v=85"></script>
+<script src="js/map-single.js?v=85"></script>
+<script src="js/compound-extra.js?v=85"></script>
+<script src="js/compound.js?v=85"></script>
+<script src="js/firefx.js?v=85"></script>
+<script src="js/drone.js?v=85"></script>
+<script src="js/main.js?v=85"></script>

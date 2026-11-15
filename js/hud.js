@@ -173,6 +173,10 @@ const hud = (() => {
       hurtA = Math.max(0, hurtA - dt * 1.6); shieldA = Math.max(0, shieldA - dt * 2);
       el.shield.style.opacity = shieldA;
       el.hurt.style.opacity = (hurtA * 0.7).toFixed(2); // a red flash round the edges on every hit
+      // LOW HEALTH at the top: on below 30% health, off again once back above 45% (or when dead / in the hub)
+      { const r = p.hp / p.maxHp, L = el.lowHealth || (el.lowHealth = $('lowHealth'));
+        const on = p.alive && game.mode !== 'hub' && (L.classList.contains('on') ? r < 0.45 : r < 0.3);
+        if (L.classList.contains('on') !== on) L.classList.toggle('on', on); }
       // blood on the screen instead of health bars: nothing at full health, creeping in from the edges
       // as health drops (a lost shield adds a little), pulsing like a heartbeat below 30%, a flash on
       // each hit; the middle of the screen always stays clear
