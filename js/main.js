@@ -138,11 +138,11 @@ function updateCarnage(dt) {
 }
 function endWave() {
   game.slowmo = 1.1; // the last kill, in slow motion
-  spawnChest(game.wave % 5 === 0);
+  // (no loot chests: removed 2026-11-15)
   if (campaign.stage && game.wave >= campaign.stage.waves) { stageCleared(); savePlayer(); return; }
   game.phase = 'intermission';
   game.interT = 25;
-  hud.banner('WAVE ' + game.wave + ' CLEARED', 'A loot chest has appeared');
+  hud.banner('WAVE ' + game.wave + ' CLEARED', 'Next wave incoming');
   savePlayer(); // mid-stage progress survives closing the tab
 }
 function updateWaves(dt) {

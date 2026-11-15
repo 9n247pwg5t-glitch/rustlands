@@ -75,3 +75,4 @@ they conflict. Only the creator approves entries.
 | 2026-11-15 | Faster health regeneration: it starts 2.5 s after the last hit taken or dealt (was 4 s) with no enemy within 4 m (was 6 m), at 20% of max health a second (was 12%): empty to full in about 5 s. | §6 combat, user request |
 | 2026-11-15 | Star enemies carry the creator's blood-red skull (`ui/star-skull.png`) over their heads instead of the gold star. | §6 enemies, user request |
 | 2026-11-15 | Skill tree: Melee Swings and Quick Swing are removed (points spent on them are refunded); Rampage Psychosis unlocks at level 3 (was 5). Its three skills (Fire Axe, Knockout, Damage Reduction) stay under it. | §6 progression, user request |
+| 2026-11-15 | No loot chests: clearing a wave no longer spawns one. | §6 loot, user request |
