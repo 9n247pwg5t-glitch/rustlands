@@ -40,8 +40,10 @@ const hud = (() => {
     log: $('log'), blood: $('vBlood'), hurt: $('vHurt'), shield: $('vShield'), low: $('vLow'), xpPop: $('xpPop'),
     cross: $('crosshair'), game: $('game'), streak: $('streak'), sN: $('sN'), sM: $('sM'), sBar: $('sBar'),
   };
-  let hurtA = 0, shieldA = 0, refreshT = 0;
-  const refreshEl = $('refreshed');
+  let hurtA = 0, shieldA = 0, refreshT = 0, pickT = 0, pickMat = '';
+  const refreshEl = $('refreshed'), pickEl = $('pickedUp');
+  // the creator's "picked up: <material>" art, loaded up front so it shows at once
+  const PICK_IMG = {}; for (const m of ['plastic', 'metal', 'wood', 'hair', 'cloth']) { const im = new Image(); im.src = 'ui/picked-' + m + '.webp'; PICK_IMG[m] = im; }
 
   function project(p) {
     const v = p.clone().project(camera);
@@ -62,6 +64,7 @@ const hud = (() => {
     hurtFrom(src) { hurtArcs.push({ a: Math.atan2(-(src.x - player.pos.x), -(src.z - player.pos.z)), t: 1 }); if (hurtArcs.length > 8) hurtArcs.shift(); },
     flash(kind, k = 1) { if (kind === 'hurt') hurtA = Math.max(hurtA, k * 0.8); else shieldA = 0.9; },
     refreshed() { refreshT = 2; },
+    pickedUp(mat) { if (pickMat !== mat) { pickEl.src = PICK_IMG[mat].src; pickMat = mat; } pickT = 1.6; },
     floatXp(n) { xpFloat += n; xpFloatT = 1.4; },
     streak(n, t, mult, frenzy) {
       const on = n >= 2;
@@ -192,6 +195,16 @@ const hud = (() => {
           refreshEl.style.transform = `translate(-50%, -100%) scale(${sc.toFixed(3)})`;
           refreshEl.style.opacity = Math.min(1, refreshT / 0.4).toFixed(2);
         } else refreshEl.hidden = true;
+      }
+      // "picked up: <material>" just below the player, a quick pop, then a fade (the latest pickup wins)
+      if (pickT > 0) {
+        pickT -= dt;
+        const at = project(player.pos.clone().add(new THREE.Vector3(0, -0.1, 0.6)));
+        if (pickT > 0 && at) {
+          const age = 1.6 - pickT, sc = age < 0.12 ? 0.6 + age / 0.12 * 0.5 : age < 0.24 ? 1.1 - (age - 0.12) / 0.12 * 0.1 : 1;
+          pickEl.hidden = false; pickEl.style.left = at.x + 'px'; pickEl.style.top = (at.y + 6) + 'px';
+          pickEl.style.transform = `translate(-50%, 0) scale(${sc.toFixed(3)})`; pickEl.style.opacity = Math.min(1, pickT / 0.35).toFixed(2);
+        } else pickEl.hidden = true;
       }
       xpFloatT -= dt;
       if (xpFloatT > 0) { el.xpPop.hidden = false; el.xpPop.textContent = '+' + Math.round(xpFloat) + ' XP'; el.xpPop.style.opacity = Math.min(1, xpFloatT * 2); }

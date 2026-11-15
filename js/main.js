@@ -258,7 +258,7 @@ function healCost() { return Math.ceil((1 - player.hp / player.maxHp) * 45 * DIF
 
 function tryAutoPickup(d) {
   if (d.kind === 'cash') { player.cash += d.amount; SFX.cash(); hud.log('+$' + d.amount, '#9fff6a'); return true; }
-  if (d.kind === 'mat') { const M = MATERIALS[d.mat]; player.mats = player.mats || {}; player.mats[d.mat] = (player.mats[d.mat] || 0) + d.amount; SFX.pickup(); hud.log('+' + d.amount + ' ' + M.label, M.css); return true; }
+  if (d.kind === 'mat') { const M = MATERIALS[d.mat]; player.mats = player.mats || {}; player.mats[d.mat] = (player.mats[d.mat] || 0) + d.amount; SFX.pickup(); hud.pickedUp(d.mat); return true; }
   // health vials are always taken (they fly to you); they heal what they can
   if (d.kind === 'health') { if (player.hp < player.maxHp) player.heal(player.maxHp * 0.35); hud.refreshed(); SFX.pickup(); return true; }
   if (d.kind === 'grenade') { if (player.grenades >= player.maxGrenades) return false; player.grenades++; SFX.pickup(); hud.log('+1 Grenade', '#8fd06a'); return true; }
