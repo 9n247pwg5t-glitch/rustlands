@@ -130,14 +130,15 @@ function spawnEnemy(key, level, pos) {
 
 function enemyName(e) { return (e.star ? '★ Star ' : '') + e.def.name; }
 // A Star: bigger, three times the health, worth five times the XP, a gold star over its head.
-const STAR_TEX = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.font = '56px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 6; g.strokeStyle = '#2a1530'; g.strokeText('★', 32, 34); g.fillStyle = '#ffd23a'; g.fillText('★', 32, 34); return new THREE.CanvasTexture(c); })();
+// (2026-11-15: the creator's blood-red skull instead of the gold star)
+const STAR_TEX = new THREE.TextureLoader().load('ui/star-skull.png');
 function makeStar(e) {
   e.star = true;
   e.def = Object.assign({}, e.def, { scale: e.def.scale * 1.22, xp: e.def.xp * 5 });
   e.maxHp *= 3; e.hp = e.maxHp; e.maxShield *= 2; e.shield = e.maxShield;
   e.radius *= 1.2; e.height *= 1.22;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: STAR_TEX, depthTest: false }));
-  s.scale.setScalar(0.7); s.position.y = 2.35; s.renderOrder = 6;
+  s.scale.setScalar(0.85); s.position.y = 2.4; s.renderOrder = 6;
   e.model.root.add(s);
   hud.log('A Star has entered the show', '#ffd23a');
 }
