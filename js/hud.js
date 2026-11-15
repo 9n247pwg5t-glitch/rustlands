@@ -172,6 +172,7 @@ const hud = (() => {
       for (let i = logs.length - 1; i >= 0; i--) { logs[i].t -= dt; if (logs[i].t <= 0) { logs[i].d.remove(); logs.splice(i, 1); } else if (logs[i].t < 0.6) logs[i].d.style.opacity = logs[i].t / 0.6; }
       hurtA = Math.max(0, hurtA - dt * 1.6); shieldA = Math.max(0, shieldA - dt * 2);
       el.shield.style.opacity = shieldA;
+      el.hurt.style.opacity = (hurtA * 0.7).toFixed(2); // a red flash round the edges on every hit
       // blood on the screen instead of health bars: nothing at full health, creeping in from the edges
       // as health drops (a lost shield adds a little), pulsing like a heartbeat below 30%, a flash on
       // each hit; the middle of the screen always stays clear
@@ -180,10 +181,11 @@ const hud = (() => {
       const low = !p.downed && p.hp < p.maxHp * 0.3;
       const beat = low ? Math.pow(Math.max(0, Math.sin(performance.now() / 300)), 6) * 0.12 : 0;
       // (2026-11-11: about half as strong as before, with a wider clear middle)
-      const op = k < 0.02 && hurtA < 0.02 ? 0 : clamp(0.06 + k * 0.34 + hurtA * 0.2 + beat * 0.6, 0, 0.45);
-      const inner = 78 - k * 30 - hurtA * 6 - beat * 30; // where the clear middle ends (% of the ellipse)
+      // (2026-11-15: stronger again, between the first version and the halved one; each hit flashes hard)
+      const op = k < 0.02 && hurtA < 0.02 ? 0 : clamp(0.15 + k * 0.72 + hurtA * 0.45 + beat, 0, 0.88);
+      const inner = 76 - k * 34 - hurtA * 14 - beat * 32; // where the clear middle ends (% of the ellipse)
       const key = op.toFixed(2) + '|' + inner.toFixed(0);
-      if (el.blood.dataset.k !== key) { el.blood.dataset.k = key; el.blood.style.opacity = op; el.blood.style.setProperty('--bin', inner.toFixed(0) + '%'); el.blood.style.setProperty('--bout', Math.min(100, inner + 34).toFixed(0) + '%'); }
+      if (el.blood.dataset.k !== key) { el.blood.dataset.k = key; el.blood.style.opacity = op; el.blood.style.setProperty('--bin', inner.toFixed(0) + '%'); el.blood.style.setProperty('--bout', Math.min(100, inner + 26).toFixed(0) + '%'); }
       // REFRESHED! pops in over the player's head, holds, then fades
       if (refreshT > 0) {
         refreshT -= dt;

@@ -44,7 +44,7 @@
   /* health shown as blood on the screen (2026-11-11, replaces the shield and health bars): the
      creator's blood texture, masked to the screen's edges; js/hud.js widens it inward and raises its
      opacity as health drops, keeping the middle clear so the fight stays visible */
-  #vBlood { background: url(ui/blood-screen.webp) center / cover; --bin: 72%; --bout: 100%;
+  #vBlood { filter: brightness(1.45) saturate(1.35); background: url(ui/blood-screen.webp) center / cover; --bin: 72%; --bout: 100%;
     -webkit-mask-image: radial-gradient(ellipse at center, transparent var(--bin), #000 var(--bout));
     mask-image: radial-gradient(ellipse at center, transparent var(--bin), #000 var(--bout)); }
   .bl { display: none !important; }
@@ -577,24 +577,24 @@
 <script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/SkeletonUtils.js"></script>
 <script src="vendor/meshopt_decoder.js"></script>
-<script src="js/util.js?v=83"></script>
-<script src="js/world.js?v=83"></script>
-<script src="js/loot.js?v=83"></script>
-<script src="js/arsenal.js?v=83"></script>
-<script src="js/rigs.js?v=83"></script>
-<script src="js/enemies.js?v=83"></script>
-<script src="js/player.js?v=83"></script>
-<script src="js/fparms.js?v=83"></script>
-<script src="js/topdown.js?v=83"></script>
-<script src="js/hud.js?v=83"></script>
-<script src="js/stages.js?v=83"></script>
-<script src="js/hub.js?v=83"></script>
-<script src="js/map.js?v=83"></script>
-<script src="js/blood.js?v=83"></script>
-<script src="js/painted.js?v=83"></script>
-<script src="js/map-single.js?v=83"></script>
-<script src="js/compound-extra.js?v=83"></script>
-<script src="js/compound.js?v=83"></script>
-<script src="js/firefx.js?v=83"></script>
-<script src="js/drone.js?v=83"></script>
-<script src="js/main.js?v=83"></script>
+<script src="js/util.js?v=84"></script>
+<script src="js/world.js?v=84"></script>
+<script src="js/loot.js?v=84"></script>
+<script src="js/arsenal.js?v=84"></script>
+<script src="js/rigs.js?v=84"></script>
+<script src="js/enemies.js?v=84"></script>
+<script src="js/player.js?v=84"></script>
+<script src="js/fparms.js?v=84"></script>
+<script src="js/topdown.js?v=84"></script>
+<script src="js/hud.js?v=84"></script>
+<script src="js/stages.js?v=84"></script>
+<script src="js/hub.js?v=84"></script>
+<script src="js/map.js?v=84"></script>
+<script src="js/blood.js?v=84"></script>
+<script src="js/painted.js?v=84"></script>
+<script src="js/map-single.js?v=84"></script>
+<script src="js/compound-extra.js?v=84"></script>
+<script src="js/compound.js?v=84"></script>
+<script src="js/firefx.js?v=84"></script>
+<script src="js/drone.js?v=84"></script>
+<script src="js/main.js?v=84"></script>
