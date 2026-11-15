@@ -421,9 +421,9 @@ function updatePlayer(dt) {
     player.shield = Math.min(sm, player.shield + player.shieldItem.rate * dt);
   }
   // health comes back after a few seconds out of combat (2026-11-11): no hits taken or dealt for
-  // REGEN_DELAY seconds and no enemy close by, then REGEN_RATE of max health a second
+  // REGEN_DELAY seconds and no enemy within 4 m, then REGEN_RATE of max health a second
   player.calmT = (player.calmT || 0) + dt;
-  if (enemies.some((e) => e.alive && Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < 6)) player.calmT = Math.min(player.calmT, REGEN_DELAY - 0.5);
+  if (enemies.some((e) => e.alive && Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < 4)) player.calmT = Math.min(player.calmT, REGEN_DELAY - 0.5);
   if (player.alive && player.calmT > REGEN_DELAY && player.hp < player.maxHp) player.hp = Math.min(player.maxHp, player.hp + player.maxHp * REGEN_RATE * dt);
   player.invuln -= dt; player.hurtSoundT -= dt;
   if (player.downed) {
@@ -496,7 +496,7 @@ function resumeGame() {
   show(null);
   lockPointer();
 }
-const REGEN_DELAY = 4, REGEN_RATE = 0.12;
+const REGEN_DELAY = 2.5, REGEN_RATE = 0.2; // (2026-11-15: faster; was 4 s and 12%/s)
 function playerDied() {
   game.state = 'dead';
   input.fire = false; input.ads = false;

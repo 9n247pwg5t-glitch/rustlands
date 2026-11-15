@@ -72,3 +72,4 @@ they conflict. Only the creator approves entries.
 | 2026-11-15 | Picking up a material pops the creator's "picked up: <material>" art (`ui/picked-*.webp`) just below the player for about 1.6 s (the latest pickup replaces the one showing; replaces the log line). | §10 HUD, user request |
 | 2026-11-15 | The damage blood on screen is stronger again (it had become too subtle): up to 88% at the edges, brighter and redder, a red edge flash on every hit; the middle stays clear. | §10 HUD, user request |
 | 2026-11-15 | The creator's LOW HEALTH art (`ui/low-health.webp`) shows at the top of the screen, pulsing, when health drops below 30%, and fades out once it's back above 45%. | §10 HUD, user request |
+| 2026-11-15 | Faster health regeneration: it starts 2.5 s after the last hit taken or dealt (was 4 s) with no enemy within 4 m (was 6 m), at 20% of max health a second (was 12%): empty to full in about 5 s. | §6 combat, user request |
