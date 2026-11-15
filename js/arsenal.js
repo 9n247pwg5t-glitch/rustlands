@@ -51,9 +51,8 @@ function genMod(level, opts = {}) {
 // ---------------------------------------------------------------------------
 // The levelling tree (decisions.md 2026-11-11, the creator's design). One point per level up; each
 // rank costs a point.
-//  - Axe (from the first level up): Melee Swings +3% axe damage per rank, Quick Swing +3% swing
-//    speed per rank, 5 ranks each.
-//  - Rampage Psychosis (level 5): a cooldown skill (RAMPAGE button / R): for RAGE_TIME seconds
+//  - (2026-11-15: Melee Swings and Quick Swing removed; their points are refunded)
+//  - Rampage Psychosis (level 3): a cooldown skill (RAMPAGE button / R): for RAGE_TIME seconds
 //    the axe deals +20% damage and swings 25% faster, on top of everything else.
 //  - Under Rampage (once it's unlocked; they work while it's active): Fire Axe (hits set enemies
 //    burning for 3/7/12% of the hit's damage per second), Knockout (20/25/30% chance a hit kills
@@ -66,17 +65,10 @@ function genMod(level, opts = {}) {
 const RAGE_TIME = 10, RAGE_KILLS = 10;
 const rageReady = () => TESTER.on || (player.rageCharge || 0) >= RAGE_KILLS;
 const SKILL_TREES = {
-  axe: {
-    label: 'Axe', note: 'from your first level up',
-    skills: [
-      { id: 'lvDmg', name: 'Melee Swings', max: 5, desc: (r) => `+${3 * r}% axe damage`, req: () => (player.level >= 2 || TESTER.on ? null : 'Level 2') },
-      { id: 'lvSpeed', name: 'Quick Swing', max: 5, desc: (r) => `+${3 * r}% axe swing speed`, req: () => (player.level >= 2 || TESTER.on ? null : 'Level 2') },
-    ],
-  },
   rage: {
-    label: 'Cooldown skill', note: 'unlocks at level 5',
+    label: 'Cooldown skill', note: 'unlocks at level 3',
     skills: [
-      { id: 'rampage', name: 'Rampage Psychosis', max: 1, desc: () => `For ${RAGE_TIME}s: +20% axe damage and +25% swing speed on top of everything else. Charges up as you kill (${RAGE_KILLS} kills). RAMPAGE button / R.`, req: () => (player.level >= 5 || TESTER.on ? null : 'Level 5') },
+      { id: 'rampage', name: 'Rampage Psychosis', max: 1, desc: () => `For ${RAGE_TIME}s: +20% axe damage and +25% swing speed on top of everything else. Charges up as you kill (${RAGE_KILLS} kills). RAMPAGE button / R.`, req: () => (player.level >= 3 || TESTER.on ? null : 'Level 3') },
     ],
   },
   rageSkills: {
@@ -157,8 +149,8 @@ function buildWeapons() {
   const axe = {
     id: 'axe', kind: 'gun', type: 'melee', melee: true, model: 'axe', mfr: 'jakobs', label: 'Axe', name: 'Axe', level: L,
     rarity: bestRarity('melee'), ammo: null, auto: true, pellets: 1, special: null, kick: 0, zoom: 1, inMag: 1,
-    damage: 70 * ls * (1 + modSum('melee', 'dmg') + rank('lvDmg') * 0.03) * (buff ? 1.25 : 1) * frenzy * (rage ? 1.2 : 1),
-    rate: 1.35 * (1 + modSum('melee', 'speed') + rank('lvSpeed') * 0.03) * frenzy * (rage ? 1.25 : 1),
+    damage: 70 * ls * (1 + modSum('melee', 'dmg')) * (buff ? 1.25 : 1) * frenzy * (rage ? 1.2 : 1),
+    rate: 1.35 * (1 + modSum('melee', 'speed')) * frenzy * (rage ? 1.25 : 1),
     reach: 2.5 * (1 + modSum('melee', 'reach')),
     critChance: 0.08 + modSum('melee', 'crit') * 0.5, crit: 1.8 * (1 + modSum('melee', 'crit')),
     leech: modSum('melee', 'leech') + (frenzy > 1 ? 0.012 : 0),
