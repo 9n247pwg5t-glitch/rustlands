@@ -166,13 +166,28 @@ function buildSuburb() {
       const wall = cmpMat(color, TEX.siding, 0, [4, 1]);
       put(cmpBox(11, 3.4, 8), wall, 0, 1.9, 0);
       put(cmpBox(11.1, 0.25, 8.1), concM, 0, 0.12, 0); // foundation
-      const roof = put(new THREE.CylinderGeometry(0.01, 6.6, 2.8, 4, 1).rotateY(Math.PI / 4), roofM, 0, 4.95, 0); roof.scale.set(1.25, 1, 0.95);
-      if (v.tarp) { const t = put(new THREE.PlaneGeometry(3.4, 2.4), tarpM, -2, 4.9, 2.2, -1.0, 0, 0.05); t.material.side = THREE.DoubleSide; }
-      if (v.hole) put(new THREE.CircleGeometry(0.9, 8), holeM, 2.6, 4.7, 2.0, -1.0);
-      if (v.chimney) put(cmpBox(0.9, 2.2, 0.9), cmpMat(0x6a3a2a), -3.4, 5.3, -1.5);
-      if (v.dish) { put(new THREE.SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), white, 3.8, 4.2, 3.0, -1.1); }
-      // gutter, one end hanging loose
-      put(new THREE.BoxGeometry(11.2, 0.1, 0.12), trimM, 0, 3.55, 4.1, 0, 0, v.gutter ? 0.12 : 0);
+      // a gable roof (2026-11-16, "less blocky"): two shingled slopes meeting at a ridge along the
+      // front, eaves overhanging the walls, a ridge cap, fascia boards, sided gable ends, corner boards
+      const RA = Math.atan2(2.4, 4.6), RL = Math.hypot(4.6, 2.4) + 0.2, roofY = (lz) => 6.0 - 2.4 * Math.abs(lz) / 4.6 + 0.08; // the slope's top at local z
+      for (const sz of [-1, 1]) {
+        put(new THREE.BoxGeometry(12.2, 0.14, RL), roofM, 0, 4.73, sz * 2.3, sz * RA);
+        put(new THREE.BoxGeometry(12.3, 0.24, 0.07), trimM, 0, 3.47, sz * 4.72); // fascia
+      }
+      put(new THREE.BoxGeometry(12.3, 0.14, 0.34), cmpMat(0x2a2628), 0, 6.06, 0); // ridge cap
+      const gs = new THREE.Shape(); gs.moveTo(-4, 0); gs.lineTo(4, 0); gs.lineTo(4, 0.32); gs.lineTo(0, 2.4); gs.lineTo(-4, 0.32); gs.lineTo(-4, 0);
+      const gg = new THREE.ShapeGeometry(gs), guv = gg.attributes.uv; for (let i = 0; i < guv.count; i++) guv.setXY(i, guv.getX(i) / 11, guv.getY(i) / 3.4);
+      for (const sx of [-1, 1]) put(gg, wall, sx * 5.51, 3.58, 0, 0, sx * Math.PI / 2);
+      for (const [cx, cz] of [[-5.5, 4], [5.5, 4], [-5.5, -4], [5.5, -4]]) put(new THREE.BoxGeometry(0.24, 3.45, 0.24), trimM, cx, 1.92, cz);
+      if (v.tarp) {
+        const t = put(new THREE.PlaneGeometry(3.4, 2.4), tarpM, -2, roofY(2.2) + 0.02, 2.2, RA - Math.PI / 2, 0, 0.05); t.material.side = THREE.DoubleSide;
+        for (const [tx, tz] of [[-3.5, 1.3], [-0.5, 1.2], [-3.4, 3.1], [-0.6, 3.2]]) put(cmpBox(0.3, 0.14, 0.3), concM, tx, roofY(tz) + 0.08, tz, RA); // bricks holding it down
+      }
+      if (v.hole) { put(new THREE.CircleGeometry(0.9, 8), holeM, 2.6, roofY(2.0) + 0.01, 2.0, RA - Math.PI / 2); for (let k = 0; k < 3; k++) put(new THREE.BoxGeometry(0.08, 0.06, 1.1), cmpMat(0x3a2a1e), 2.1 + k * 0.5, roofY(2.0) + 0.02, 2.0, RA); } // exposed rafters
+      if (v.chimney) { put(cmpBox(0.9, 2.2, 0.9), cmpMat(0x6a3a2a), -3.4, 5.3, -1.5); put(cmpBox(1.05, 0.14, 1.05), concM, -3.4, 6.45, -1.5); }
+      if (v.dish) { put(new THREE.SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), white, 3.8, roofY(3.0) + 0.3, 3.0, -1.1); put(new THREE.BoxGeometry(0.05, 0.5, 0.05), trimM, 3.8, roofY(3.0) + 0.1, 3.0); }
+      // gutter along the front eave, one end hanging loose, a downspout at the corner
+      put(new THREE.BoxGeometry(11.6, 0.12, 0.14), trimM, 0, 3.32, 4.82, 0, 0, v.gutter ? 0.1 : 0);
+      put(new THREE.BoxGeometry(0.1, 3.2, 0.1), trimM, v.gutter ? -5.6 : 5.6, 1.7, 4.75, 0, 0, v.gutter ? 0.06 : 0);
       // windows: lit, dark, boarded with plywood, or smashed; a garage door on some
       const wins = v.garage ? [-3.6] : [-3.6, 3.4];
       for (const wx of wins) {
@@ -180,17 +195,32 @@ function buildSuburb() {
         put(new THREE.PlaneGeometry(1.3, 1.1), kind === 'lit' ? winM : cmpMat(0x161420), wx, 2.1, 4.02);
         if (kind === 'board') { put(new THREE.BoxGeometry(1.5, 1.25, 0.05), plyM, wx, 2.1, 4.07); for (const r of [0.7, -0.7]) put(new THREE.BoxGeometry(1.7, 0.12, 0.04), plyM, wx, 2.1, 4.11, 0, 0, r); }
         if (kind === 'broken') for (let k = 0; k < 3; k++) put(new THREE.PlaneGeometry(0.3 + sr() * 0.3, 0.2 + sr() * 0.3), cmpMat(0x5a7088), wx - 0.4 + sr() * 0.8, 1.8 + sr() * 0.5, 4.04, 0, 0, sr() * 3);
-        put(cmpBox(1.5, 0.1, 0.14), trimM, wx, 1.5, 4.06);
-        for (const s of [-1, 1]) put(new THREE.BoxGeometry(0.3, 1.2, 0.04), cmpMat(0x2a3a3a), wx + s * 0.85, 2.1, 4.05, 0, 0, v.shutter && s > 0 ? 0.35 : 0); // shutters (one hanging)
+        // a frame, a sill, a cross of mullions in the unboarded ones
+        for (const dy of [-0.6, 0.6]) put(new THREE.BoxGeometry(1.5, 0.1, 0.08), trimM, wx, 2.1 + dy, 4.05);
+        for (const dx of [-0.7, 0.7]) put(new THREE.BoxGeometry(0.1, 1.3, 0.08), trimM, wx + dx, 2.1, 4.05);
+        if (kind === 'lit' || kind === 'dark') { put(new THREE.BoxGeometry(0.05, 1.1, 0.04), trimM, wx, 2.1, 4.04); put(new THREE.BoxGeometry(1.3, 0.05, 0.04), trimM, wx, 2.1, 4.04); }
+        put(cmpBox(1.75, 0.09, 0.24), trimM, wx, 1.45, 4.1);
+        for (const s of [-1, 1]) put(new THREE.BoxGeometry(0.3, 1.2, 0.04), cmpMat(0x2a3a3a), wx + s * 0.93, 2.1, 4.05, 0, 0, v.shutter && s > 0 ? 0.35 : 0); // shutters (one hanging)
       }
       if (v.garage) { put(new THREE.PlaneGeometry(3.2, 2.5), cmpMat(0x9a9488, TEX.metal, 0, [1, 1]), 3.4, 1.4, 4.03); if (v.face) put(new THREE.PlaneGeometry(2.6, 1.95), cmpMat(0xffffff, face), 3.4, 1.6, 4.05).material.transparent = true; }
       // the door and the porch: posts and a roof (sagging on some), steps; or just a stoop
       put(new THREE.PlaneGeometry(1.1, 2.1), cmpMat(pickS([0x5a2a2a, 0x2a3a4a, 0x3a3a2a])), 0, 1.3, 4.02);
+      for (const dx of [-0.62, 0.62]) put(new THREE.BoxGeometry(0.12, 2.25, 0.08), trimM, dx, 1.37, 4.05);
+      put(new THREE.BoxGeometry(1.36, 0.12, 0.08), trimM, 0, 2.48, 4.05); // the door frame
+      put(new THREE.SphereGeometry(0.05, 6, 4), cmpMat(0xb8a060), 0.4, 1.3, 4.06); // knob
       if (v.porch) {
         put(cmpBox(3.6, 0.35, 1.8), cmpMat(0x6b5a4a, TEX.fence, 0, [1, 1]), 0, 0.18, 4.9);
         for (const s of [-1, 1]) put(new THREE.BoxGeometry(0.14, 2.4, 0.14), trimM, s * 1.65, 1.5, 5.65, 0, 0, s > 0 && v.sag ? 0.18 : 0);
         put(new THREE.BoxGeometry(3.9, 0.1, 2.0), cmpMat(0x4a4038), 0, 2.75, 4.95, v.sag ? -0.12 : 0.05, 0, v.sag ? 0.1 : 0);
+        // railings either side of the steps, some balusters gone, a rail broken on the sagging ones
+        for (const s of [-1, 1]) {
+          put(new THREE.BoxGeometry(1.0, 0.07, 0.08), trimM, s * 1.25, 1.13, 5.72, 0, 0, v.sag && s < 0 ? 0.25 : 0);
+          for (let k = 0; k < 5; k++) if (sr() > 0.2) put(new THREE.BoxGeometry(0.05, 0.75, 0.05), trimM, s * (0.8 + k * 0.22), 0.72, 5.72);
+          for (const zz of [4.3, 5.0]) put(new THREE.BoxGeometry(0.07, 0.07, 0.7), trimM, s * 1.74, 1.13, zz);
+        }
       } else put(cmpBox(1.6, 0.3, 0.9), concM, 0, 0.15, 4.45);
+      // scraggly shrubs along the front wall
+      for (const sx of v.garage ? [-2.3] : [-2.35, 2.35, 5.0]) for (let k = 0; k < 2; k++) { const b = put(new THREE.IcosahedronGeometry(0.42 + sr() * 0.25, 1), cmpMat(pickS([0x3a4a26, 0x4a4a2a, 0x2f3a22, 0x5a4a2a])), sx + (k - 0.5) * 0.55, 0.36, 4.45 + sr() * 0.15); b.scale.y = 0.8; }
       for (let k = 0; k < 2; k++) put(cmpBox(1.4, 0.15, 0.35), concM, 0, 0.07 + k * 0.15, 6.0 - k * 0.3);
       if (v.face && !v.garage) put(new THREE.PlaneGeometry(2.6, 1.95), cmpMat(0xffffff, face), -2, 2.4, 4.04).material.transparent = true;
       // the front yard: a dead lawn, a cracked walkway, a mailbox, bins, junk
@@ -275,7 +305,49 @@ function buildSuburb() {
     SUB.flames.push([15.2, 15.6]);
 
     // (the street's houses, yards and lots stand where the old outer fences and trees were)
-    // the edge of the area: invisible walls along the bounds (the fences and houses show it)
+    // --- the edge of the area (2026-11-16: a real barrier, not just an invisible wall). Where a house
+    // front isn't the edge, a fence is: weathered wooden privacy fences between the yards (planks
+    // missing or leaning), chain-link with privacy slats and barbed wire behind the stage and across
+    // the road out, overgrown hedges at the corners. The bounds walls stay behind them as a backstop.
+    const plank = cmpMat(0x7a6048, TEX.fence, 0, [1, 1]), plank2 = cmpMat(0x5e4a38, TEX.fence, 0, [1, 1]), postM = cmpMat(0x3a2e24), linkM = cmpMat(0x8a8a92);
+    const linkTex = cmpCanvas(64, 64, (g) => { g.strokeStyle = 'rgba(175,178,188,1)'; g.lineWidth = 2.5; for (let i = -64; i <= 64; i += 16) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 64, 64); g.stroke(); g.beginPath(); g.moveTo(i + 64, 0); g.lineTo(i, 64); g.stroke(); } });
+    linkTex.wrapS = linkTex.wrapT = THREE.RepeatWrapping;
+    const meshM = new THREE.MeshLambertMaterial({ map: linkTex, alphaTest: 0.35, side: THREE.DoubleSide, emissive: 0x202024 });
+    const slatM = [cmpMat(0x2a4a3a), cmpMat(0x3a3a3e), cmpMat(0x4a3a2a)], bushM = [cmpMat(0x2f3a22), cmpMat(0x3a4626), cmpMat(0x2a3420), cmpMat(0x45482a)];
+    const fence = (x0, z0, x1, z1, style) => {
+      const L = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / L, uz = (z1 - z0) / L, ang = Math.atan2(ux, uz), across = ang - Math.PI / 2;
+      const at = (t) => [x0 + ux * t, z0 + uz * t], [cx, cz] = at(L / 2);
+      if (style === 'wood') {
+        const n = Math.max(1, Math.round(L / 2.4));
+        for (let i = 0; i <= n; i++) { const [px, pz] = at(i * L / n); blk(0.18, 2.15, 0.18, postM, px, 0, pz, ang); }
+        for (const y of [0.4, 1.65]) blk(0.07, 0.12, L, postM, cx - uz * 0.08, y, cz + ux * 0.08, ang, 'Detail');
+        for (let t = 0.09; t < L; t += 0.19) {
+          const r = sr(); if (r < 0.06) continue; // a plank missing
+          const [px, pz] = at(t), h = 1.8 + (sr() - 0.5) * 0.22;
+          const p = add(new THREE.BoxGeometry(0.17, h, 0.035), r < 0.5 ? plank : plank2, px, h / 2, pz, across, 'Detail');
+          if (r < 0.12) p.rotation.z = (sr() < 0.5 ? -1 : 1) * 0.22; // leaning
+        }
+      } else if (style === 'chain') {
+        const n = Math.max(1, Math.round(L / 2.6));
+        for (let i = 0; i <= n; i++) { const [px, pz] = at(i * L / n); add(new THREE.CylinderGeometry(0.055, 0.055, 2.35, 6), linkM, px, 1.17, pz); }
+        add(new THREE.CylinderGeometry(0.035, 0.035, L, 5).rotateX(Math.PI / 2), linkM, cx, 2.25, cz, ang, 'Detail');
+        const pg = new THREE.PlaneGeometry(L, 2.2), uv = pg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * L * 2.2, uv.getY(i) * 4.8);
+        add(pg, meshM, cx, 1.12, cz, across, 'Detail');
+        for (let t = 0.25; t < L; t += 0.42) if (sr() < 0.6) { const [px, pz] = at(t); add(new THREE.BoxGeometry(0.34, 1.7 + sr() * 0.35, 0.02), pickS(slatM), px - uz * 0.03, 1.0, pz + ux * 0.03, across, 'Detail'); } // privacy slats, some gone
+        const bw = []; for (let t = 0; t < L; t += 0.3) { const [px, pz] = at(t); bw.push(px, 2.38 + Math.sin(t * 9) * 0.06, pz); } // barbed wire coil
+        const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(bw, 3)); fx.add(new THREE.Line(bg, new THREE.LineBasicMaterial({ color: 0x2a2a2e })));
+      } else {
+        for (let t = 0.35; t < L; t += 0.75) { const [px, pz] = at(t); for (let k = 0; k < 2; k++) { const b = add(new THREE.IcosahedronGeometry(0.8 + sr() * 0.35, 1), pickS(bushM), px + (sr() - 0.5) * 0.4, 0.7 + k * 0.75, pz + (sr() - 0.5) * 0.4); b.scale.y = 0.85; } }
+      }
+      const w = Math.abs(ux) * L + 0.5, d = Math.abs(uz) * L + 0.5; boxes.push([cx - w / 2, cz - d / 2, cx + w / 2, cz + d / 2, -0.3, 2.3]); addBoxCol(cx, cz, w, d, -0.3, 2.3);
+    };
+    const EX = 31.4, EN = -25.7, ES = 25.7;
+    for (const s of [-1, 1]) {
+      fence(s * EX, EN, s * EX, -19, 'hedge'); fence(s * EX, -8, s * EX, -5, 'wood'); fence(s * EX, 6, s * EX, 9, 'wood'); fence(s * EX, 20, s * EX, ES, 'hedge');
+      fence(s * 22.5, EN, s * EX, EN, 'wood'); fence(s * 22.5, ES, s * EX, ES, 'wood'); fence(s * 4.5, ES, s * 11.5, ES, 'wood');
+    }
+    fence(-11.5, EN, 11.5, EN, 'chain'); fence(-4.5, ES, 4.5, ES, 'chain');
+    // the bounds themselves, just inside the fences (a backstop)
     for (const [x, z, w, d] of [[0, SUB_B.minZ - 0.5, 70, 1], [0, SUB_B.maxZ + 0.5, 70, 1], [SUB_B.minX - 0.5, 0, 1, 60], [SUB_B.maxX + 0.5, 0, 1, 60]]) { boxes.push([x - w / 2, z - d / 2, x + w / 2, z + d / 2, -1, 4]); addBoxCol(x, z, w, d, -1, 4); }
 
     // --- merge everything lit (one draw per material), then the glows, bulbs and fires on top
