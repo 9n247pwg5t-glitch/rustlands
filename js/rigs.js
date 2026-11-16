@@ -33,6 +33,7 @@ const RIG_FILES = {
   heavy: 'male-psychosis-top-heavy-td',
   gangster: 'gangster-clown-td',
   brute: 'brute-td',
+  bear: 'bear-clown-td', // Stage 1's cul-de-sac boss, built in code after the creator's sketch and auto-rigged (tools/README.md)
   player: 'player-body', // the player's own body (js/topdown.js), not an enemy body
   // the crowd on Stage 1's bleachers (js/compound-extra.js): the most colourful clowns (not the dark
   // burnt one) at about a third of the detail (tools/optimize.mjs 2000 --tex 512 --meshopt 1 --error 0.15)
@@ -47,6 +48,7 @@ const RIG_LOOKS = {
   suicide: { bases: ['psycho1', 'ugly', 'female'], weapon: 'bomb' },
   nomad: { bases: ['heavy'], weapon: 'pistol', dual: true, style: 'clown' }, // the top-heavy brawler as a bloody clown, a pistol in each fist
   boss: { bases: ['brute'], pod: true }, // the Brute carries his own battle axe
+  bearBoss: { bases: ['bear'], weapon: 'cleaver' }, // the bear-suit clown (2026-11-16), a bloody cleaver in his fist
   crowd: { bases: ['crowd1', 'crowd3', 'crowd4'] }, // spectators: unarmed, cheering
 };
 
@@ -62,6 +64,8 @@ const GUN_SOCKETS = {
   axe: { grip: [0, 0, 0], size: 0.85, edge: [0, 0.571, 0.246], inner: [0, 0.16, 0.02] },
   // the player's Rampage sword: blade along +Y like the axe's handle, grip at the origin, tip at 1.22 m
   sword: { grip: [0, 0, 0], size: 0.85, edge: [0, 1.12, 0.0], inner: [0, 0.78, 0], ownColours: true }, // (trail along the outer third of the blade)
+  // the bear-suit clown boss's meat cleaver (built in code, rigCleaver): handle +Y, blade on along it, edge toward +Z
+  cleaver: { grip: [0, 0, 0], size: 1.25, edge: [0, 0.44, 0.15], inner: [0, 0.18, 0.13], ownColours: true },
   // the player's assault rifle; `optic` is the eye point behind its sight
   ringmaster: { grip: [0, -0.034, -0.038], foregrip: [0, -0.01, 0.312], muzzle: [0, 0.06, 0.618], optic: [0, 0.113, -0.06], size: 1 },
 };
@@ -492,7 +496,32 @@ function gunMaterial(src, hue) {
   _gunMats.set(key, m);
   return m;
 }
+// A big meat cleaver, vertex-coloured like the weapon models: a dark wooden handle with rivets, a
+// steel blade with a hanging hole near its spine, a bright edge, blood down the blade (the sketch).
+function rigCleaver() {
+  const parts = [];
+  const add = (geo, colFn, x, y, z) => { geo = geo.toNonIndexed(); geo.translate(x, y, z); const P = geo.attributes.position, c = new Float32Array(P.count * 3), v = new THREE.Vector3(); for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); const k = colFn(v); c.set([k.r, k.g, k.b], i * 3); } geo.setAttribute('color', new THREE.BufferAttribute(c, 3)); parts.push(geo); };
+  const col = (h) => new THREE.Color(h), hsh = (a, b) => { const q = Math.sin(a * 127.1 + b * 311.7) * 43758.5; return q - Math.floor(q); };
+  add(new THREE.CylinderGeometry(0.02, 0.022, 0.2, 8), (v) => col(Math.abs(v.y - 0.03) < 0.008 || Math.abs(v.y + 0.04) < 0.008 ? 0x8a8a80 : 0x3a2418), 0, 0.02, 0.0);
+  add(new THREE.BoxGeometry(0.014, 0.34, 0.19, 1, 24, 14), (v) => {
+    const dy = v.y - 0.39, dz = v.z - 0.02;
+    if (Math.hypot(dy, dz) < 0.018) return col(0x101010); // the hole
+    let c = col(0xa8a8ac).lerp(col(0x6a6a70), hsh(Math.round(v.y * 60), Math.round(v.z * 60)) * 0.4);
+    if (v.z > 0.135) c = col(0xe0e0e4); // the edge
+    const drip = hsh(Math.round(v.z * 40), 7), top = 0.42 - drip * 0.22;
+    if (v.y < top && hsh(Math.round(v.z * 40), 3) > 0.35) c.lerp(col(0x7a0a0e), 0.9);
+    if (v.y < 0.2) c.lerp(col(0x8a0e12), 0.8);
+    return c;
+  }, 0, 0.29, 0.07);
+  const g = new THREE.BufferGeometry(), n = parts.reduce((t, q) => t + q.attributes.position.count, 0), P = new Float32Array(n * 3), C = new Float32Array(n * 3);
+  let o = 0; for (const q of parts) { P.set(q.attributes.position.array, o * 3); C.set(q.attributes.color.array, o * 3); o += q.attributes.position.count; }
+  g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('color', new THREE.BufferAttribute(C, 3)); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true })); m.material.name = 'Cleaver';
+  const root = new THREE.Group(); root.add(m); return root;
+}
+
 function rigGun(kind, left = false) {
+  if (kind === 'cleaver' && !RIG.guns.cleaver) RIG.guns.cleaver = rigCleaver();
   const src = RIG.guns[kind], sock = GUN_SOCKETS[kind];
   if (!src || !sock) return null;
   if (!_gunOutline) { _gunOutline = rigOutlineMaterial(0.007); _gunOutline.skinning = false; }
@@ -519,7 +548,7 @@ function rigGun(kind, left = false) {
   gun.scale.setScalar(size);
   gun.position.fromArray(sock.grip).multiplyScalar(-size); // grip socket on w's origin
   const sx = left ? -1 : 1;
-  if (kind === 'axe' || kind === 'sword') {
+  if (kind === 'axe' || kind === 'sword' || kind === 'cleaver') {
     // handle (+Y) through the fist along +Z, blade (+Z) up
     w.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)));
     w.position.set(-0.06 * sx, -0.03, 0);

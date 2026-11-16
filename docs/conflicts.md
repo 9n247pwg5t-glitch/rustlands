@@ -107,4 +107,4 @@ and axe, toggled). Still open or placeholder:
 ## Controls (§10)
 
 - No adjustable look sensitivity setting yet (fixed `SENS` in `js/main.js`).
-- **Stage 1's second area** (2026-11-16): a cul-de-sac with a stage, unnamed (placeholder). The boss there is still the old placeholder boss ("Krag the Scrapjaw") until the creator names Stage 1's boss.
+- **Stage 1's second area** (2026-11-16): a cul-de-sac with a stage, unnamed (placeholder). The boss there is the creator's bear-suit clown (2026-11-16 sketch), shown under the placeholder name "Bear-Suit Clown" (`bearBoss` in `js/enemies.js`) until the creator names him. He still uses the old boss's moves (ground slam, charge, lobbed bombs from overhead) and its "calls for backup" phase; cleaver-specific attacks are not designed yet.

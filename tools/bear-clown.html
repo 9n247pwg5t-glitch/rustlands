@@ -1,0 +1,232 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#d8cfc0"><script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script><script type="module">
+// The boss of Stage 1's cul-de-sac, after the creator's sketch: a fat clown in a ragged pink teddy-
+// bear suit (hood with bear ears and a bear face on top), white clown face with blue diamond eyes, a
+// red nose and a yellow-toothed grin, a frilled collar, a cream belly with two yellow pompoms, a pink
+// pompom tail, patched seat, cream cuffs, dirty gloves, huge red-and-cream clown boots with stars,
+// blood everywhere. Built from primitives with vertex colours, A-pose, facing +Z, metres.
+import * as THREE from 'three';
+import { GLTFExporter } from './node_modules/three/examples/jsm/exporters/GLTFExporter.js';
+import * as BGU from './node_modules/three/examples/jsm/utils/BufferGeometryUtils.js';
+const weld = (g) => { g = g.clone(); for (const k of Object.keys(g.attributes)) if (k !== 'position') g.deleteAttribute(k); return (BGU.BufferGeometryUtils || BGU).mergeVertices(g.index ? g.toNonIndexed() : g, 1e-4); };
+
+let seed = 12345; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const hash = (x, y, z) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
+const lerp = (a, b, t) => a + (b - a) * t;
+function vnoise(x, y, z) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+  const c = (a, b, d) => hash(xi + a, yi + b, zi + d);
+  return lerp(lerp(lerp(c(0, 0, 0), c(1, 0, 0), u), lerp(c(0, 1, 0), c(1, 1, 0), u), v), lerp(lerp(c(0, 0, 1), c(1, 0, 1), u), lerp(c(0, 1, 1), c(1, 1, 1), u), v), w);
+}
+const fbm = (x, y, z) => vnoise(x, y, z) * 0.6 + vnoise(x * 2.1, y * 2.1, z * 2.1) * 0.3 + vnoise(x * 4.3, y * 4.3, z * 4.3) * 0.1;
+const C = (hex) => new THREE.Color(hex);
+const PINK = C(0xa85a70), PINK_D = C(0x6e3044), PINK_L = C(0xc07a8c), CREAM = C(0xe2d2b2), CREAM_D = C(0xb8a07a), BLOOD = C(0x7c0c10), BLOOD_L = C(0xa8161c), FACE = C(0xece4d6);
+
+// blood: splats with drips running down, mostly on the front
+const splats = [];
+for (let i = 0; i < 34; i++) splats.push({ x: (rnd() - 0.5) * 1.4, y: 0.2 + rnd() * 1.75, z: rnd() < 0.85 ? 1 : -1, r: 0.015 + rnd() * 0.04, drip: rnd() < 0.7 ? 0.06 + rnd() * 0.3 : 0, w: 0.006 + rnd() * 0.01 });
+// a handprint on the belly
+const hand = { x: -0.16, y: 0.92 };
+function bloodAt(p, n) {
+  if (n.z < -0.2 && Math.abs(p.x) < 0.4 && p.y > 1.0) { /* back: a little */ }
+  let b = 0;
+  for (const s of splats) {
+    if (s.z > 0 ? n.z < -0.3 : n.z > 0.3) continue;
+    const dx = p.x - s.x, dy = p.y - s.y, d = Math.hypot(dx, dy);
+    const edge = s.r * (0.75 + 0.5 * vnoise(p.x * 60, p.y * 60, p.z * 60));
+    if (d < edge) b = Math.max(b, 1);
+    else if (d < edge * 2.4 && hash(Math.round(p.x * 90), Math.round(p.y * 90), 1) > 0.86) b = Math.max(b, 0.9); // droplets
+    if (s.drip && Math.abs(dx) < s.w * (1 + 0.6 * Math.sin(p.y * 40 + s.x * 9)) && dy < 0 && dy > -s.drip) b = Math.max(b, 0.95);
+  }
+  // the handprint: palm and fingers
+  if (n.z > 0.4) {
+    const hx = p.x - hand.x, hy = p.y - hand.y;
+    if (Math.hypot(hx / 0.055, hy / 0.065) < 1) b = 1;
+    for (let f = 0; f < 4; f++) { const fx = hx - (-0.04 + f * 0.027), fy = hy - 0.1; if (Math.abs(fx) < 0.011 && fy > -0.04 && fy < 0.05 - Math.abs(f - 1.5) * 0.012) b = 1; }
+    if (Math.hypot(hx + 0.07, hy - 0.02) < 0.016) b = 1;
+  }
+  return b;
+}
+function bloodMix(col, p, n, amt = 1) {
+  const b = bloodAt(p, n) * amt;
+  if (b > 0) col.lerp(vnoise(p.x * 30, p.y * 30, p.z * 30) > 0.5 ? BLOOD : BLOOD_L, b * 0.92);
+  return col;
+}
+
+const parts = [];
+// Add a geometry: transformed, fur-displaced (amount), coloured per vertex by fn(p, n) -> Color.
+function add(geo, fn, { pos = [0, 0, 0], rot = [0, 0, 0], scl = [1, 1, 1], fur = 0, quat = null, flat = false } = {}) {
+  geo = flat ? (geo.index ? geo.toNonIndexed() : geo) : weld(geo);
+  const m = new THREE.Matrix4();
+  const q = quat || new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot));
+  m.compose(new THREE.Vector3(...pos), q, new THREE.Vector3(...scl));
+  geo.applyMatrix4(m);
+  geo.computeVertexNormals();
+  const P = geo.attributes.position, N = geo.attributes.normal, p = new THREE.Vector3(), n = new THREE.Vector3();
+  if (fur) {
+    // shaggy: push each point out along its normal by a noise, the same for shared points
+    const D = [];
+    for (let i = 0; i < P.count; i++) { p.fromBufferAttribute(P, i); n.fromBufferAttribute(N, i); const k = fbm(p.x * 14, p.y * 14, p.z * 14); D.push(p.clone().addScaledVector(n, (k - 0.45) * fur + (hash(Math.round(p.x * 400), Math.round(p.y * 400), Math.round(p.z * 400)) - 0.5) * fur * 0.5)); }
+    for (let i = 0; i < P.count; i++) P.setXYZ(i, D[i].x, D[i].y, D[i].z);
+    geo.computeVertexNormals();
+  }
+  const col = new Float32Array(P.count * 3);
+  for (let i = 0; i < P.count; i++) { p.fromBufferAttribute(P, i); n.fromBufferAttribute(N, i); const c = fn(p, n); col.set([c.r, c.g, c.b], i * 3); }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  // flat-ish shading per face looks drawn; keep smooth normals for the outline
+  parts.push(geo);
+  return geo;
+}
+// a capsule-ish tapered limb from a to b (radii ra, rb)
+function limb(a, b, ra, rb, seg = 24, hs = 14) {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), L = A.distanceTo(B);
+  const g = new THREE.CylinderGeometry(rb, ra, L, seg, hs, true);
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
+  return { g, pos: A.clone().add(B).multiplyScalar(0.5).toArray(), quat: q, L };
+}
+const pinkFur = (p, n) => {
+  const k = fbm(p.x * 9, p.y * 22, p.z * 9), s = hash(Math.round(p.x * 200), Math.round(p.y * 60), Math.round(p.z * 200));
+  const c = PINK.clone().lerp(k > 0.5 ? PINK_L : PINK_D, Math.min(1, Math.abs(k - 0.5) * 1.1)).lerp(PINK_D, s > 0.85 ? 0.3 : 0);
+  // dirt toward the bottom
+  if (p.y < 0.5) c.lerp(C(0x6a4a3a), (0.5 - p.y) * 0.5);
+  // torn spots: stuffing showing
+  const t = vnoise(p.x * 7 + 3, p.y * 7, p.z * 7);
+  if (t > 0.86) c.copy(t > 0.9 ? C(0x2a1814) : CREAM_D);
+  return bloodMix(c, p, n);
+};
+
+// --- legs: baggy pink pants, cream cuffs
+for (const s of [-1, 1]) {
+  const L1 = limb([s * 0.2, 0.78, 0], [s * 0.25, 0.3, 0.02], 0.24, 0.22);
+  add(L1.g, pinkFur, { pos: L1.pos, quat: L1.quat, fur: 0.035 });
+  add(new THREE.SphereGeometry(0.235, 16, 10), pinkFur, { pos: [s * 0.22, 0.52, 0.02], scl: [1, 1.15, 1], fur: 0.04 }); // the bag of the trouser leg
+  add(new THREE.CylinderGeometry(0.2, 0.21, 0.09, 16, 1, true), (p, n) => bloodMix(CREAM.clone().lerp(CREAM_D, vnoise(p.x * 30, p.y * 30, p.z * 30)), p, n), { pos: [s * 0.25, 0.3, 0.02], fur: 0.02 });
+  // boots: a cream shaft, a huge round toe (red and cream, mottled), a dark sole, a red star
+  const boot = (p, n) => {
+    let c = CREAM.clone().lerp(CREAM_D, vnoise(p.x * 25, p.y * 25, p.z * 25) * 0.6);
+    const toe = p.z > 0.1 && p.y < 0.24;
+    if (toe) c = C(0xb8201e).lerp(CREAM, vnoise(p.x * 18, p.y * 18, p.z * 18) > 0.62 ? 0.8 : 0);
+    // star on the outer side of the shaft
+    const lx = p.y - 0.2, lz = p.z - 0.02;
+    if (Math.abs(p.x) > 0.3 && !toe) { const a = Math.atan2(lx, lz), r = Math.hypot(lx, lz), R = 0.065 * (0.55 + 0.45 * Math.cos(5 * (a + Math.PI / 2)) ** 2 * 0 + 0.45 * (Math.cos(5 * a) * 0.5 + 0.5)); if (r < R) c = r < R * 0.5 ? C(0xe8b030) : C(0xb01818); }
+    if (p.y < 0.035) c = C(0x2a1e18);
+    return bloodMix(c, p, n, 0.8);
+  };
+  add(new THREE.CylinderGeometry(0.16, 0.17, 0.28, 32, 8), boot, { pos: [s * 0.25, 0.16, 0.0] });
+  add(new THREE.SphereGeometry(0.2, 36, 24), boot, { pos: [s * 0.26, 0.11, 0.2], scl: [0.95, 0.62, 1.25] });
+  add(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 20), (p) => C(0x2a1e18), { pos: [s * 0.26, 0.025, 0.12], scl: [0.95, 1, 1.6] });
+  for (let k = 0; k < 4; k++) add(new THREE.BoxGeometry(0.16, 0.012, 0.02), () => C(0x3a2a20), { pos: [s * 0.25, 0.14 + k * 0.045, 0.165], rot: [0, 0, (k % 2 ? 0.4 : -0.4)] });
+}
+// --- the body: a huge round belly (cream front with two pompoms and a seam), chest, back, seat patches
+const bodyCol = (p, n) => {
+  const bx = p.x / 0.36, by = (p.y - 0.98) / 0.42;
+  if (n.z > 0.25 && bx * bx + by * by < 1) { // the cream belly panel
+    let c = CREAM.clone().lerp(CREAM_D, vnoise(p.x * 20, p.y * 20, p.z * 20) * 0.5);
+    if (Math.abs(p.x - 0.01 * Math.sin(p.y * 20)) < 0.007 && p.y < 1.2) c = C(0x7a1a14); // the seam between the pompoms
+    if (Math.abs(Math.abs(bx * bx + by * by) - 1) < 0.08) c = C(0x7a5a40); // stitched edge
+    return bloodMix(c, p, n);
+  }
+  let c = pinkFur(p, n);
+  // patches on the back: a yellow checked one high, a blue one on the seat
+  if (n.z < -0.3) {
+    const ax = p.x + 0.16, ay = p.y - 1.18;
+    if (Math.abs(ax + ay * 0.2) < 0.1 && Math.abs(ay - ax * 0.2) < 0.1) c = (Math.floor((ax + 1) * 30) + Math.floor((ay + 1) * 30)) % 2 ? C(0xd0a030) : C(0xa87820);
+    const bx2 = p.x - 0.32, by2 = p.y - 0.72;
+    if (Math.abs(bx2) < 0.09 && Math.abs(by2) < 0.12) c = C(0x5a6aa0).lerp(C(0x3a4a80), vnoise(p.x * 40, p.y * 40, 0));
+    if (Math.abs(p.x) < 0.008) c = C(0x5a2030); // the back seam
+  }
+  return c;
+};
+add(new THREE.SphereGeometry(0.56, 96, 64), bodyCol, { pos: [0, 0.98, 0.04], scl: [1.0, 0.95, 0.92], fur: 0.03 });
+add(new THREE.SphereGeometry(0.46, 64, 32), bodyCol, { pos: [0, 1.34, -0.02], scl: [1.08, 0.62, 0.86], fur: 0.03 });
+add(new THREE.SphereGeometry(0.4, 48, 24), bodyCol, { pos: [0, 0.74, -0.08], scl: [1.1, 0.7, 1.0], fur: 0.03 }); // the seat
+// the pompoms on the belly and the tail
+const pom = (base) => (p, n) => bloodMix(base.clone().lerp(C(0x8a6a10), vnoise(p.x * 60, p.y * 60, p.z * 60) * 0.5), p, n, 0.6);
+add(new THREE.SphereGeometry(0.075, 14, 10), pom(C(0xe8b828)), { pos: [0, 1.18, 0.55], fur: 0.03 });
+add(new THREE.SphereGeometry(0.085, 14, 10), pom(C(0xe8b828)), { pos: [0, 0.94, 0.59], fur: 0.03 });
+add(new THREE.SphereGeometry(0.13, 16, 10), pinkFur, { pos: [0, 0.8, -0.5], fur: 0.05 });
+// --- the frilled collar: a wavy double ring, cream with a red trim, ragged
+{
+  const segs = 192, P = [], ring = (r, y, a) => [Math.cos(a) * r, y, Math.sin(a) * r];
+  for (let i = 0; i < segs; i++) {
+    const a0 = i / segs * Math.PI * 2, a1 = (i + 1) / segs * Math.PI * 2;
+    const w0 = Math.sin(a0 * 28) * 0.035, w1 = Math.sin(a1 * 28) * 0.035;
+    for (const [rin, rout, yin, yout] of [[0.2, 0.52, 1.56, 1.47], [0.19, 0.45, 1.6, 1.53]]) {
+      const A = ring(rin, yin, a0), B = ring(rin, yin, a1), Cc = ring(rout, yout + w1, a1), D = ring(rout, yout + w0, a0);
+      P.push(...A, ...Cc, ...B, ...A, ...D, ...Cc, ...A, ...B, ...Cc, ...A, ...Cc, ...D);
+    }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  add(g, (p, n) => { const r = Math.hypot(p.x, p.z - 0); let c = CREAM.clone().lerp(CREAM_D, vnoise(p.x * 30, p.y * 30, p.z * 30) * 0.7); if (r > 0.5 || (r > 0.435 && p.y > 1.5)) c = C(0xa0201a); else if (Math.sin(Math.atan2(p.z, p.x) * 36) > 0.7) c.multiplyScalar(0.8); return bloodMix(c, p, n, 0.6); }, { pos: [0, 0, 0.0], scl: [1.05, 1, 0.95], flat: true });
+}
+// --- the head: a fat white clown face in a pink hood with bear ears and a bear face on top
+const HC = new THREE.Vector3(0, 1.8, 0.07);
+const faceCol = (p, n) => {
+  const u = p.x - HC.x, v = p.y - HC.y;
+  let c = FACE.clone().lerp(C(0xc8b8a8), vnoise(p.x * 40, p.y * 40, p.z * 40) * 0.4);
+  if (n.z > 0.2) {
+    for (const s of [-1, 1]) {
+      const dx = u - s * 0.085, dy = v - 0.045;
+      if (Math.abs(dx) / 0.055 + Math.abs(dy) / 0.11 < 1) c = C(0x3a4a9a);
+      if (Math.hypot(dx / 1.4, dy) < 0.02) c = C(0x1a0e0e);
+      if (Math.abs(dy - 0.03) < 0.008 && Math.abs(dx) < 0.03 && dx * s > -0.03) c = C(0x2a1a1a); // brows scowling
+    }
+    // the grin: red lips round yellow teeth with dark gaps
+    const top = -0.065 - 0.8 * u * u, bot = -0.15 + 1.2 * u * u;
+    if (Math.abs(u) < 0.18 && v < top + 0.015 && v > bot - 0.015) c = C(0x8a1414);
+    if (Math.abs(u) < 0.165 && v < top && v > bot) c = Math.sin(u * 110) > 0.55 || v < bot + 0.008 ? C(0x2a1008) : C(0xc8a038).lerp(C(0x8a6a20), vnoise(p.x * 80, p.y * 80, 0));
+  }
+  return bloodMix(c, p, n, 0.9);
+};
+add(new THREE.SphereGeometry(0.255, 72, 52), faceCol, { pos: HC.toArray(), scl: [1.12, 1.0, 1.0] });
+add(new THREE.SphereGeometry(0.2, 48, 24), faceCol, { pos: [0, 1.62, 0.08], scl: [1.3, 0.55, 1.0] }); // jowls and double chin
+add(new THREE.SphereGeometry(0.055, 14, 10), (p) => C(0xc01a1a).lerp(C(0xe85a4a), Math.max(0, p.y - 1.73) * 12), { pos: [0, 1.8, 0.34] });
+{ // the hood: a pink shell round the face, open at the front
+  let g = new THREE.SphereGeometry(0.31, 56, 40).toNonIndexed();
+  const P = g.attributes.position, keep = [];
+  for (let i = 0; i < P.count; i += 3) {
+    let cz = 0, cy = 0, cx = 0; for (let k = 0; k < 3; k++) { cx += P.getX(i + k) / 3; cy += P.getY(i + k) / 3; cz += P.getZ(i + k) / 3; }
+    if (cz > 0.1 && Math.hypot(cx / 1.1, cy + 0.05) < 0.25) continue; // the face opening
+    for (let k = 0; k < 3; k++) keep.push(P.getX(i + k), P.getY(i + k), P.getZ(i + k));
+  }
+  g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
+  add(g, pinkFur, { pos: [0, 1.83, 0.0], scl: [1.12, 1.0, 1.0], fur: 0.035 });
+}
+// the bear's face on top of the hood: a cream muzzle, black nose, button eyes; round ears
+add(new THREE.SphereGeometry(0.1, 16, 10), (p, n) => bloodMix(CREAM.clone(), p, n, 0.5), { pos: [0, 2.08, 0.2], scl: [1.2, 0.8, 0.9] });
+add(new THREE.SphereGeometry(0.04, 10, 8), () => C(0x141010), { pos: [0, 2.11, 0.285], scl: [1.3, 0.9, 0.8] });
+for (const s of [-1, 1]) {
+  add(new THREE.SphereGeometry(0.028, 10, 8), () => C(0x101010), { pos: [s * 0.1, 2.15, 0.235] });
+  add(new THREE.SphereGeometry(0.13, 18, 12), pinkFur, { pos: [s * 0.25, 2.11, -0.03], scl: [1, 1, 0.55], fur: 0.03 });
+  add(new THREE.CircleGeometry(0.075, 16), () => CREAM.clone(), { pos: [s * 0.25, 2.105, 0.045] });
+}
+// --- arms: shaggy sleeves (A-pose), cream cuffs, dirty gloves
+for (const s of [-1, 1]) {
+  const sh = [s * 0.42, 1.44, 0], el = [s * 0.66, 1.14, 0.02], wr = [s * 0.83, 0.88, 0.04];
+  add(new THREE.SphereGeometry(0.2, 16, 12), pinkFur, { pos: [s * 0.42, 1.42, -0.01], fur: 0.04 });
+  const a1 = limb(sh, el, 0.19, 0.16); add(a1.g, pinkFur, { pos: a1.pos, quat: a1.quat, fur: 0.04 });
+  add(new THREE.SphereGeometry(0.16, 14, 10), pinkFur, { pos: el, fur: 0.04 });
+  const a2 = limb(el, wr, 0.16, 0.14); add(a2.g, pinkFur, { pos: a2.pos, quat: a2.quat, fur: 0.04 });
+  const cf = limb([s * 0.8, 0.92, 0.04], [s * 0.85, 0.85, 0.04], 0.135, 0.13); add(cf.g, (p, n) => bloodMix(CREAM.clone().lerp(CREAM_D, vnoise(p.x * 30, p.y * 30, p.z * 30)), p, n), { pos: cf.pos, quat: cf.quat, fur: 0.02 });
+  const glove = (p, n) => bloodMix(C(0xd8cbb0).lerp(C(0x8a7a60), vnoise(p.x * 30, p.y * 30, p.z * 30) * 0.7), p, n, 1.2);
+  add(new THREE.SphereGeometry(0.1, 14, 10), glove, { pos: [s * 0.87, 0.79, 0.05], scl: [0.8, 1.0, 1.1] });
+  for (let f = 0; f < 4; f++) { const fz = -0.04 + f * 0.032; add(new THREE.CylinderGeometry(0.024, 0.02, 0.1, 8), glove, { pos: [s * 0.9, 0.7, 0.05 + fz], rot: [0, 0, s * 0.3] }); }
+  add(new THREE.CylinderGeometry(0.024, 0.022, 0.08, 8), glove, { pos: [s * 0.84, 0.76, 0.13], rot: [0.9, 0, 0] });
+}
+
+const scene = new THREE.Scene();
+for (const g of parts) scene.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })));
+window.vertCount = parts.reduce((t, g) => t + g.attributes.position.count, 0);
+// a preview render (front, side, back)
+const R = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); R.setSize(1200, 700); document.body.appendChild(R.domElement);
+R.setClearColor(0xd8cfc0);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x806050, 0.9)); const dl = new THREE.DirectionalLight(0xffffff, 0.7); dl.position.set(1, 2, 3); scene.add(dl);
+window.view = (ang) => { const cam = new THREE.PerspectiveCamera(30, 1200 / 700, 0.1, 50); cam.position.set(Math.sin(ang) * 6, 1.3, Math.cos(ang) * 6); cam.lookAt(0, 1.05, 0); R.render(scene, cam); return R.domElement.toDataURL('image/png'); };
+window.exportGLB = async () => {
+  const s2 = new THREE.Scene(); for (const g of parts) s2.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true })));
+  const glb = await new Promise((ok) => new GLTFExporter().parse(s2, ok, { binary: true }));
+  const bytes = new Uint8Array(glb); let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+};
+window.ready = true;
+</script>

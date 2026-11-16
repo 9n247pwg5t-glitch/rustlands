@@ -15,6 +15,9 @@ const ENEMY_DEFS = {
   suicide: { name: 'Suicide Psycho', body: 'human', hp: 55, shield: 0, hpType: 'flesh', speed: 8.4, xp: 10, ai: 'suicide', dmg: 36, scale: 0.95, look: { shirt: null, pants: 0x3a3a3a, skin: 0xe6b08a, mask: 0xd13a2a, weapon: 'bomb' } },
   nomad: { name: 'Badass Nomad', body: 'human', hp: 520, shield: 90, hpType: 'armor', speed: 3.3, xp: 70, ai: 'ranged', dmg: 4.5, burst: 10, burstGap: 0.07, cd: [1.2, 1.9], projSpeed: 90, spread: 0.075, range: [6, 18], scale: 1.4, badass: true, look: { shirt: 0x5a4a3a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x222222, weapon: 'gun', armor: true } },
   boss: { name: 'Krag the Scrapjaw', body: 'human', hp: 5200, shield: 900, hpType: 'armor', speed: 3.8, xp: 600, ai: 'boss', dmg: 22, projSpeed: 30, scale: 2.4, boss: true, look: { shirt: 0x6a3a2a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x8a8a8a, weapon: 'hammer', armor: true, jaw: true } },
+  // Stage 1's cul-de-sac boss (2026-11-16, the creator's sketch): the fat clown in the bloody pink
+  // bear suit with a cleaver. The old boss's moves (slam, charge, lobbed bombs); name is a placeholder.
+  bearBoss: { name: 'Bear-Suit Clown', body: 'human', hp: 5200, shield: 900, hpType: 'armor', speed: 3.6, xp: 600, ai: 'boss', dmg: 22, projSpeed: 30, scale: 2.2, boss: true, look: { shirt: 0xc4607e, pants: 0xc4607e, skin: 0xece4d6, weapon: 'hammer' } },
 };
 
 // How a gunner fires the weapon it carries (from its type's numbers): rifles use the type's own
@@ -1117,7 +1120,7 @@ function updateBoss(e, dt, tgt, dist, fwd, side, sp, chase) {
   e.bossAttackT -= dt;
   if (!e.summoned && e.shield <= 0 && e.hp < e.maxHp * 0.5) {
     e.summoned = true;
-    hud.banner('KRAG CALLS FOR BACKUP', '');
+    hud.banner(e.def.name.toUpperCase() + ' CALLS FOR BACKUP', '');
     for (let i = 0; i < 4; i++) game.queueSpawn(i % 2 ? 'psycho' : 'suicide', true);
   }
   if (e.state === 'move') {

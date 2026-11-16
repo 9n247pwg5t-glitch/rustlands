@@ -442,7 +442,7 @@ function enterSuburb() {
 }
 function spawnSuburbBoss() {
   game.phase = 'combat';
-  const e = spawnEnemy('boss', Math.max(game.enemyLevel + 1, player.level), SUB.bossAt.clone());
+  const e = spawnEnemy('bearBoss', Math.max(game.enemyLevel + 1, player.level), SUB.bossAt.clone());
   // (the boss's old health was tuned for a five-wave stage with a rifle: it's lighter as a one-on-one)
   e.maxHp *= 0.45; e.hp = e.maxHp; e.maxShield *= 0.45; e.shield = e.maxShield;
   game.waveTotal = 1; game.waveKilled = 0; game.toSpawn = [];
