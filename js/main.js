@@ -11,11 +11,17 @@ const game = {
   waveLabel() {
     if (this.mode === 'hub') return 'HUB';
     if (this.phase === 'complete') return 'STAGE CLEARED';
+    if (this.area === 'suburb') return 'BOSS FIGHT';
+    if (this.phase === 'exit') return 'YARD CLEARED';
+    if (campaign.stage && campaign.stage.yardCount) return this.wave === 0 ? 'GET READY' : 'THE YARD';
     const of = campaign.stage ? '/' + campaign.stage.waves : '';
     return this.wave === 0 ? 'GET READY' : (this.wave % 5 === 0 ? 'BOSS WAVE ' : 'WAVE ') + this.wave + of;
   },
   waveSub() {
     if (this.mode === 'hub') return 'Use the console to pick a stage';
+    if (this.phase === 'exit') return 'Go through the curtain at the entrance stage';
+    if (this.phase === 'bossIntro') return 'Here he comes…';
+    if (this.area === 'suburb' && this.phase === 'combat') { const b = enemies.find((e) => e.alive && e.def.boss); return b ? b.def.name : 'Take him down'; }
     if (this.phase === 'complete') return 'Extraction in ' + Math.ceil(campaign.extractT) + 's' + (IS_TOUCH ? ' · pause to leave now' : ' · N to leave now');
     if (this.phase === 'intermission') return 'Next wave in ' + Math.ceil(this.interT) + 's' + (IS_TOUCH ? '' : ' · N to start now');
     const left = this.waveTotal - this.waveKilled;
@@ -40,14 +46,16 @@ const game = {
 // Waves
 function buildWave(w) {
   const list = [];
-  const boss = w % 5 === 0;
+  // Stage 1 since 2026-11-16: a single wave of yardCount enemies, no boss (the boss has his own area)
+  const yard = campaign.stage && campaign.stage.yardCount;
+  const boss = !yard && w % 5 === 0;
   // packs (decisions.md 2026-11-09): mostly axe-wielders, a few gunners behind; fewer than the old
   // hordes, since each now takes a few hits and only a few come at you at once
-  const n = Math.min(Math.round((8 + w * 4) * DIFFICULTY.waveSize), 40);
+  const n = yard || Math.min(Math.round((8 + w * 4) * DIFFICULTY.waveSize), 40);
   // (no Suicide Psychos: no bomb-carriers or grenades, decisions.md 2026-11-09)
   const pool = [['psycho', 12], ['bandit', 2.5], ['marauder', w >= 3 ? 1.2 : 0]].filter((p) => p[1] > 0);
-  for (let i = 0; i < (boss ? Math.floor(n * 0.5) : n); i++) list.push(weighted(pool));
-  const badass = w >= 3 ? 1 + Math.floor((w - 3) / 3) : 0;
+  const badass = yard ? 1 : w >= 3 ? 1 + Math.floor((w - 3) / 3) : 0;
+  for (let i = 0; i < (boss ? Math.floor(n * 0.5) : n - (yard ? badass : 0)); i++) list.push(weighted(pool));
   for (let i = 0; i < (boss ? Math.floor(badass / 2) : badass); i++) list.splice(randi(2, list.length), 0, 'nomad');
   if (boss) list.splice(Math.min(3, list.length), 0, 'boss');
   return list;
@@ -139,6 +147,8 @@ function updateCarnage(dt) {
 function endWave() {
   game.slowmo = 1.1; // the last kill, in slow motion
   // (no loot chests: removed 2026-11-15)
+  if (game.area === 'suburb') { stageCleared(); savePlayer(); return; } // the boss is down
+  if (campaign.stage && campaign.stage.bossArea && game.wave >= campaign.stage.waves) { openStageExit(); savePlayer(); return; } // on to the boss
   if (campaign.stage && game.wave >= campaign.stage.waves) { stageCleared(); savePlayer(); return; }
   game.phase = 'intermission';
   game.interT = 25;
@@ -156,6 +166,8 @@ function updateWaves(dt) {
     if (game.interT <= 0) startWave();
     return;
   }
+  if (game.phase === 'exit') { checkStageExit(); updateCarnage(dt); return; } // js/suburb.js
+  if (game.phase === 'bossIntro') { game.introT -= dt; if (game.introT <= 0) spawnSuburbBoss(); return; }
   const alive = enemies.filter((e) => e.alive).length;
   game.spawnT -= dt;
   // how many at once: phones draw fewer
@@ -471,7 +483,7 @@ function startGame() {
   clearStageWorld();
   readyPlayer(stageSpawn(), stageSpawnYaw());
   hud.reset();
-  Object.assign(game, { mode: 'stage', wave: 0, phase: 'intermission', interT: 6, toSpawn: [], waveTotal: 0, waveKilled: 0, enemyLevel: 1, streak: 0, streakT: 0, streakMult: 1, bestStreak: 0, slowmo: 0 });
+  Object.assign(game, { mode: 'stage', area: 'yard', exitAt: null, wave: 0, phase: 'intermission', interT: 6, toSpawn: [], waveTotal: 0, waveKilled: 0, enemyLevel: 1, streak: 0, streakT: 0, streakMult: 1, bestStreak: 0, slowmo: 0 });
   game.state = 'play';
   show(null);
   lockPointer();
@@ -510,7 +522,7 @@ function respawn() {
   player.cash -= Math.floor(player.cash * 0.07);
   player.alive = true; player.downed = false;
   player.hp = player.maxHp; player.shield = player.shieldMax(); player.invuln = 3;
-  respawnAt(stageSpawn(), stageSpawnYaw());
+  if (game.area === 'suburb') respawnAt(SUB.spawn, 0); else respawnAt(stageSpawn(), stageSpawnYaw());
   for (const s of enemyShots) scene.remove(s.mesh);
   enemyShots.length = 0;
   burst(player.center(), 0x4fc6ff, 30, 5, 0.12, 0.8, 0.2, true);
@@ -751,6 +763,7 @@ function update(dt) {
   updateFx(dt);
   updateCompound(dt);
   updateFireFx(dt); // js/firefx.js: Fire Axe's flames
+  updateSuburb(dt); // js/suburb.js
   updateDrone(dt); // js/drone.js
   updateRigCorpses(dt);
   if (!hub) { updateWaves(dt); campaign.runT += dt; }

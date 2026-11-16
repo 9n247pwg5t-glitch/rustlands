@@ -317,6 +317,7 @@ const hud = (() => {
         octx.restore();
       };
       for (const e of enemies) if (e.alive) edge(e.pos, e.def.boss ? '#ff8a1c' : '#ff3b2a', e.def.boss ? 13 : 9);
+      if (game.exitAt) edge(game.exitAt, '#c060ff', 14); // the way on to the next area
       for (const d of drops) if (d.kind === 'item' && d.item.rarity >= 2) edge(d.pos, RARITY[d.item.rarity].css, 9);
       if (game.chest && !game.chest.opened) edge(game.chest.pos, '#ffd23a', 11);
     },

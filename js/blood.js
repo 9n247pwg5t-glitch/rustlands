@@ -84,9 +84,19 @@ function placeBlood(kind, x, z, size, rot, fixed) {
   K.mesh.setMatrixAt(i, _bm.compose(_bp, _bq, _bs));
   K.mesh.instanceMatrix.needsUpdate = true;
 }
+// The map-wide stains belong to the yard: hidden in Stage 1's second area (js/suburb.js), back in the yard.
+function bloodStatic(on) {
+  if (!BLOOD.ready) return;
+  for (const K of Object.values(BLOOD.kinds)) {
+    const a = K.mesh.instanceMatrix.array, n = BLOOD.staticN * 16;
+    if (!on && !K.saved) { K.saved = a.slice(0, n); a.fill(0, 0, n); }
+    else if (on && K.saved) { a.set(K.saved, 0); K.saved = null; }
+    K.mesh.instanceMatrix.needsUpdate = true;
+  }
+}
 // A stain from gameplay: on the ground under `pos` (arena only).
 function bloodSplat(pos, size = 1, kind = 'splat') {
-  if (!BLOOD.ready || WORLD.id !== 'arena') return;
+  if (!BLOOD.ready || WORLD.id === 'hub') return;
   placeBlood(kind, pos.x + rand(-0.3, 0.3), pos.z + rand(-0.3, 0.3), size * rand(0.8, 1.25), rand(0, TAU), false);
 }
 

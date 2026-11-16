@@ -309,18 +309,10 @@ function applyStage(D, root, fx) {
   else Object.assign(MAPG, { x0, z0, cell, nx, nz, h, ready: true });
   worlds.arena.bounds = Object.assign({}, D.bounds);
   if (WORLD.id === 'arena') WORLD.bounds = worlds.arena.bounds;
-  // navigation: 1 m cells, blocked where a body would touch a collider
-  const N = Math.ceil(Math.max(D.bounds.maxX - D.bounds.minX, D.bounds.maxZ - D.bounds.minZ)) + 2, NX0 = D.bounds.minX - 1, NZ0 = D.bounds.minZ - 1;
-  const bits = new Uint8Array(Math.ceil(N * N / 8));
-  for (let iz = 0; iz < N; iz++) for (let ix = 0; ix < N; ix++) {
-    const x = NX0 + ix + 0.5, z = NZ0 + iz + 0.5, g = terrainAt(x, z);
-    let blocked = x < D.bounds.minX || x > D.bounds.maxX || z < D.bounds.minZ || z > D.bounds.maxZ;
-    for (const b of D.boxes) { if (blocked) break; if (b[5] < g + 0.5 || b[4] > g + 1.6) continue; if (x > b[0] - 0.5 && x < b[2] + 0.5 && z > b[1] - 0.5 && z < b[3] + 0.5) blocked = true; }
-    for (const s of D.spheres) { if (blocked) break; if (Math.hypot(x - s[0], z - s[2]) < s[3] + 0.5) blocked = true; }
-    const i = iz * N + ix;
-    if (blocked) bits[i >> 3] |= 1 << (i & 7);
-  }
-  navInit(N, 1, NX0, NZ0, bits);
+  // navigation: 1 m cells, blocked where a body would touch a collider (kept, so the stage can put it
+  // back after a second area of the stage, js/suburb.js, used its own)
+  MAP.nav = navFromBoxes(D.boxes, D.spheres, D.bounds, terrainAt);
+  navInit(...MAP.nav);
   // markers
   MAP.points = D.points;
   MAP.spawn.set(...D.points.PlayerSpawn);
@@ -360,4 +352,19 @@ function applyStage(D, root, fx) {
   MAP.ready = true;
   buildBlood(); // js/blood.js
   if (typeof campaign !== 'undefined') campaign.previewUrl = null; // re-render the stage card picture
+}
+
+// A navigation grid (navInit's arguments) from box/sphere colliders inside `bounds`.
+function navFromBoxes(boxes, spheres, bounds, groundFn) {
+  const N = Math.ceil(Math.max(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ)) + 2, NX0 = bounds.minX - 1, NZ0 = bounds.minZ - 1;
+  const bits = new Uint8Array(Math.ceil(N * N / 8));
+  for (let iz = 0; iz < N; iz++) for (let ix = 0; ix < N; ix++) {
+    const x = NX0 + ix + 0.5, z = NZ0 + iz + 0.5, g = groundFn(x, z);
+    let blocked = x < bounds.minX || x > bounds.maxX || z < bounds.minZ || z > bounds.maxZ;
+    for (const b of boxes) { if (blocked) break; if (b[5] < g + 0.5 || b[4] > g + 1.6) continue; if (x > b[0] - 0.5 && x < b[2] + 0.5 && z > b[1] - 0.5 && z < b[3] + 0.5) blocked = true; }
+    for (const s of spheres) { if (blocked) break; if (Math.hypot(x - s[0], z - s[2]) < s[3] + 0.5) blocked = true; }
+    const i = iz * N + ix;
+    if (blocked) bits[i >> 3] |= 1 << (i & 7);
+  }
+  return [N, 1, NX0, NZ0, bits];
 }

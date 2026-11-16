@@ -35,7 +35,7 @@ function updateFireFx(dt) {
   const F = FIREFX;
   F.t += dt;
   let n = 0;
-  const on = typeof rank === 'function' && rank('rFire') > 0 && WORLD.id === 'arena';
+  const on = typeof rank === 'function' && rank('rFire') > 0 && WORLD.id !== 'hub';
   const put = (p, size, seed) => {
     if (n >= 48) return;
     _ffM.compose(p, _ffQ, _ffS.setScalar(size));

@@ -11,10 +11,11 @@
 const STAGES = [
   {
     id: 'stage-1', title: 'Stage 1', subtitle: 'Clown wrestling compound · placeholder',
-    env: 'A fenced clown-wrestling yard in a dead suburb at night: a bloody ring under floodlights, bleachers, the clown-faced entrance tent, a rusted bus, a trailer and fire barrels.',
-    objective: 'Clear 5 waves. The 5th is a boss wave.',
-    waves: 5, ready: true, preview: 'snapshot',
-    load() { switchWorld('arena'); }, unload() {}, // the map (js/map.js) loads in the background at boot
+    env: 'A fenced clown-wrestling yard in a dead suburb at night: a bloody ring under floodlights, bleachers, the clown-faced entrance tent, a rusted bus, a trailer and fire barrels. Through the curtain: a run-down cul-de-sac with a stage.',
+    objective: 'Kill the 20 enemies in the yard, then go through the curtain at the entrance stage and beat the boss.',
+    // (2026-11-16) one wave of 20 in the yard, then a second area with only the boss (js/suburb.js)
+    waves: 1, yardCount: 20, bossArea: true, ready: true, preview: 'snapshot',
+    load() { switchWorld('arena'); if (MAP.nav) navInit(...MAP.nav); bloodStatic(true); }, unload() {}, // the map (js/map.js) loads in the background at boot
   },
   { id: 'stage-2', title: 'Stage 2', subtitle: 'Not built yet', ready: false },
   { id: 'stage-3', title: 'Stage 3', subtitle: 'Not built yet', ready: false },

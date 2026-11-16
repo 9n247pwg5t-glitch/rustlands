@@ -53,7 +53,7 @@ function updateDrone(dt) {
   const D = DRONE;
   if (!D.obj) return;
   if (D.t <= 0 && D.cd > 0) D.cd -= dt;
-  const inStage = WORLD.id === 'arena' && game.mode !== 'hub';
+  const inStage = WORLD.id !== 'hub' && game.mode !== 'hub';
   if (D.t <= 0 && D.out <= 0) { D.obj.visible = false; return; }
   if (!inStage || !player.alive) { D.t = 0; D.out = 0; D.obj.visible = false; if (D.cd <= 0) D.cd = DRONE_COOLDOWN; return; }
   // over the shoulder: a little behind and to one side of the player's head, bobbing

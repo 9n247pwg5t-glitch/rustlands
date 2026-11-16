@@ -107,3 +107,4 @@ and axe, toggled). Still open or placeholder:
 ## Controls (§10)
 
 - No adjustable look sensitivity setting yet (fixed `SENS` in `js/main.js`).
+- **Stage 1's second area** (2026-11-16): a cul-de-sac with a stage, unnamed (placeholder). The boss there is still the old placeholder boss ("Krag the Scrapjaw") until the creator names Stage 1's boss.
