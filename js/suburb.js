@@ -1,16 +1,18 @@
 'use strict';
 // Stage 1's second area (decisions.md 2026-11-16, after the creator's sketch): once the yard's 20
 // enemies are dead, the entrance stage's curtain opens onto a run-down suburban cul-de-sac at night,
-// where the boss fight happens and nothing else. A cracked asphalt square inside a curb, a giant
+// where the boss fight happens and nothing else. A cracked, potholed asphalt square inside a curb, a giant
 // clown face painted on it, a rickety outdoor stage at the north end (truss, lamp banks, speakers,
 // a torn clown banner, steps), four street lamps, red-and-white barricades with oil drums (some
-// burning), houses at the corners with clown faces sprayed on, a van and a wrecked car, chain-link
-// and picket fences, bunting, trees, and the road out to the south blocked off.
+// burning), a ring of run-down houses with dead front yards (tarps, boarded windows, sagging porches,
+// foreclosure signs, couches and bins on the lawns), vacant lots with cars on blocks, power poles
+// with sagging wires, weeds everywhere, trash on the curbs, a van, a wrecked car, and the road out
+// to the south blocked off.
 // It is its own world (defineWorld 'suburb'), built the first time it's entered, so only one area
 // of the stage is ever in the scene. Names and words on it are placeholders.
 
 const SUB = { built: false, spawn: new THREE.Vector3(0, 0, 15.5), bossAt: new THREE.Vector3(0, 0, -7), flames: [], t: 0 };
-const SUB_B = { minX: -24.5, maxX: 24.5, minZ: -19.5, maxZ: 19.5 };
+const SUB_B = { minX: -31, maxX: 31, minZ: -25.2, maxZ: 25.2 }; // the square, the sidewalks and the front yards
 
 function buildSuburb() {
   if (SUB.built) return;
@@ -26,7 +28,7 @@ function buildSuburb() {
     const glow = (x, z, r, c) => pools.push([x, z, r, c]);
 
     // --- the ground: grass all round, sidewalks, and the painted asphalt square
-    add(new THREE.PlaneGeometry(140, 120).rotateX(-Math.PI / 2), cmpMat(0xffffff, TEX.grass, 0, [14, 12]), 0, 0, 0, 0, 'Terrain');
+    add(new THREE.PlaneGeometry(140, 120).rotateX(-Math.PI / 2), cmpMat(0x8a8a6a, TEX.grass, 0, [14, 12]), 0, 0, 0, 0, 'Terrain');
     const W = 52, Dd = 40;
     const asphalt = cmpCanvas(1024, 788, (g, w, h) => {
       g.fillStyle = '#4a464c'; g.fillRect(0, 0, w, h);
@@ -34,6 +36,11 @@ function buildSuburb() {
       for (let i = 0; i < 60; i++) { const x = Math.random() * w, y = Math.random() * h, r = 20 + Math.random() * 80, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${Math.random() < 0.5 ? '10,8,10' : '70,66,70'},0.35)`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
       g.strokeStyle = 'rgba(8,6,8,0.85)'; // cracks
       for (let i = 0; i < 70; i++) { g.lineWidth = 1 + Math.random() * 2; g.beginPath(); let x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); for (let k = 0; k < 9; k++) { x += (Math.random() - 0.5) * 60; y += (Math.random() - 0.5) * 60; g.lineTo(x, y); } g.stroke(); }
+      // potholes (broken edges, gravel in them), puddles catching the light, manholes and drains
+      for (let i = 0; i < 16; i++) { const x = Math.random() * w, y = Math.random() * h, r = 10 + Math.random() * 22; g.fillStyle = '#5a5458'; g.beginPath(); for (let k = 0; k <= 12; k++) { const a = k / 12 * TAU, rr = (r + 5) * (0.75 + Math.random() * 0.4); g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.8); } g.fill(); g.fillStyle = '#121012'; g.beginPath(); for (let k = 0; k <= 12; k++) { const a = k / 12 * TAU, rr = r * (0.7 + Math.random() * 0.4); g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.8); } g.fill(); for (let k = 0; k < 14; k++) { g.fillStyle = 'rgba(90,86,90,0.9)'; g.fillRect(x + (Math.random() - 0.5) * r, y + (Math.random() - 0.5) * r * 0.7, 2, 2); } }
+      for (let i = 0; i < 10; i++) { const x = Math.random() * w, y = Math.random() * h, r = 20 + Math.random() * 40, gr = g.createRadialGradient(x - r * 0.3, y - r * 0.3, 2, x, y, r); gr.addColorStop(0, 'rgba(120,120,160,0.5)'); gr.addColorStop(0.6, 'rgba(30,30,44,0.7)'); gr.addColorStop(1, 'rgba(30,30,44,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, r, r * 0.6, Math.random(), 0, TAU); g.fill(); }
+      for (const [mx, my] of [[0.3, 0.75], [0.72, 0.25]]) { g.fillStyle = '#1e1c1e'; g.beginPath(); g.arc(mx * w, my * h, 18, 0, TAU); g.fill(); g.strokeStyle = '#4a464c'; g.lineWidth = 2; for (let r = 5; r < 18; r += 4) { g.beginPath(); g.arc(mx * w, my * h, r, 0, TAU); g.stroke(); } }
+      for (const [dx, dy] of [[0.02, 0.3], [0.02, 0.7], [0.97, 0.3], [0.97, 0.7], [0.3, 0.015], [0.7, 0.015]]) { g.fillStyle = '#0e0c0e'; g.fillRect(dx * w - 14, dy * h - 8, 28, 16); g.fillStyle = '#4a464c'; for (let k = 0; k < 6; k++) g.fillRect(dx * w - 12 + k * 5, dy * h - 7, 2, 14); }
       g.strokeStyle = 'rgba(14,10,10,0.5)'; g.lineWidth = 7; // tyre arcs
       for (let i = 0; i < 6; i++) { g.beginPath(); g.arc(w * (0.2 + Math.random() * 0.6), h * (0.3 + Math.random() * 0.5), 60 + Math.random() * 90, Math.random() * 3, Math.random() * 3 + 2); g.stroke(); }
       // the giant clown face: X eyes, a red nose, a jagged grin with drips (painted, worn)
@@ -57,7 +64,7 @@ function buildSuburb() {
       for (let i = 0; i < 8; i++) { g.strokeStyle = 'rgba(100,4,8,0.55)'; g.lineWidth = 10 + Math.random() * 10; g.beginPath(); let x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (Math.random() - 0.5) * 140; y += (Math.random() - 0.5) * 140; g.lineTo(x, y); } g.stroke(); }
       for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(230,225,215,0.7)'; g.save(); g.translate(Math.random() * w, Math.random() * h); g.rotate(Math.random() * 3); g.fillRect(-6, -4, 12, 8); g.restore(); } // paper scraps
     });
-    add(new THREE.PlaneGeometry(W, Dd).rotateX(-Math.PI / 2), cmpMat(0xffffff, asphalt, 0x5a5050), 0, 0.03, 0, 0, 'Road'); // (lifted: it reads at night)
+    add(new THREE.PlaneGeometry(W, Dd).rotateX(-Math.PI / 2), cmpMat(0xd8d0d0, asphalt, 0x2e2a2a), 0, 0.03, 0, 0, 'Road'); // (lifted: it reads at night)
     glow(0, 3, 9, 0x9a7060); glow(0, -9, 7, 0xffc080); // light over the painted face and in front of the stage
     // the curb and sidewalk all round the square (a gap in the south side for the road)
     const walk = cmpMat(0x8a8478, TEX.concrete, 0, [12, 1]), curbM = cmpMat(0x9a948a);
@@ -133,23 +140,122 @@ function buildSuburb() {
     for (const x of [-3, 0, 3]) { blk(2.4, 0.14, 0.08, barM, x, 0.95, 21, 0, 'Detail'); blk(2.4, 0.14, 0.08, barM, x, 0.55, 21, 0, 'Detail'); for (const s of [-1, 1]) blk(0.08, 1.05, 0.5, cmpMat(0x5a4030), x + s * 1.05, 0, 21, 0, 'Detail'); }
     col(0, 21, 9, 0.6, 1.2);
 
-    // --- houses at the corners, outside the square: siding, roof, lit windows, a clown face sprayed on
+    // --- shared house textures
     const roofM = cmpMat(0xffffff, TEX.roof, 0, [3, 2]), winM = cmpMat(0xffd27a, null, 0xffa040);
     const face = cmpCanvas(128, 96, (g, w, h) => { g.lineCap = 'round'; g.strokeStyle = '#a8121a'; g.lineWidth = 7; for (const ex of [-26, 26]) { g.beginPath(); g.moveTo(w / 2 + ex - 10, 18); g.lineTo(w / 2 + ex + 10, 38); g.moveTo(w / 2 + ex + 10, 18); g.lineTo(w / 2 + ex - 10, 38); g.stroke(); } g.lineWidth = 6; g.beginPath(); g.moveTo(w / 2 - 44, 56); g.quadraticCurveTo(w / 2, 96, w / 2 + 44, 56); g.stroke(); for (let i = 0; i < 6; i++) { g.fillStyle = '#a8121a'; g.fillRect(w / 2 - 36 + i * 14, 62 + Math.sin(i / 5 * Math.PI) * 14, 3, 10 + Math.random() * 12); } });
-    const house = (x, z, ry, color) => {
+    // --- the street: rows of run-down houses round the square, each with its own front yard
+    // (2026-11-16: "more obvious this is a rundown suburb"). Every house is a variation: faded siding,
+    // a porch (sagging, or gone), boarded or broken or lit windows, a blue tarp or a hole in the roof,
+    // a hanging gutter, a garage door, a dish, a chimney, clown faces sprayed on some; in the yards
+    // dead lawns, cracked walkways, leaning mailboxes, tipped bins, an old couch, a kiddie pool, a
+    // foreclosure sign, weeds; vacant corner lots with a car on blocks and junk.
+    const sr = makeRng(1979);
+    const pickS = (a) => a[Math.floor(sr() * a.length)];
+    const plyM = cmpMat(0x8a6a44, TEX.fence, 0, [1, 1]), tarpM = cmpMat(0x2a5aa8), holeM = cmpMat(0x0e0c0e), trimM = cmpMat(0xc8c0b0), concM = cmpMat(0x8a8478, TEX.concrete, 0, [1, 1]);
+    const lawn = cmpCanvas(256, 256, (g, w, h) => {
+      g.fillStyle = '#5a5a32'; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 40; i++) { const x = sr() * w, y = sr() * h, r = 15 + sr() * 45, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, sr() < 0.5 ? 'rgba(120,100,50,0.6)' : 'rgba(60,44,30,0.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+      for (let i = 0; i < 2600; i++) { g.strokeStyle = `rgba(${90 + sr() * 70},${90 + sr() * 50},${40 + sr() * 30},0.7)`; g.lineWidth = 1; const x = sr() * w, y = sr() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (sr() - 0.5) * 4, y - 3 - sr() * 5); g.stroke(); }
+    });
+    const lawnM = cmpMat(0xffffff, lawn, 0, [2, 1]);
+    const sign = cmpCanvas(128, 80, (g, w, h) => { g.fillStyle = '#e8e0d0'; g.fillRect(0, 0, w, h); g.fillStyle = '#a8121a'; g.fillRect(0, 0, w, 20); g.font = 'bold 15px sans-serif'; g.fillStyle = '#fff'; g.textAlign = 'center'; g.fillText('FORECLOSED', w / 2, 15); g.fillStyle = '#222'; g.font = 'bold 13px sans-serif'; g.fillText('KEEP OUT', w / 2, 45); grime(g, w, h, 20, 0.5); });
+    const signM = cmpMat(0xffffff, sign);
+    const house = (x, z, ry, color, v) => {
       const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; g.name = 'prop'; root.add(g);
-      const put = (geo, m, px, py, pz, rx = 0, ryy = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); o.rotation.set(rx, ryy, 0); g.add(o); return o; };
-      put(cmpBox(11, 3.6, 8), cmpMat(color, TEX.siding, 0, [4, 1]), 0, 1.8, 0);
-      const roof = put(new THREE.CylinderGeometry(0.01, 6.6, 2.8, 4, 1).rotateY(Math.PI / 4), roofM, 0, 5.0, 0); roof.scale.set(1.25, 1, 0.95);
-      put(cmpBox(0.9, 2, 0.9), cmpMat(0x6a3a2a), -3, 5.4, -1.5);
-      for (const wx of [-3.4, 3.2]) { put(new THREE.PlaneGeometry(1.3, 1.1), Math.random() < 0.6 ? winM : cmpMat(0x1a1820), wx, 2, 4.02); put(cmpBox(1.5, 0.12, 0.12), white, wx, 1.4, 4.05); }
-      put(new THREE.PlaneGeometry(1.1, 2.1), cmpMat(0x5a2a2a), 0.4, 1.05, 4.02);
-      put(new THREE.PlaneGeometry(2.6, 1.95), cmpMat(0xffffff, face), -0.4, 2.6, 4.03).material.transparent = true;
-      put(cmpBox(3, 0.3, 1.6), cmpMat(0x6b5a4a), 0.4, 0.15, 4.8);
+      const put = (geo, m, px, py, pz, rx = 0, ryy = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); o.rotation.set(rx, ryy, rz); g.add(o); return o; };
+      const wall = cmpMat(color, TEX.siding, 0, [4, 1]);
+      put(cmpBox(11, 3.4, 8), wall, 0, 1.9, 0);
+      put(cmpBox(11.1, 0.25, 8.1), concM, 0, 0.12, 0); // foundation
+      const roof = put(new THREE.CylinderGeometry(0.01, 6.6, 2.8, 4, 1).rotateY(Math.PI / 4), roofM, 0, 4.95, 0); roof.scale.set(1.25, 1, 0.95);
+      if (v.tarp) { const t = put(new THREE.PlaneGeometry(3.4, 2.4), tarpM, -2, 4.9, 2.2, -1.0, 0, 0.05); t.material.side = THREE.DoubleSide; }
+      if (v.hole) put(new THREE.CircleGeometry(0.9, 8), holeM, 2.6, 4.7, 2.0, -1.0);
+      if (v.chimney) put(cmpBox(0.9, 2.2, 0.9), cmpMat(0x6a3a2a), -3.4, 5.3, -1.5);
+      if (v.dish) { put(new THREE.SphereGeometry(0.4, 10, 6, 0, TAU, 0, Math.PI / 2), white, 3.8, 4.2, 3.0, -1.1); }
+      // gutter, one end hanging loose
+      put(new THREE.BoxGeometry(11.2, 0.1, 0.12), trimM, 0, 3.55, 4.1, 0, 0, v.gutter ? 0.12 : 0);
+      // windows: lit, dark, boarded with plywood, or smashed; a garage door on some
+      const wins = v.garage ? [-3.6] : [-3.6, 3.4];
+      for (const wx of wins) {
+        const kind = pickS(['lit', 'dark', 'board', 'board', 'broken']);
+        put(new THREE.PlaneGeometry(1.3, 1.1), kind === 'lit' ? winM : cmpMat(0x161420), wx, 2.1, 4.02);
+        if (kind === 'board') { put(new THREE.BoxGeometry(1.5, 1.25, 0.05), plyM, wx, 2.1, 4.07); for (const r of [0.7, -0.7]) put(new THREE.BoxGeometry(1.7, 0.12, 0.04), plyM, wx, 2.1, 4.11, 0, 0, r); }
+        if (kind === 'broken') for (let k = 0; k < 3; k++) put(new THREE.PlaneGeometry(0.3 + sr() * 0.3, 0.2 + sr() * 0.3), cmpMat(0x5a7088), wx - 0.4 + sr() * 0.8, 1.8 + sr() * 0.5, 4.04, 0, 0, sr() * 3);
+        put(cmpBox(1.5, 0.1, 0.14), trimM, wx, 1.5, 4.06);
+        for (const s of [-1, 1]) put(new THREE.BoxGeometry(0.3, 1.2, 0.04), cmpMat(0x2a3a3a), wx + s * 0.85, 2.1, 4.05, 0, 0, v.shutter && s > 0 ? 0.35 : 0); // shutters (one hanging)
+      }
+      if (v.garage) { put(new THREE.PlaneGeometry(3.2, 2.5), cmpMat(0x9a9488, TEX.metal, 0, [1, 1]), 3.4, 1.4, 4.03); if (v.face) put(new THREE.PlaneGeometry(2.6, 1.95), cmpMat(0xffffff, face), 3.4, 1.6, 4.05).material.transparent = true; }
+      // the door and the porch: posts and a roof (sagging on some), steps; or just a stoop
+      put(new THREE.PlaneGeometry(1.1, 2.1), cmpMat(pickS([0x5a2a2a, 0x2a3a4a, 0x3a3a2a])), 0, 1.3, 4.02);
+      if (v.porch) {
+        put(cmpBox(3.6, 0.35, 1.8), cmpMat(0x6b5a4a, TEX.fence, 0, [1, 1]), 0, 0.18, 4.9);
+        for (const s of [-1, 1]) put(new THREE.BoxGeometry(0.14, 2.4, 0.14), trimM, s * 1.65, 1.5, 5.65, 0, 0, s > 0 && v.sag ? 0.18 : 0);
+        put(new THREE.BoxGeometry(3.9, 0.1, 2.0), cmpMat(0x4a4038), 0, 2.75, 4.95, v.sag ? -0.12 : 0.05, 0, v.sag ? 0.1 : 0);
+      } else put(cmpBox(1.6, 0.3, 0.9), concM, 0, 0.15, 4.45);
+      for (let k = 0; k < 2; k++) put(cmpBox(1.4, 0.15, 0.35), concM, 0, 0.07 + k * 0.15, 6.0 - k * 0.3);
+      if (v.face && !v.garage) put(new THREE.PlaneGeometry(2.6, 1.95), cmpMat(0xffffff, face), -2, 2.4, 4.04).material.transparent = true;
+      // the front yard: a dead lawn, a cracked walkway, a mailbox, bins, junk
+      put(new THREE.PlaneGeometry(11, 3.4).rotateX(-Math.PI / 2), lawnM, 0, 0.045, 5.7);
+      put(new THREE.PlaneGeometry(1.2, 3.4).rotateX(-Math.PI / 2), concM, 0, 0.05, 5.7);
+      const mb = put(new THREE.BoxGeometry(0.08, 1.1, 0.08), cmpMat(0x3a3a3a), 2.0, 0.55, 7.2, 0, 0, v.mailLean ? 0.4 : 0); put(new THREE.BoxGeometry(0.28, 0.25, 0.45), cmpMat(pickS([0x2a4a8a, 0x8a1a1a, 0x2a2a2a])), 2.0 + (v.mailLean ? 0.42 : 0), v.mailLean ? 1.0 : 1.15, 7.2, 0, 0, v.mailLean ? 0.4 : 0);
+      for (let k = 0; k < 2; k++) { const tipped = v.bins && k === 1; const b = put(cmpBox(0.6, 1, 0.6), cmpMat(k ? 0x2a3a2a : 0x1a1a22), -4.4 + k * 0.8, tipped ? 0.3 : 0.5, tipped ? 6.4 : 4.9, 0, 0, tipped ? Math.PI / 2 : 0); }
+      if (v.bins) for (let k = 0; k < 3; k++) put(new THREE.IcosahedronGeometry(0.32, 1), cmpMat(0x18181c), -3.4 + sr() * 1.2, 0.22, 6.4 + sr() * 0.6);
+      if (v.couch) { put(cmpBox(2, 0.45, 0.85), cmpMat(0x6a4a3a), -3.2, 0.32, 6.4, 0, 0.3); put(cmpBox(2, 0.6, 0.25), cmpMat(0x6a4a3a), -3.1, 0.7, 6.05, 0, 0.3); }
+      if (v.pool) { put(new THREE.CylinderGeometry(0.9, 0.9, 0.3, 16), cmpMat(0x3a8ac8), 3.6, 0.15, 6.2); put(new THREE.CircleGeometry(0.85, 16).rotateX(-Math.PI / 2), cmpMat(0x4a6a2a), 3.6, 0.29, 6.2); }
+      if (v.sign) { put(new THREE.BoxGeometry(0.06, 1.2, 0.06), cmpMat(0x5a4030), -1.6, 0.6, 7.1); put(new THREE.PlaneGeometry(0.9, 0.56), signM, -1.6, 1.0, 7.14, 0, 0, 0.08); }
+      // weeds against the walls and the walk
+      for (let k = 0; k < 10; k++) tufts.push(g.localToWorld(new THREE.Vector3(-5 + sr() * 10, 0, 4.1 + sr() * 3.2)));
+      g.updateMatrixWorld(true);
       g.traverse((o) => { o.name = 'prop'; });
       const q = Math.abs(Math.sin(ry)) > 0.5; col(x, z, q ? 8.4 : 11.4, q ? 11.4 : 8.4, 4);
+      // a porch light on some: a warm pool on the walk
+      if (v.light) { const p = g.localToWorld(new THREE.Vector3(0, 0, 5.4)); glow(p.x, p.z, 3, 0xffb050); }
     };
-    [[-33, -21, 0.0, 0x8a6a7a], [33, -21, 0, 0x6e7a8a], [-33, 22, Math.PI, 0x8a8070], [33, 22, Math.PI, 0x7a6a8e]].forEach(([x, z, r, c]) => house(x, z, r, c));
+    const tufts = [];
+    const colors = [0x8a7a6a, 0x6e7a7a, 0x8a8070, 0x7a6a7e, 0x9a8a78, 0x6a7a6e, 0x8a6a5a, 0x7a7a6a];
+    let hi = 0;
+    const V = () => ({ porch: sr() < 0.6, sag: sr() < 0.5, tarp: sr() < 0.4, hole: sr() < 0.3, chimney: sr() < 0.6, dish: sr() < 0.4, gutter: sr() < 0.5, garage: sr() < 0.35, face: sr() < 0.45, shutter: sr() < 0.5, mailLean: sr() < 0.5, bins: sr() < 0.6, couch: sr() < 0.3, pool: sr() < 0.25, sign: sr() < 0.35, light: sr() < 0.4 });
+    for (const zc of [-13.5, 0.5, 14.5]) { house(-35.5, zc, Math.PI / 2, colors[hi++ % 8], V()); house(35.5, zc, -Math.PI / 2, colors[hi++ % 8], V()); }
+    for (const xc of [-17, 17]) { house(xc, -29.6, 0, colors[hi++ % 8], V()); house(xc, 29.6, Math.PI, colors[hi++ % 8], V()); }
+    // vacant corner lots: a car up on blocks, tyres, a busted fridge, weeds, a dead tree
+    const lot = (x, z) => {
+      add(new THREE.PlaneGeometry(7, 6).rotateX(-Math.PI / 2), lawnM, x, 0.045, z, 0, 'Terrain');
+      const c = new THREE.Group(); c.position.set(x, 0, z); c.rotation.y = sr() * 3; c.name = 'prop'; root.add(c);
+      const b = new THREE.Mesh(cmpBox(1.9, 0.85, 4.2, 0.2), cmpMat(pickS([0x6a3a2a, 0x3a4a5a, 0x5a5a3a]), TEX.rust, 0, [2, 1])); b.position.y = 0.95; c.add(b);
+      const t = new THREE.Mesh(cmpBox(1.65, 0.65, 2.1, 0.16), cmpMat(0x2a2422)); t.position.set(0, 1.65, -0.3); c.add(t);
+      for (const [a, bb] of [[-0.8, -1.3], [0.8, -1.3], [-0.8, 1.3], [0.8, 1.3]]) { const k = new THREE.Mesh(cmpBox(0.4, 0.5, 0.4), concM); k.position.set(a, 0.25, bb); c.add(k); }
+      c.traverse((o) => { o.name = 'prop'; });
+      col(x, z, 3.6, 3.6, 1.6);
+      for (let k = 0; k < 3; k++) add(new THREE.TorusGeometry(0.38, 0.15, 6, 10).rotateX(Math.PI / 2), cmpMat(0x141414), x + 2 + sr(), 0.15 + k * 0.28, z + 1.8, 0, 'Detail');
+      blk(0.75, 1.6, 0.7, cmpMat(0xd8d0c0), x - 2.5, 0, z - 1.8, 0.4); col(x - 2.5, z - 1.8, 0.9, 0.9, 1.6);
+      for (let k = 0; k < 14; k++) tufts.push(new THREE.Vector3(x + (sr() - 0.5) * 6.5, 0, z + (sr() - 0.5) * 5.5));
+      // a dead tree
+      add(new THREE.CylinderGeometry(0.14, 0.3, 4.5, 7), cmpMat(0x2e241e), x + 2.4, 2.25, z - 1.6);
+      for (let k = 0; k < 6; k++) { const br = add(new THREE.CylinderGeometry(0.04, 0.1, 2.2, 5), cmpMat(0x2e241e), x + 2.4, 2.6 + k * 0.38, z - 1.6); br.rotation.set((sr() - 0.5) * 2, sr() * TAU, 0.6 + sr() * 0.6); br.position.x += Math.sin(br.rotation.y) * 0.6; br.position.z += Math.cos(br.rotation.y) * 0.6; }
+      col(x + 2.4, z - 1.6, 0.5, 0.5, 4);
+    };
+    lot(-34, -25); lot(34, -25); lot(-34, 25.5); lot(34, 25.5);
+    // power poles along the yards with sagging wires between them, a transformer can on one
+    const poleM = cmpMat(0x4a3a2c), wires = [];
+    const poles = [[-30.4, -21], [-30.4, -7], [-30.4, 7], [-30.4, 21], [30.4, -21], [30.4, -7], [30.4, 7], [30.4, 21]];
+    for (const [x, z] of poles) { add(new THREE.CylinderGeometry(0.12, 0.16, 8.5, 7), poleM, x, 4.25, z); blk(2.2, 0.12, 0.12, poleM, x, 7.6, z); col(x, z, 0.4, 0.4, 8); }
+    add(new THREE.CylinderGeometry(0.3, 0.3, 0.8, 10), cmpMat(0x6a6a6a), -30.1, 6.3, -7);
+    for (const side of [-1, 1]) for (let i = 0; i < 3; i++) for (const o of [-0.9, 0, 0.9]) { const a = poles[(side < 0 ? 0 : 4) + i], b = poles[(side < 0 ? 0 : 4) + i + 1]; for (let k = 0; k < 8; k++) { const t0 = k / 8, t1 = (k + 1) / 8, s0 = Math.sin(t0 * Math.PI) * 1.1, s1 = Math.sin(t1 * Math.PI) * 1.1; wires.push(a[0] + o, 7.7 - s0, a[1] + (b[1] - a[1]) * t0, a[0] + o, 7.7 - s1, a[1] + (b[1] - a[1]) * t1); } }
+    const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wires, 3));
+    fx.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x0c0a0c })));
+    // trash along the curbs: bags, a shopping cart, an old mattress, tyres
+    for (let i = 0; i < 18; i++) { const side = i % 4, t = sr() * 0.8 + 0.1; const [x, z] = side === 0 ? [-24 + t * 48, -20.6] : side === 1 ? [(t < 0.5 ? -24 + t * 36 : 6 + (t - 0.5) * 36), 20.6] : side === 2 ? [-26.6, -18 + t * 36] : [26.6, -18 + t * 36]; add(new THREE.IcosahedronGeometry(0.3 + sr() * 0.15, 1), cmpMat(pickS([0x18181c, 0x22222a, 0x2a3a2a])), x + (sr() - 0.5), 0.25, z + (sr() - 0.5) * 0.6, 0, 'Detail'); }
+    blk(1.9, 0.22, 1.4, cmpMat(0xb8b0a0), -26.5, 0, -4.5, 0.4, 'Detail'); // a mattress on the sidewalk
+    for (const [x, z] of [[26.8, 9.5], [-26.8, 12.5], [11, -21]]) for (let k = 0; k < 2; k++) add(new THREE.TorusGeometry(0.38, 0.15, 6, 10).rotateX(Math.PI / 2 - k * 0.6), cmpMat(0x141414), x + k * 0.5, 0.18 + k * 0.1, z, 0, 'Detail');
+    // weed tufts: crossed alpha quads, all one mesh (on the lawns, in the cracks along the curb)
+    for (let i = 0; i < 160; i++) { const side = i % 4, t = sr(); tufts.push(side === 0 ? new THREE.Vector3(-25 + t * 50, 0, -19.6 - sr() * 0.3) : side === 1 ? new THREE.Vector3(-25 + t * 50, 0, 19.6 + sr() * 0.3) : side === 2 ? new THREE.Vector3(-25.6 - sr() * 0.3, 0, -19 + t * 38) : new THREE.Vector3(25.6 + sr() * 0.3, 0, -19 + t * 38)); }
+    for (let i = 0; i < 35; i++) tufts.push(new THREE.Vector3((sr() - 0.5) * 48, 0, (sr() - 0.5) * 36)); // in the asphalt's cracks
+    {
+      const gt = cmpCanvas(64, 64, (g, w, h) => { for (let i = 0; i < 16; i++) { const x = 8 + sr() * 48; g.strokeStyle = `rgb(${90 + sr() * 50},${110 + sr() * 40},${40 + sr() * 30})`; g.lineWidth = 2 + sr() * 2; g.beginPath(); g.moveTo(x, h); g.quadraticCurveTo(x + (sr() - 0.5) * 20, h * 0.5, x + (sr() - 0.5) * 26, 6 + sr() * 20); g.stroke(); } });
+      const P = [], U = [], I = [];
+      for (const p of tufts) { const s = 0.5 + sr() * 0.7, a0 = sr() * Math.PI; for (const a of [a0, a0 + Math.PI / 2]) { const dx = Math.cos(a) * s / 2, dz = Math.sin(a) * s / 2, n = P.length / 3; P.push(p.x - dx, 0.02, p.z - dz, p.x + dx, 0.02, p.z + dz, p.x + dx, s * 0.8, p.z + dz, p.x - dx, s * 0.8, p.z - dz); U.push(0, 0, 1, 0, 1, 1, 0, 1); I.push(n, n + 1, n + 2, n, n + 2, n + 3); } }
+      const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); tg.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); tg.setIndex(I); tg.computeVertexNormals(); tg.computeBoundingSphere();
+      fx.add(new THREE.Mesh(tg, new THREE.MeshLambertMaterial({ map: gt, alphaTest: 0.45, side: THREE.DoubleSide, emissive: 0x1a2010 })));
+    }
     // a van by the stage, a wrecked car by the south-east corner
     const van = (x, z, ry) => {
       const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; g.name = 'prop'; root.add(g);
@@ -168,27 +274,9 @@ function buildSuburb() {
     car.traverse((o) => { o.name = 'prop'; }); col(15.5, 15, 3.4, 4.4, 1.8);
     SUB.flames.push([15.2, 15.6]);
 
-    // --- fences round the outside: chain-link at the back, pickets at the front, bunting on them
-    const chain = cmpMat(0x6a6a72);
-    const fenceRun = (x0, z0, x1, z1, picket) => {
-      const L = Math.hypot(x1 - x0, z1 - z0), n = Math.round(L / 2.5), ang = Math.atan2(x1 - x0, z1 - z0);
-      for (let i = 0; i <= n; i++) { const t = i / n; add(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 6), picket ? cmpMat(0x6a5038) : chain, x0 + (x1 - x0) * t, 0.9, z0 + (z1 - z0) * t, 0, 'Detail'); }
-      if (picket) { const m = Math.round(L / 0.35); for (let i = 0; i < m; i++) { const t = (i + 0.5) / m; blk(0.12, 1.0, 0.04, cmpMat(0x8a7058), x0 + (x1 - x0) * t, 0, z0 + (z1 - z0) * t, ang, 'Detail'); } }
-      else { const p = add(new THREE.PlaneGeometry(L, 1.7), cmpMat(0x9a9aa2, TEX.fence, 0, [L / 2, 1]), (x0 + x1) / 2, 0.9, (z0 + z1) / 2, ang + Math.PI / 2, 'Detail'); p.material.side = THREE.DoubleSide; p.material.transparent = true; p.material.opacity = 0.35; }
-      const k = Math.round(L / 0.9); for (let i = 0; i < k; i++) { const t = (i + 0.5) / k, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t, sag = Math.sin(t * Math.PI * 4) * 0.15; const flag = new THREE.BufferGeometry(); const dx = Math.sin(ang) * 0.22, dz = Math.cos(ang) * 0.22; flag.setAttribute('position', new THREE.Float32BufferAttribute([x - dx, 1.85 - sag, z - dz, x + dx, 1.85 - sag, z + dz, x, 1.45 - sag, z], 3)); flag.computeVertexNormals(); const fm = add(flag, cmpMat([0xb3121a, 0xe8e0d0, 0xd8b23a][i % 3]), 0, 0, 0, 0, 'Detail'); fm.material.side = THREE.DoubleSide; }
-    };
-    fenceRun(-38, -26, -9.5, -26, false); fenceRun(9.5, -26, 38, -26, false);
-    fenceRun(-38, 27, -5, 27, true); fenceRun(5, 27, 38, 27, true);
-    fenceRun(-38, -26, -38, 27, false); fenceRun(38, -26, 38, 27, false);
-    // trees round the outside
-    const bark = cmpMat(0x3a2a20), leaf = cmpMat(0x2f3a22), leaf2 = cmpMat(0x3e4a26);
-    for (const [x, z, s] of [[-28, -12, 1.1], [28, -12, 1], [-29, 6, 1.2], [29, 6, 1.1], [-12, -24, 0.9], [12, -24, 1], [-24, 25, 1], [24, 25, 1.1], [-36, -2, 1.3], [36, 14, 1.2], [-3, -25, 0.8]]) {
-      add(new THREE.CylinderGeometry(0.2 * s, 0.35 * s, 3 * s, 7), bark, x, 1.5 * s, z);
-      for (let k = 0; k < 3; k++) add(new THREE.IcosahedronGeometry((1.7 + Math.random() * 0.7) * s, 1), k % 2 ? leaf : leaf2, x + (Math.random() - 0.5) * 2 * s, (3.6 + k * 0.7) * s, z + (Math.random() - 0.5) * 2 * s);
-      col(x, z, 0.6, 0.6, 3);
-    }
+    // (the street's houses, yards and lots stand where the old outer fences and trees were)
     // the edge of the area: invisible walls along the bounds (the fences and houses show it)
-    for (const [x, z, w, d] of [[0, SUB_B.minZ - 0.5, 60, 1], [0, SUB_B.maxZ + 0.5, 60, 1], [SUB_B.minX - 0.5, 0, 1, 50], [SUB_B.maxX + 0.5, 0, 1, 50]]) { boxes.push([x - w / 2, z - d / 2, x + w / 2, z + d / 2, -1, 4]); addBoxCol(x, z, w, d, -1, 4); }
+    for (const [x, z, w, d] of [[0, SUB_B.minZ - 0.5, 70, 1], [0, SUB_B.maxZ + 0.5, 70, 1], [SUB_B.minX - 0.5, 0, 1, 60], [SUB_B.maxX + 0.5, 0, 1, 60]]) { boxes.push([x - w / 2, z - d / 2, x + w / 2, z + d / 2, -1, 4]); addBoxCol(x, z, w, d, -1, 4); }
 
     // --- merge everything lit (one draw per material), then the glows, bulbs and fires on top
     const before = MAP.cells.length;
