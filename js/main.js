@@ -461,6 +461,7 @@ function show(name) {
 
 // Empty the arena of everything a run leaves behind.
 function clearStageWorld() {
+  hideEnterArrow(); // js/suburb.js
   clearEnemies();
   for (const d of drops.slice()) removeDrop(d);
   for (const p of playerProj) scene.remove(p.mesh);
