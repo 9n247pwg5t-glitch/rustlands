@@ -33,7 +33,6 @@ const RIG_FILES = {
   heavy: 'male-psychosis-top-heavy-td',
   gangster: 'gangster-clown-td',
   brute: 'brute-td',
-  bear: 'bear-clown-td', // Stage 1's cul-de-sac boss, built in code after the creator's sketch and auto-rigged (tools/README.md)
   player: 'player-body', // the player's own body (js/topdown.js), not an enemy body
   // the crowd on Stage 1's bleachers (js/compound-extra.js): the most colourful clowns (not the dark
   // burnt one) at about a third of the detail (tools/optimize.mjs 2000 --tex 512 --meshopt 1 --error 0.15)
@@ -48,7 +47,7 @@ const RIG_LOOKS = {
   suicide: { bases: ['psycho1', 'ugly', 'female'], weapon: 'bomb' },
   nomad: { bases: ['heavy'], weapon: 'pistol', dual: true, style: 'clown' }, // the top-heavy brawler as a bloody clown, a pistol in each fist
   boss: { bases: ['brute'], pod: true }, // the Brute carries his own battle axe
-  bearBoss: { bases: ['bear'], weapon: 'cleaver' }, // the bear-suit clown (2026-11-16), a bloody cleaver in his fist
+  bearBoss: { bases: ['heavy'], weapon: 'cleaver', style: 'bear' }, // the fat brawler in the bloody pink bear suit (2026-11-16 sketch), a cleaver in his fist
   crowd: { bases: ['crowd1', 'crowd3', 'crowd4'] }, // spectators: unarmed, cheering
 };
 
@@ -65,7 +64,7 @@ const GUN_SOCKETS = {
   // the player's Rampage sword: blade along +Y like the axe's handle, grip at the origin, tip at 1.22 m
   sword: { grip: [0, 0, 0], size: 0.85, edge: [0, 1.12, 0.0], inner: [0, 0.78, 0], ownColours: true }, // (trail along the outer third of the blade)
   // the bear-suit clown boss's meat cleaver (built in code, rigCleaver): handle +Y, blade on along it, edge toward +Z
-  cleaver: { grip: [0, 0, 0], size: 1.25, edge: [0, 0.44, 0.15], inner: [0, 0.18, 0.13], ownColours: true },
+  cleaver: { grip: [0, 0, 0], size: 1.5, edge: [0, 0.44, 0.15], inner: [0, 0.18, 0.13], ownColours: true },
   // the player's assault rifle; `optic` is the eye point behind its sight
   ringmaster: { grip: [0, -0.034, -0.038], foregrip: [0, -0.01, 0.312], muzzle: [0, 0.06, 0.618], optic: [0, 0.113, -0.06], size: 1 },
 };
@@ -260,6 +259,7 @@ function rigMaterial(baseName, info, tint, style) {
   const key = baseName + '_' + info.id + '_' + tint + '_' + style;
   let mat = _rigMatCache.get(key);
   if (!mat && style === 'clown') { mat = clownMaterial(info); _rigMatCache.set(key, mat); }
+  if (!mat && style === 'bear') { mat = bearMaterial(info); _rigMatCache.set(key, mat); }
   if (!mat) {
     mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: rigGradTex, skinning: true, vertexColors: info.vc });
     mat.onBeforeCompile = rigDetail;
@@ -288,7 +288,7 @@ function rigMaterial(baseName, info, tint, style) {
 
 // ---------------------------------------------------------------------------
 // Bloody clown restyle for a Mixamo body. Per-vertex data from the bind pose drives a shader:
-// aBind = position in metres, aZone = 0 torso, 1 legs, 2 arms, 3 head, aFace = position on the head
+// aBind = position in metres, aZone = 0 torso, 1 legs, 2 arms, 3 head, 4 hands, 5 feet, aFace = position on the head
 // (x to its left, y up, z forward, in head lengths). Patterns live on the body, not the texture, so
 // they don't break at texture seams.
 const _attrScale = (a) => { if (!a.normalized) return 1; const r = a.array; return r instanceof Int16Array ? 1 / 32767 : r instanceof Uint16Array ? 1 / 65535 : r instanceof Int8Array ? 1 / 127 : r instanceof Uint8Array ? 1 / 255 : 1; };
@@ -307,8 +307,18 @@ function prepareClownBody(base) {
     const ps = _attrScale(P), ws = _attrScale(SW);
     const names = m.skeleton.bones.map((b) => b.name);
     const bind = new Float32Array(P.count * 3), zone = new Float32Array(P.count), face = new Float32Array(P.count * 3);
+    // the rest pose as drawn: skinned through the bind matrices (the mesh's own transform alone
+    // doesn't place it on the skeleton), then fitted to metres
+    m.skeleton.update();
+    const BM = m.skeleton.bones.map((bn, j) => new THREE.Matrix4().multiplyMatrices(m.matrixWorld, m.bindMatrixInverse).multiply(bn.matrixWorld).multiply(m.skeleton.boneInverses[j]).multiply(m.bindMatrix));
+    const acc = new THREE.Vector3(), tmp = new THREE.Vector3(), wsum = [0, 0, 0, 0];
     for (let i = 0; i < P.count; i++) {
-      v.set(P.getX(i) * ps, P.getY(i) * ps, P.getZ(i) * ps).applyMatrix4(m.matrixWorld).multiplyScalar(base.fit);
+      v.set(P.getX(i) * ps, P.getY(i) * ps, P.getZ(i) * ps);
+      acc.set(0, 0, 0);
+      wsum[0] = SW.getX(i) * ws; wsum[1] = SW.getY(i) * ws; wsum[2] = SW.getZ(i) * ws; wsum[3] = SW.getW(i) * ws;
+      const idx = [SI.getX(i), SI.getY(i), SI.getZ(i), SI.getW(i)];
+      for (let j = 0; j < 4; j++) if (wsum[j] > 0 && BM[idx[j]]) acc.addScaledVector(tmp.copy(v).applyMatrix4(BM[idx[j]]), wsum[j]);
+      v.copy(acc).multiplyScalar(base.fit);
       bind[i * 3] = v.x; bind[i * 3 + 1] = v.y; bind[i * 3 + 2] = v.z;
       let best = 0, bw = -1;
       for (let j = 0; j < 4; j++) {
@@ -316,7 +326,7 @@ function prepareClownBody(base) {
         if (w > bw) { bw = w; best = j === 0 ? SI.getX(i) : j === 1 ? SI.getY(i) : j === 2 ? SI.getZ(i) : SI.getW(i); }
       }
       const n = names[best] || '';
-      const z = /Head|Neck/.test(n) ? 3 : /Arm|Shoulder|Hand/.test(n) ? 2 : /Leg|Foot|Toe|Hips/.test(n) ? 1 : 0;
+      const z = /Head|Neck/.test(n) ? 3 : /Hand/.test(n) ? 4 : /Arm|Shoulder/.test(n) ? 2 : /Foot|Toe/.test(n) ? 5 : /Leg|Hips/.test(n) ? 1 : 0;
       zone[i] = z;
       face[i * 3] = (v.x - hc.x) / L; face[i * 3 + 1] = (v.y - hc.y) / L; face[i * 3 + 2] = (v.z - hc.z) / L;
     }
@@ -346,7 +356,7 @@ function clownMaterial(info) {
       float lum = dot(c, vec3(0.299, 0.587, 0.114));
       bool skin = c.r > c.b * 1.2 && c.r > 0.3 && c.g > c.b * 0.85;
       vec3 cream = vec3(0.93, 0.89, 0.78), red = vec3(0.78, 0.07, 0.08);
-      if (vZone > 2.5) {
+      if (vZone > 2.5 && vZone < 3.5) {
         // greasepaint face: white over skin, a wide red grin, blue diamonds over the eyes
         if (lum > 0.05) c = vec3(0.96, 0.95, 0.92) * (0.88 + lum * 0.25);
         vec3 f = vFace;
@@ -357,7 +367,7 @@ function clownMaterial(info) {
           if (abs(e.x) * 1.6 + abs(e.y) < 0.13) c = vec3(0.12, 0.25, 0.75);
         }
       } else if (!skin) {
-        if (vZone > 0.5 && vZone < 1.5) {
+        if ((vZone > 0.5 && vZone < 1.5) || vZone > 4.5) {
           // baggy red and cream striped pants
           float st = step(0.5, fract(vBind.x * 15.0 + vBind.z * 4.0));
           c = mix(cream, red, st) * (0.7 + lum * 0.9);
@@ -369,7 +379,7 @@ function clownMaterial(info) {
       }
       // blood: splatter plus drips running down, heaviest on the front of the torso and hands
       float n = cNoise(vBind * 5.5) * 0.6 + cNoise(vec3(vBind.x * 9.0, vBind.y * 2.2, vBind.z * 9.0)) * 0.4;
-      float heavy = (vZone < 0.5 || vZone > 1.5) ? 0.0 : 0.05;
+      float heavy = (vZone < 0.5 || (vZone > 1.5 && vZone < 4.5)) ? 0.0 : 0.05;
       float blood = smoothstep(0.53 + heavy, 0.6 + heavy, n);
       c = mix(c, vec3(0.42, 0.02, 0.03) * (0.75 + lum * 0.4), blood * 0.92);
       diffuseColor.rgb = c;
@@ -377,6 +387,132 @@ function clownMaterial(info) {
   };
   mat.customProgramCacheKey = () => 'rigClown';
   return mat;
+}
+// The bear-suit restyle (Stage 1's cul-de-sac boss, after the creator's 2026-11-16 sketch): a real
+// fat human body (the top-heavy brawler) in a ragged pink teddy-bear costume. The suit is painted
+// over the body by the shader: shaggy pink fur everywhere but the face and hands, a cream belly
+// panel with a stitched seam, patches on the back, cream cuffs at the ankles, dirty cream gloves,
+// cream boots with red toes, and the face in white greasepaint (blue diamond eyes, a red-lipped
+// yellow-toothed grin) framed by the hood. Blood over all of it. The hood's shell, ears and bear
+// face, the collar, pompoms, tail and boot caps are pinned on (rigBearGear).
+function bearMaterial(info) {
+  const mat = new THREE.MeshToonMaterial({ map: info.map, gradientMap: rigGradTex, skinning: true, vertexColors: info.vc });
+  if (info.alpha) { mat.alphaTest = 0.5; mat.side = THREE.DoubleSide; }
+  if (info.normal) { mat.normalMap = info.normal.map; mat.normalScale.copy(info.normal.scale); }
+  mat.onBeforeCompile = (sh) => {
+    rigDetail(sh);
+    sh.vertexShader = 'attribute vec3 aBind;\nattribute float aZone;\nattribute vec3 aFace;\nvarying vec3 vBind;\nvarying float vZone;\nvarying vec3 vFace;\n' +
+      sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBind = aBind; vZone = aZone; vFace = aFace;');
+    sh.fragmentShader = 'varying vec3 vBind;\nvarying float vZone;\nvarying vec3 vFace;\n' + CLOWN_NOISE + '\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      vec3 c = diffuseColor.rgb;
+      float lum = dot(c, vec3(0.299, 0.587, 0.114));
+      vec3 pink = vec3(0.64, 0.37, 0.44), pinkD = vec3(0.4, 0.2, 0.26), cream = vec3(0.9, 0.84, 0.7), creamD = vec3(0.62, 0.52, 0.38);
+      float fur = cNoise(vec3(vBind.x * 46.0, vBind.y * 15.0, vBind.z * 46.0)) * 0.65 + cNoise(vBind * 110.0) * 0.35;
+      vec3 suit = mix(pinkD, pink * 1.08, smoothstep(0.2, 0.75, fur)) * (0.95 + lum * 0.12);
+      float torn = cNoise(vBind * 7.0 + 3.1);
+      if (torn > 0.8) suit = torn > 0.84 ? vec3(0.16, 0.08, 0.07) : creamD; // rips, stuffing showing
+      vec3 f = vFace;
+      if (vZone > 2.5 && vZone < 3.5) {
+        // the face in the hood's opening: white greasepaint; the hood (fur) everywhere else
+        float open = (f.x * f.x) / 0.2 + (f.y + 0.08) * (f.y + 0.08) / 0.32;
+        if (f.z > -0.02 && open < 1.0) {
+          c = vec3(0.95, 0.93, 0.88) * (0.88 + lum * 0.15);
+          vec2 e = vec2(abs(f.x) - 0.19, f.y - 0.1);
+          if (abs(e.x) * 1.5 + abs(e.y) * 0.75 < 0.13) c = vec3(0.16, 0.24, 0.62);
+          float grinY = -0.4 + 0.6 * f.x * f.x;
+          float dy = f.y - grinY;
+          if (abs(f.x) < 0.33 && abs(dy) < 0.07 - abs(f.x) * 0.08) c = vec3(0.55, 0.06, 0.07);
+          if (abs(f.x) < 0.26 && abs(dy) < 0.032) c = (fract(f.x * 19.0) < 0.2 || cNoise(vec3(f.x * 40.0, 1.0, 2.0)) > 0.72) ? vec3(0.16, 0.07, 0.04) : mix(vec3(0.82, 0.66, 0.26), vec3(0.55, 0.4, 0.12), cNoise(vec3(f.x * 30.0, f.y * 30.0, 0.0)));
+        } else c = suit;
+      } else if (vZone > 3.5 && vZone < 4.5) {
+        c = mix(cream, creamD, cNoise(vBind * 30.0)) * 0.95; // gloves
+      } else if (vZone > 4.5) {
+        c = vBind.z > 0.04 ? mix(vec3(0.72, 0.1, 0.1), cream, step(0.66, cNoise(vBind * 25.0))) : mix(cream, creamD, cNoise(vBind * 20.0) * 0.7); // boots
+        if (vBind.y < 0.035) c = vec3(0.16, 0.11, 0.09);
+      } else {
+        c = suit;
+        if (vZone < 1.5 && vBind.y > 0.78) {
+          // the belly panel, stitched round and down the middle
+          float b = (vBind.x * vBind.x) / 0.055 + (vBind.y - 1.06) * (vBind.y - 1.06) / 0.08;
+          if (vBind.z > 0.12 && b < 1.0) {
+            c = mix(cream, creamD, cNoise(vBind * 18.0) * 0.6) * (0.92 + lum * 0.12);
+            if (b > 0.9 || (abs(vBind.x) < 0.008 && vBind.y > 0.98 && vBind.y < 1.25)) c = vec3(0.4, 0.2, 0.14);
+          }
+          // patches on the back: a yellow check up high, a blue square on the seat
+          vec2 q1 = vec2(vBind.x + 0.12, vBind.y - 1.3), q2 = vec2(vBind.x - 0.14, vBind.y - 0.88);
+          if (vBind.z < -0.05 && abs(q1.x) < 0.09 && abs(q1.y) < 0.09) c = mod(floor(q1.x * 40.0) + floor(q1.y * 40.0), 2.0) < 1.0 ? vec3(0.8, 0.6, 0.18) : vec3(0.62, 0.44, 0.1);
+          if (vBind.z < -0.05 && abs(q2.x) < 0.08 && abs(q2.y) < 0.1) c = vec3(0.32, 0.38, 0.62);
+        }
+        if (vZone > 0.5 && vZone < 1.5 && vBind.y < 0.2 && vBind.y > 0.1) c = mix(cream, creamD, cNoise(vBind * 25.0)) * 0.95; // trouser cuffs
+      }
+      // blood: splatter plus drips running down, heaviest on the front
+      float n = cNoise(vBind * 9.0) * 0.55 + cNoise(vec3(vBind.x * 16.0, vBind.y * 2.5, vBind.z * 16.0)) * 0.3 + cNoise(vBind * 40.0) * 0.15;
+      float th = vBind.z > 0.0 ? 0.57 : 0.64;
+      float blood = smoothstep(th, th + 0.05, n);
+      c = mix(c, vec3(0.45, 0.03, 0.04) * (0.75 + lum * 0.4), blood * 0.92);
+      diffuseColor.rgb = c;
+      totalEmissiveRadiance += c * 0.2;`);
+  };
+  mat.customProgramCacheKey = () => 'rigBear';
+  return mat;
+}
+// The suit's pinned parts, placed from the body's own bind-pose shape (aBind): the hood shell round
+// the head with round ears and the bear's face on top, a red nose, a big frilled collar, two yellow
+// pompoms down the belly, a pompom tail, round red-and-cream boot toes.
+function rigBearGear(model, base, bones) {
+  const furMat = (hex) => { const m = toon(hex); return m; };
+  const pinkM = furMat(0xb05c74), creamM = toon(0xe6d6b4), blackM = toon(0x141012), redM = toon(0xc01a1a), yellowM = toon(0xe0b02a);
+  const lump = (r, d = 1) => { const g = new THREE.IcosahedronGeometry(r, d), P = g.attributes.position; for (let i = 0; i < P.count; i++) { const x = P.getX(i), y = P.getY(i), z = P.getZ(i), k = 1 + 0.12 * Math.sin(x * 61 + y * 37) * Math.cos(z * 53 - y * 21); P.setXYZ(i, x * k, y * k, z * k); } g.computeVertexNormals(); return g; };
+  const mesh = (g, m, x, y, z, parent, ol = 1.08) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); parent.add(o); addOutline(o, ol); o.castShadow = true; return o; };
+  // the body's shape in the bind pose
+  let bellyZ = 0.2, seatZ = -0.2, bellyY = 1.06;
+  base.scene.traverse((m) => {
+    if (!m.isSkinnedMesh || m.userData.outline || !m.geometry.attributes.aBind) return;
+    const B = m.geometry.attributes.aBind, Z = m.geometry.attributes.aZone;
+    for (let i = 0; i < B.count; i++) {
+      if (Z.getX(i) > 1.5 || Math.abs(B.getX(i)) > 0.06) continue;
+      const y = B.getY(i), z = B.getZ(i);
+      if (Math.abs(y - bellyY) < 0.12) bellyZ = Math.max(bellyZ, z);
+      if (Math.abs(y - 0.95) < 0.1) seatZ = Math.min(seatZ, z);
+    }
+  });
+  // a group pinned to a bone whose children sit at world-metre offsets from the bone (bind pose)
+  const at = (bone, size = 1) => { const g = new THREE.Group(); pinToBone(bone, g, size); g.userData.o = bone.getWorldPosition(new THREE.Vector3()); return g; };
+  const fit = model.scale.x;
+  // head: the hood shell (open at the face), ears, the bear's face on top, a red nose
+  const hs = base.headSize, hg = new THREE.Group(); pinToBone(bones.head, hg, hs);
+  {
+    let g = new THREE.SphereGeometry(0.135, 22, 16).toNonIndexed(); const P = g.attributes.position, keep = [];
+    for (let i = 0; i < P.count; i += 3) { let cx = 0, cy = 0, cz = 0; for (let k = 0; k < 3; k++) { cx += P.getX(i + k) / 3; cy += P.getY(i + k) / 3; cz += P.getZ(i + k) / 3; } if (cz > 0.02 && Math.hypot(cx / 1.05, cy + 0.01) < 0.11) continue; for (let k = 0; k < 3; k++) keep.push(P.getX(i + k), P.getY(i + k), P.getZ(i + k)); }
+    g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3)); g.computeVertexNormals();
+    const hood = new THREE.Mesh(g, pinkM); hood.position.set(0, 0.11, -0.005); hood.scale.set(1.12, 1.12, 1.15); hg.add(hood); hood.material.side = THREE.DoubleSide;
+  }
+  for (const sx of [-1, 1]) { const e = mesh(lump(0.06), pinkM, sx * 0.12, 0.25, -0.02, hg); e.scale.set(1, 1, 0.5); mesh(new THREE.CircleGeometry(0.035, 12), creamM, sx * 0.12, 0.25, 0.01, hg, 1); }
+  mesh(new THREE.SphereGeometry(0.045, 12, 8), creamM, 0, 0.245, 0.115, hg).scale.set(1.25, 0.8, 0.8);
+  mesh(new THREE.SphereGeometry(0.018, 8, 6), blackM, 0, 0.255, 0.15, hg).scale.set(1.3, 0.9, 0.8);
+  for (const sx of [-1, 1]) mesh(new THREE.SphereGeometry(0.012, 6, 4), blackM, sx * 0.045, 0.28, 0.11, hg, 1);
+  mesh(new THREE.IcosahedronGeometry(0.04, 1), redM, 0, 0.1, 0.135, hg, 1.15);
+  // the collar: two rings of pleats, cream with red tips
+  const neck = model.getObjectByName('mixamorigNeck') || bones.head, cg = new THREE.Group(); pinToBone(neck, cg, hs);
+  for (let r = 0; r < 2; r++) for (let i = 0; i < 18; i++) {
+    const a = (i + r * 0.5) / 18 * Math.PI * 2, pl = new THREE.Group(); pl.rotation.y = a; pl.position.y = 0.02 - r * 0.03; cg.add(pl);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.012, 0.11 - r * 0.02), toon(0xeee2c8)); blade.position.set(0, 0, 0.11); blade.rotation.x = 0.35 + r * 0.15; blade.rotation.z = (i % 2 ? 0.25 : -0.25); pl.add(blade);
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.014, 0.02), redM); tip.position.set(0, -0.022 - r * 0.004, 0.165 - r * 0.02); tip.rotation.x = blade.rotation.x; pl.add(tip);
+  }
+  // belly pompoms and the tail (pinned to the spine and the hips at the body's own surface)
+  const sp = bones.spine.parent && bones.spine.parent.isBone ? bones.spine.parent : bones.spine;
+  const bg = at(sp), so = bg.userData.o;
+  for (const [y, r] of [[bellyY + 0.12, 0.06], [bellyY - 0.05, 0.065]]) mesh(lump(r), yellowM, -so.x, y - so.y, bellyZ + 0.015 - so.z, bg);
+  const tg = at(bones.hips), ho = tg.userData.o;
+  mesh(lump(0.07), pinkM, -ho.x, 0.95 - ho.y, seatZ - 0.03 - ho.z, tg);
+  // round boot toes
+  for (const s of ['Left', 'Right']) {
+    const toe = model.getObjectByName('mixamorig' + s + 'ToeBase'); if (!toe) continue;
+    const g = at(toe), o = g.userData.o;
+    const cap = mesh(new THREE.SphereGeometry(0.08, 14, 10), toon(0xb81c1a), 0, Math.max(0.05, 0.06) - o.y, 0.03, g); cap.scale.set(1.05, 0.72, 1.3);
+    mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.035, 14), toon(0x2a1e18), 0, 0.017 - o.y, 0.02, g, 1.04).scale.set(1.1, 1, 1.5);
+  }
+  void fit;
 }
 function rigClownGear() {
   const g = new THREE.Group();
@@ -717,7 +853,7 @@ function makeRigEnemy(key, def) {
   const baseName = pick(look.bases);
   const tint = look.cloth ? pick(look.cloth) : null;
   const base = RIG.base[baseName];
-  if (look.style === 'clown') prepareClownBody(base);
+  if (look.style === 'clown' || look.style === 'bear') prepareClownBody(base);
   const model = THREE.SkeletonUtils.clone(base.scene);
   model.scale.setScalar(base.fit);
   model.traverse((o) => {
@@ -750,6 +886,7 @@ function makeRigEnemy(key, def) {
   }
   if (look.armor) pinToBone(bones.spine, rigArmor());
   if (look.pod) pinToBone(bones.spine, rigPod());
+  if (look.style === 'bear') rigBearGear(model, base, bones);
   const mixer = new THREE.AnimationMixer(model);
   const aimBones = [];
   const aimPose = look.dual ? dualAimPose(base) : base.aimPose;

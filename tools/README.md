@@ -30,7 +30,6 @@ and `models/player-ar.json` into a folder as `gun-axe-td.gltf` and `player-ar-td
 
 ## Rigging a static model
 
-The bear-suit clown boss (`models/bear-clown-td.json`) was made this way from a model built in code: `tools/bear-clown.html` builds it from primitives with vertex colours (A-pose, facing +Z) and exports `bear.glb`; `tools/rig-bear.js` (its joint targets) rigs it onto the top-heavy brawler's skeleton; then `node optimize.mjs <dir with bear-clown-td.glb> ../models 18000 --meshopt 1`. (Both scripts expect to sit next to `rig.html` and `node_modules` and be served over HTTP, as `rig-run.js` does.)
 
 `rig.html` + `rig-run.js` auto-rig an unrigged humanoid mesh (facing +Z, in metres, A- or T-pose) onto
 the Mixamo skeleton of a template character, so the Mixamo clips play on it. The joint targets in
