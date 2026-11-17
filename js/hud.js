@@ -28,7 +28,7 @@ const hud = (() => {
   const pops = [];
   let target = null, targetT = 0, crossKick = 0, reticle = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   const el = {
-    wave: $('waveLabel'), waveSub: $('waveSub'), cash: $('cash'),
+    wave: $('waveLabel'), waveSub: $('waveSub'), cash: $('cashN'),
     shieldFill: $('shieldFill'), shieldTxt: $('shieldTxt'), hpFill: $('hpFill'), hpTxt: $('hpTxt'),
     xpFill: $('xpFill'), lvl: $('lvl'), sp: $('skillBtn'),
     gunName: $('gunName'), gunSub: $('gunSub'), mag: $('ammoMag'), pool: $('ammoPool'), slots: $('slots'), gren: $('grenCount'),
@@ -45,6 +45,7 @@ const hud = (() => {
   const refreshEl = $('refreshed'), pickEl = $('pickedUp');
   // the creator's "picked up: <material>" art, loaded up front so it shows at once
   const PICK_IMG = {}; for (const m of ['plastic', 'metal', 'wood', 'hair', 'cloth']) { const im = new Image(); im.src = 'ui/picked-' + m + '.webp'; PICK_IMG[m] = im; }
+  { const im = new Image(); im.src = 'ui/coin-spin.webp'; PICK_IMG.cash = im; } // picking up cash: the creator's spinning Cirkus Koin
 
   function project(p) {
     const v = p.clone().project(camera);
@@ -65,7 +66,7 @@ const hud = (() => {
     hurtFrom(src) { hurtArcs.push({ a: Math.atan2(-(src.x - player.pos.x), -(src.z - player.pos.z)), t: 1 }); if (hurtArcs.length > 8) hurtArcs.shift(); },
     flash(kind, k = 1) { if (kind === 'hurt') hurtA = Math.max(hurtA, k * 0.8); else shieldA = 0.9; },
     refreshed() { refreshT = 2; },
-    pickedUp(mat) { if (pickMat !== mat) { pickEl.src = PICK_IMG[mat].src; pickMat = mat; } pickT = 1.6; },
+    pickedUp(mat) { if (pickMat !== mat) { pickEl.src = PICK_IMG[mat].src; pickMat = mat; pickEl.classList.toggle('coin', mat === 'cash'); } pickT = mat === 'cash' ? 1.2 : 1.6; },
     floatXp(n) { xpFloat += n; xpFloatT = 1.4; },
     streak(n, t, mult, frenzy) {
       const on = n >= 2;
@@ -109,7 +110,7 @@ const hud = (() => {
       // unspent skill points: a star on the level badge and the skills button
       const pts = p.skillPoints || 0;
       if (el.sp.dataset.v !== String(pts)) { el.sp.dataset.v = String(pts); el.sp.textContent = pts ? '★' + pts : '★'; el.sp.classList.toggle('has', pts > 0); }
-      el.cash.textContent = '$' + Math.floor(p.cash).toLocaleString();
+      { const c = Math.floor(p.cash).toLocaleString(); if (el.cash.textContent !== c) el.cash.textContent = c; } // (the coin icon is beside it)
       const g = p.gun();
       if (g) {
         el.gunName.textContent = g.name;

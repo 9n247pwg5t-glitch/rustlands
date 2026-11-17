@@ -321,6 +321,7 @@ const MATERIALS = {
   hair: { label: 'Hair', color: 0x4ad06a, css: '#6ae08a' },
   cloth: { label: 'Cloth', color: 0x5a8aff, css: '#7aa8ff' },
 };
+const LOOT_COIN = {}; // shared coin parts for cash drops (built on first use)
 function spawnDrop(kind, pos, data = {}) {
   const d = { kind, pos: pos.clone(), vel: new THREE.Vector3(rand(-3, 3), rand(5, 8), rand(-3, 3)), t: 0, item: data.item || null, amount: data.amount || 0, ammo: data.ammo || null, mat: data.mat || null, grounded: false };
   const g = new THREE.Group();
@@ -333,7 +334,18 @@ function spawnDrop(kind, pos, data = {}) {
     color = RARITY[it.rarity].hex; beamH = 2 + it.rarity * 1.4;
     if (it.rarity >= 2) SFX.rareDrop(it.rarity);
   } else if (kind === 'cash') {
-    box(0.32, 0.12, 0.18, 0x5fbf4a, 0, 0, 0, g, 0.02, glow(0x7ee35a)); color = 0x9fff6a;
+    // a Cirkus Koin (the creator's coin, 2026-11-17) standing on its edge, spinning: a milled rim and
+    // the coin's face on both sides
+    if (!LOOT_COIN.geo) {
+      const t = new THREE.TextureLoader().load('ui/coin.webp');
+      LOOT_COIN.face = new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.4 });
+      LOOT_COIN.rim = toon(0x8a8680);
+      LOOT_COIN.geo = new THREE.CylinderGeometry(0.2, 0.2, 0.04, 20).rotateX(Math.PI / 2);
+      LOOT_COIN.disc = new THREE.PlaneGeometry(0.44, 0.44);
+    }
+    const rim = new THREE.Mesh(LOOT_COIN.geo, LOOT_COIN.rim); g.add(rim); addOutline(rim, 1.08);
+    for (const s of [1, -1]) { const f = new THREE.Mesh(LOOT_COIN.disc, LOOT_COIN.face); f.position.z = s * 0.022; if (s < 0) f.rotation.y = Math.PI; g.add(f); }
+    g.scale.setScalar(1.3); color = 0xf0ece4;
   } else if (kind === 'ammo') {
     box(0.34, 0.22, 0.22, 0x5b6b3a, 0, 0, 0, g, 0.025); box(0.36, 0.06, 0.24, 0, 0, 0.05, 0, g, 0, glow(0xffd23a)); color = 0xffd23a;
   } else if (kind === 'health') {
