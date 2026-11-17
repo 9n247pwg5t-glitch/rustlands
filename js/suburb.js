@@ -518,7 +518,8 @@ function spawnSuburbBoss() {
   clearWaypoint(); // (the boss has his own markers)
   const e = spawnEnemy('bearBoss', Math.max(game.enemyLevel + 1, player.level), SUB.bossAt.clone());
   // (the boss's old health was tuned for a five-wave stage with a rifle: it's lighter as a one-on-one)
-  e.maxHp *= 0.45; e.hp = e.maxHp; e.maxShield *= 0.45; e.shield = e.maxShield;
+  // (2026-11-17: no shield on him: what was his shield is folded into his health, so the bar is all red)
+  e.maxHp = (e.maxHp + (e.maxShield || 0)) * 0.45; e.hp = e.maxHp; e.maxShield = 0; e.shield = 0;
   bossFightStart(e);
   game.waveTotal = 1; game.waveKilled = 0; game.toSpawn = [];
   hud.banner(e.def.name.toUpperCase(), 'Round 1');
