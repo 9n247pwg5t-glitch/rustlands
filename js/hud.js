@@ -45,7 +45,9 @@ const hud = (() => {
   const refreshEl = $('refreshed'), pickEl = $('pickedUp');
   // the creator's "picked up: <material>" art, loaded up front so it shows at once
   const PICK_IMG = {}; for (const m of ['plastic', 'metal', 'wood', 'hair', 'cloth']) { const im = new Image(); im.src = 'ui/picked-' + m + '.webp'; PICK_IMG[m] = im; }
-  { const im = new Image(); im.src = 'ui/coin-spin.webp'; PICK_IMG.cash = im; } // picking up cash: the creator's spinning Cirkus Koin
+  // picking up cash: the coin beside the cash count spins (the creator's spinning Cirkus Koin), then settles
+  const coinEl = document.querySelector('#cash img'), COIN_SPIN = new Image(); COIN_SPIN.src = 'ui/coin-spin.webp';
+  let coinT = 0;
 
   function project(p) {
     const v = p.clone().project(camera);
@@ -66,7 +68,8 @@ const hud = (() => {
     hurtFrom(src) { hurtArcs.push({ a: Math.atan2(-(src.x - player.pos.x), -(src.z - player.pos.z)), t: 1 }); if (hurtArcs.length > 8) hurtArcs.shift(); },
     flash(kind, k = 1) { if (kind === 'hurt') hurtA = Math.max(hurtA, k * 0.8); else shieldA = 0.9; },
     refreshed() { refreshT = 2; },
-    pickedUp(mat) { if (pickMat !== mat) { pickEl.src = PICK_IMG[mat].src; pickMat = mat; pickEl.classList.toggle('coin', mat === 'cash'); } pickT = mat === 'cash' ? 1.2 : 1.6; },
+    pickedUp(mat) { if (pickMat !== mat) { pickEl.src = PICK_IMG[mat].src; pickMat = mat; } pickT = 1.6; },
+    coinSpin() { if (coinT <= 0) coinEl.src = COIN_SPIN.src; coinT = 1.2; },
     floatXp(n) { xpFloat += n; xpFloatT = 1.4; },
     streak(n, t, mult, frenzy) {
       const on = n >= 2;
@@ -220,6 +223,7 @@ const hud = (() => {
           pickEl.style.transform = `translate(-50%, 0) scale(${sc.toFixed(3)})`; pickEl.style.opacity = Math.min(1, pickT / 0.35).toFixed(2);
         } else pickEl.hidden = true;
       }
+      if (coinT > 0) { coinT -= dt; if (coinT <= 0) coinEl.src = 'ui/coin-small.webp'; }
       xpFloatT -= dt;
       if (xpFloatT > 0) { el.xpPop.hidden = false; el.xpPop.textContent = '+' + Math.round(xpFloat) + ' XP'; el.xpPop.style.opacity = Math.min(1, xpFloatT * 2); }
       else { el.xpPop.hidden = true; xpFloat = 0; }

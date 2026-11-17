@@ -74,7 +74,6 @@
   /* REFRESHED! over the player for a couple of seconds after a health pickup (2026-11-12) */
   #refreshed { position: absolute; width: min(220px, 46vw); transform: translate(-50%, -100%); pointer-events: none; filter: drop-shadow(2px 3px 0 rgba(0,0,0,0.6)); }
   /* "picked up: <material>" under the player's feet for a moment (2026-11-15) */
-  #pickedUp.coin { width: 64px; }
   #pickedUp { position: absolute; width: min(170px, 40vw); transform: translate(-50%, 0); pointer-events: none; filter: drop-shadow(1px 2px 0 rgba(0,0,0,0.6)); }
   /* LOW HEALTH across the top while health is low (2026-11-15): fades in below 30%, out above 45% */
   #lowHealth { position: absolute; left: 50%; top: calc(8px + var(--sat)); width: min(230px, 44vw); transform: translateX(-50%); pointer-events: none; opacity: 0; transition: opacity 0.4s; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6)); }
@@ -119,7 +118,7 @@
   #waveLabel { font: 30px/1 var(--display); letter-spacing: 0.05em; color: var(--hazard); -webkit-text-stroke: 1px var(--ink); text-shadow: 3px 3px 0 var(--ink); }
   #waveSub { font: 600 15px/1.2 var(--body); letter-spacing: 0.05em; text-transform: uppercase; text-shadow: 1px 1px 0 var(--ink); }
   #cash { margin-top: 4px; font: 22px/1 var(--display); color: #f0ece4; text-shadow: 2px 2px 0 var(--ink); letter-spacing: 0.04em; display: flex; align-items: center; gap: 5px; }
-  #cash img { width: 28px; height: 28px; filter: drop-shadow(1px 2px 0 rgba(0,0,0,0.6)); } /* the creator's Cirkus Koin (2026-11-17) */
+  #cash img { width: 28px; height: 28px; object-fit: contain; filter: drop-shadow(1px 2px 0 rgba(0,0,0,0.6)); } /* the creator's Cirkus Koin (2026-11-17) */
   #log { position: absolute; left: calc(18px + var(--sal)); top: calc(110px + var(--sat)); display: grid; gap: 3px; }
   .logline { font: 700 16px/1.1 var(--body); letter-spacing: 0.03em; text-shadow: 1px 1px 0 var(--ink), 0 0 6px rgba(0, 0, 0, 0.6); }
 
@@ -605,7 +604,7 @@
 <script src="js/player.js?v=92"></script>
 <script src="js/fparms.js?v=92"></script>
 <script src="js/topdown.js?v=92"></script>
-<script src="js/hud.js?v=96"></script>
+<script src="js/hud.js?v=97"></script>
 <script src="js/stages.js?v=96"></script>
 <script src="js/hub.js?v=92"></script>
 <script src="js/map.js?v=92"></script>
@@ -620,4 +619,4 @@
 <script src="js/bossfight.js?v=1"></script>
 <script src="js/suburb.js?v=101"></script>
 <script src="js/drone.js?v=92"></script>
-<script src="js/main.js?v=94"></script>
+<script src="js/main.js?v=95"></script>
