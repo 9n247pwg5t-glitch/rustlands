@@ -433,7 +433,7 @@ function enterSuburb() {
   switchWorld('suburb');
   navInit(...SUB.nav);
   game.area = 'suburb'; game.exitAt = null;
-  setWaypoint(SUB.bossAt, { label: 'The main event: take down the boss', h: 4.2 });
+  setWaypoint(SUB.bossAt, { label: 'The main event: take down the boss', h: 0.6 });
   respawnAt(SUB.spawn, 0);
   player.hp = player.maxHp; player.invuln = 2;
   game.phase = 'bossIntro'; game.introT = 3.2;

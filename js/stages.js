@@ -128,7 +128,7 @@ function enterHub() {
   show(null);
   lockPointer();
   const con = interactables.find((it) => it.kind === 'stages');
-  if (con) setWaypoint(new THREE.Vector3(con.pos.x, 0, con.pos.z - 0.9), { label: 'Walk up to the console to pick a stage', h: 2.6 });
+  if (con) setWaypoint(new THREE.Vector3(con.pos.x, 0, con.pos.z - 0.9), { label: 'Walk up to the console to pick a stage', h: 1.2 });
   savePlayer();
 }
 function resumeHub() {
