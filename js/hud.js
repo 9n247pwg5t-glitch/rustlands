@@ -319,7 +319,27 @@ const hud = (() => {
         octx.restore();
       };
       for (const e of enemies) if (e.alive) edge(e.pos, e.def.boss ? '#ff8a1c' : '#ff3b2a', e.def.boss ? 13 : 9);
-      if (waypointAt()) edge(waypointAt(), '#ffd23a', 14); // the mission waypoint (js/waypoint.js)
+      // the mission waypoint (js/waypoint.js): off screen, the creator's yellow diamond at the edge,
+      // its point toward the objective, with the distance beside it
+      if (waypointAt()) {
+        const p = waypointAt(), v = p.clone().project(camera);
+        let x = (v.x + 1) / 2 * W, y = (1 - v.y) / 2 * H;
+        if (!(v.z < 1 && x > 20 && x < W - 20 && y > 20 && y < H - 20)) {
+          if (v.z > 1) { x = W - x; y = H - y; }
+          const dx = x - me.x, dy = y - me.y, a = Math.atan2(dy, dx), m = 34;
+          const k2 = Math.min(Math.abs(dx) > 1e-3 ? ((dx > 0 ? W - m : m) - me.x) / dx : Infinity, Math.abs(dy) > 1e-3 ? ((dy > 0 ? H - m : m) - me.y) / dy : Infinity);
+          const ex = me.x + dx * k2, ey = me.y + dy * k2, pulse = 1 + Math.sin(performance.now() / 160) * 0.06;
+          if (WAYPOINT_EDGE_IMG.complete && WAYPOINT_EDGE_IMG.naturalWidth) {
+            const ih = 44 * pulse, iw = ih * WAYPOINT_EDGE_IMG.naturalWidth / WAYPOINT_EDGE_IMG.naturalHeight;
+            octx.save(); octx.translate(ex, ey); octx.rotate(a - Math.PI / 2); // the image points down: turn its point toward the objective
+            octx.drawImage(WAYPOINT_EDGE_IMG, -iw / 2, -ih / 2, iw, ih); octx.restore();
+          } else edge(p, '#ffd23a', 14);
+          const dist = Math.round(Math.hypot(player.pos.x - WAYPOINT.at.x, player.pos.z - WAYPOINT.at.z));
+          octx.font = '15px Bangers, Impact, sans-serif'; octx.textAlign = 'center'; octx.lineWidth = 4; octx.strokeStyle = '#1c110a';
+          const tx = ex - Math.cos(a) * 34, ty = ey - Math.sin(a) * 34 + 5;
+          octx.strokeText(dist + ' m', tx, ty); octx.fillStyle = '#ffd23a'; octx.fillText(dist + ' m', tx, ty);
+        }
+      }
       for (const d of drops) if (d.kind === 'item' && d.item.rarity >= 2) edge(d.pos, RARITY[d.item.rarity].css, 9);
       if (game.chest && !game.chest.opened) edge(game.chest.pos, '#ffd23a', 11);
     },
