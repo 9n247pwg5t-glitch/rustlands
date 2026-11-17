@@ -134,12 +134,19 @@
   #tHp { background: var(--health); }
   #tHp.armor { background: var(--armor); }
 
-  #boss { position: absolute; left: 50%; top: calc(48px + var(--sat)); transform: translateX(-50%); width: min(520px, 80vw); text-align: center; }
+  #boss { position: absolute; left: 50%; top: calc(48px + var(--sat)); transform: translateX(-50%); width: min(500px, 62vw); text-align: center; }
   #bossName { font: 24px/1 var(--display); color: #ff8a1c; letter-spacing: 0.06em; text-shadow: 2px 2px 0 var(--ink); margin-bottom: 4px; }
   #boss .tbar { height: 10px; }
-  #bossHp { background: var(--armor); }
-  #bossShield { background: var(--shield); }
-  #boss .tbar.poise { height: 8px; width: 60%; margin: 3px auto 0; }
+  /* the creator's bloody boss bar (2026-11-17): the art is the full bar; lost health is a dark recess
+     growing in from the right over its inner bar, the last hit's chunk flashes pale as it drains, and
+     what's left of his shield is a blue sheen on the bar's end */
+  #bossBar { position: relative; width: 100%; margin-top: -3.5%; --L: 3.78%; --W: 93%; --T: 32.16%; --B: 42.3%; --f: 1; --s: 1; --t: 1; }
+  #bossBar img { display: block; width: 100%; height: auto; pointer-events: none; }
+  #bossBar > div { position: absolute; top: var(--T); bottom: var(--B); }
+  #bossLost { left: calc(var(--L) + var(--W) * var(--f)); right: 3.22%; background: linear-gradient(#120406, #2a0a0c 55%, #0c0204); box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.8); }
+  #bossTrail { left: calc(var(--L) + var(--W) * var(--f)); width: calc(var(--W) * (var(--t) - var(--f))); background: rgba(255, 196, 170, 0.7); z-index: 1; }
+  #bossShieldTint { left: calc(var(--L) + var(--W) * var(--s)); width: calc(var(--W) * (var(--f) - var(--s))); background: linear-gradient(rgba(150, 225, 255, 0.85), rgba(40, 140, 230, 0.8)); box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.35); }
+  #boss .tbar.poise { height: 8px; width: 50%; margin: -6% auto 0; z-index: 2; }
   #bossPoise { background: #ffd23a; }
   #boss .poise span { position: absolute; right: 3px; top: -1px; font: 8px/10px var(--display); color: var(--ink); letter-spacing: 0.08em; }
 
@@ -423,8 +430,7 @@
   </div>
   <div id="boss" hidden>
     <div id="bossName"></div>
-    <div class="tbar"><div id="bossShield"></div></div>
-    <div class="tbar"><div id="bossHp"></div></div>
+    <div id="bossBar"><img src="ui/boss-bar.webp" alt=""><div id="bossShieldTint"></div><div id="bossTrail"></div><div id="bossLost"></div></div>
     <div class="tbar poise" id="bossPoiseBar" hidden><div id="bossPoise"></div><span>STAGGER</span></div>
   </div>
   <div id="ffyl" hidden>
@@ -596,7 +602,7 @@
 <script src="js/player.js?v=92"></script>
 <script src="js/fparms.js?v=92"></script>
 <script src="js/topdown.js?v=92"></script>
-<script src="js/hud.js?v=94"></script>
+<script src="js/hud.js?v=95"></script>
 <script src="js/stages.js?v=96"></script>
 <script src="js/hub.js?v=92"></script>
 <script src="js/map.js?v=92"></script>

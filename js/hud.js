@@ -34,13 +34,14 @@ const hud = (() => {
     gunName: $('gunName'), gunSub: $('gunSub'), mag: $('ammoMag'), pool: $('ammoPool'), slots: $('slots'), gren: $('grenCount'),
     skill: $('skill'), skillFill: $('skillFill'), skillTxt: $('skillTxt'),
     target: $('target'), tName: $('tName'), tShield: $('tShield'), tHp: $('tHp'),
-    boss: $('boss'), bossName: $('bossName'), bossPoise: $('bossPoise'), bossPoiseBar: $('bossPoiseBar'), bossShield: $('bossShield'), bossHp: $('bossHp'),
+    boss: $('boss'), bossName: $('bossName'), bossPoise: $('bossPoise'), bossPoiseBar: $('bossPoiseBar'), bossBar: $('bossBar'),
     ffyl: $('ffyl'), ffylFill: $('ffylFill'),
     prompt: $('prompt'), card: $('card'), banner: $('banner'), bTitle: $('bTitle'), bSub: $('bSub'),
     log: $('log'), blood: $('vBlood'), hurt: $('vHurt'), shield: $('vShield'), low: $('vLow'), xpPop: $('xpPop'),
     cross: $('crosshair'), game: $('game'), streak: $('streak'), sN: $('sN'), sM: $('sM'), sBar: $('sBar'),
   };
   let hurtA = 0, shieldA = 0, refreshT = 0, pickT = 0, pickMat = '';
+  let bossTrail = 1, bossTrailHold = 0, bossLastF = 1, bossTrailFor = null; // the boss bar's pale damage trail
   const refreshEl = $('refreshed'), pickEl = $('pickedUp');
   // the creator's "picked up: <material>" art, loaded up front so it shows at once
   const PICK_IMG = {}; for (const m of ['plastic', 'metal', 'wood', 'hair', 'cloth']) { const im = new Image(); im.src = 'ui/picked-' + m + '.webp'; PICK_IMG[m] = im; }
@@ -161,8 +162,12 @@ const hud = (() => {
         el.bossName.textContent = boss.def.name + '  ·  Lv ' + boss.level + (boss.bf ? '  ·  ' + (boss.bf.round >= 3 ? 'FINAL ROUND' : 'ROUND ' + boss.bf.round) : '');
         el.bossPoiseBar.hidden = !boss.bf;
         if (boss.bf) el.bossPoise.style.transform = `scaleX(${boss.state === 'down' ? 1 : boss.bf.poise / BF_TUNE.poiseMax})`;
-        el.bossShield.style.transform = `scaleX(${boss.shield / boss.maxShield})`;
-        el.bossHp.style.transform = `scaleX(${clamp(boss.hp / boss.maxHp, 0, 1)})`;
+        // one bar for health and shield together; the shield's share is the blue sheen at its end
+        const tot = boss.maxHp + (boss.maxShield || 0), f = clamp((Math.max(0, boss.hp) + boss.shield) / tot, 0, 1), s = clamp(Math.max(0, boss.hp) / tot, 0, 1);
+        bossTrail = boss === bossTrailFor ? Math.max(f, bossTrail - dt * 0.25 * (bossTrailHold > 0 ? 0 : 1)) : f;
+        if (f < bossLastF - 1e-4) bossTrailHold = 0.45; bossTrailHold -= dt; bossLastF = f; bossTrailFor = boss;
+        const key = f.toFixed(4) + s.toFixed(4) + bossTrail.toFixed(4);
+        if (el.bossBar.dataset.k !== key) { el.bossBar.dataset.k = key; el.bossBar.style.setProperty('--f', f.toFixed(4)); el.bossBar.style.setProperty('--s', s.toFixed(4)); el.bossBar.style.setProperty('--t', bossTrail.toFixed(4)); }
       } else el.boss.hidden = true;
 
       el.ffyl.hidden = !p.downed;
