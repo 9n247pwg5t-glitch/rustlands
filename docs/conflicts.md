@@ -108,3 +108,4 @@ and axe, toggled). Still open or placeholder:
 
 - No adjustable look sensitivity setting yet (fixed `SENS` in `js/main.js`).
 - **Stage 1's second area** (2026-11-16): a cul-de-sac with a stage, unnamed (placeholder). The boss there is the creator's bear-suit clown (2026-11-16 sketch), shown under the placeholder name "Bear-Suit Clown" (`bearBoss` in `js/enemies.js`) until the creator names him. He fights with the melee enemies' moves and animations (chops, spin, combos, leap slam) and calls for backup at half health; boss-only attacks for him are not designed yet.
+- **Waypoint art** (2026-11-17): the creator asked for an image to be used as the mission waypoint, but no image arrived with the request; the waypoint uses the earlier yellow enter-arrow (`ui/enter-arrow.png`) until it's re-sent.

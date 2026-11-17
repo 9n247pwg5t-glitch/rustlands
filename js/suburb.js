@@ -403,7 +403,6 @@ function buildSuburb() {
   SUB.built = true;
 }
 function updateSuburb(dt) {
-  updateEnterArrow(dt);
   if (WORLD.id !== 'suburb' || !SUB.flameSprites) return;
   for (const f of SUB.flameSprites) { f.t += dt * 9; const k = 1 + Math.sin(f.t) * 0.12 + Math.sin(f.t * 2.3) * 0.08; f.sp.scale.set(0.9 * k, 1.4 * (2 - k), 1); }
 }
@@ -416,7 +415,7 @@ function openStageExit() {
   game.phase = 'exit';
   game.exitAt = new THREE.Vector3(0, 0, -CMP_FENCE.z + 6.6);
   hud.banner('YARD CLEARED', 'Go through the curtain at the entrance stage');
-  showEnterArrow(game.exitAt);
+  setWaypoint(game.exitAt, { label: 'Go through the curtain at the entrance stage' });
   SFX.levelUp();
 }
 function checkStageExit() {
@@ -433,7 +432,8 @@ function enterSuburb() {
   bloodStatic(false);
   switchWorld('suburb');
   navInit(...SUB.nav);
-  game.area = 'suburb'; game.exitAt = null; hideEnterArrow();
+  game.area = 'suburb'; game.exitAt = null;
+  setWaypoint(SUB.bossAt, { label: 'The main event: take down the boss', h: 4.2 });
   respawnAt(SUB.spawn, 0);
   player.hp = player.maxHp; player.invuln = 2;
   game.phase = 'bossIntro'; game.introT = 3.2;
@@ -442,30 +442,13 @@ function enterSuburb() {
 }
 function spawnSuburbBoss() {
   game.phase = 'combat';
+  clearWaypoint(); // (the boss has his own markers)
   const e = spawnEnemy('bearBoss', Math.max(game.enemyLevel + 1, player.level), SUB.bossAt.clone());
   // (the boss's old health was tuned for a five-wave stage with a rifle: it's lighter as a one-on-one)
   e.maxHp *= 0.45; e.hp = e.maxHp; e.maxShield *= 0.45; e.shield = e.maxShield;
+  bossFightStart(e);
   game.waveTotal = 1; game.waveKilled = 0; game.toSpawn = [];
-  hud.banner(e.def.name.toUpperCase(), 'Boss fight');
+  hud.banner(e.def.name.toUpperCase(), 'Round 1');
   SFX.wave(); game.shake(0.4);
 }
 
-// The creator's arrow (ui/enter-arrow.png: the GIF's 6 frames side by side), bobbing over a way into
-// another area (2026-11-16: "an indicator of enterable areas"); one at a time.
-const ENTER_ARROW = (() => {
-  const tex = new THREE.TextureLoader().load('ui/enter-arrow.png');
-  tex.repeat.set(1 / 6, 1);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-  sp.scale.set(1.7, 1.7, 1); sp.renderOrder = 6; sp.visible = false;
-  scene.add(sp);
-  return { sp, tex, at: null, t: 0 };
-})();
-function showEnterArrow(pos) { ENTER_ARROW.at = pos.clone(); ENTER_ARROW.sp.visible = true; }
-function hideEnterArrow() { ENTER_ARROW.at = null; ENTER_ARROW.sp.visible = false; }
-function updateEnterArrow(dt) {
-  const A = ENTER_ARROW;
-  if (!A.at) return;
-  A.t += dt;
-  A.sp.position.set(A.at.x, A.at.y + 3.4 + Math.sin(A.t * 4) * 0.25, A.at.z);
-  A.tex.offset.x = (Math.floor(A.t / 0.12) % 6) / 6;
-}

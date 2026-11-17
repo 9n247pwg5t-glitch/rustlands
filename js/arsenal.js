@@ -366,7 +366,7 @@ function counter() {
   player.invuln = Math.max(player.invuln, 0.5);
   for (const e of list) {
     _fwd.set(e.pos.x - player.pos.x, 0, e.pos.z - player.pos.z).normalize();
-    const dealt = damageEnemy(e, g.damage * 0.6 * (1 + k * 0.4) * 1, 'none', { fromPlayer: true, dir: _fwd.clone() });
+    const dealt = damageEnemy(e, g.damage * 0.6 * (1 + k * 0.4) * 1, 'none', { fromPlayer: true, dir: _fwd.clone(), counter: true });
     player.stats.damage += dealt;
     e.threat = 0;
     if (e.alive && !e.def.boss) {

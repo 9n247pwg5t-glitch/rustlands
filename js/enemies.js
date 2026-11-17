@@ -17,8 +17,9 @@ const ENEMY_DEFS = {
   boss: { name: 'Krag the Scrapjaw', body: 'human', hp: 5200, shield: 900, hpType: 'armor', speed: 3.8, xp: 600, ai: 'boss', dmg: 22, projSpeed: 30, scale: 2.4, boss: true, look: { shirt: 0x6a3a2a, pants: 0x2e2a26, skin: 0xc58d66, mask: 0x8a8a8a, weapon: 'hammer', armor: true, jaw: true } },
   // Stage 1's cul-de-sac boss (2026-11-16, the creator's sketch): a fat psycho clown in a bloody pink
   // teddy-bear costume with a cleaver, a little bigger than the player. He fights with the melee
-  // moves and animations (chops, the spin, combos, the leap slam) and calls for backup at half
-  // health. The name is a placeholder.
+  // moves and animations (chops, the spin, combos, the leap slam) plus his own boss fight (three
+  // rounds, a stagger meter, the cleaver throw and the belly slam: js/bossfight.js). The name is a
+  // placeholder.
   bearBoss: { name: 'Bear-Suit Clown', body: 'human', hp: 5200, shield: 900, hpType: 'armor', speed: 4.2, xp: 600, ai: 'melee', dmg: 22, projSpeed: 30, scale: 1.15, boss: true, look: { shirt: 0xc4607e, pants: 0xc4607e, skin: 0xece4d6, weapon: 'hammer' } },
 };
 
@@ -226,6 +227,8 @@ function damageEnemy(e, amount, elem, opts = {}) {
     hud.targetHit(e);
     if (player.lifesteal && opts.lifesteal) player.heal(dealt * 0.06);
   }
+  // a boss's stagger meter fills from the player's hits (counters most of all)
+  if (e.bf && opts.fromPlayer && !opts.dot && dealt > 0 && e.hp > 0) bossPoise(e, opts.counter ? BF_TUNE.counterPoise : opts.drone ? 0.4 : clamp(dealt / e.maxHp * 260, 2, 14));
   if (e.hp <= 0) killEnemy(e, opts);
   return dealt;
 }
@@ -807,11 +810,7 @@ function updateLeap(e, dt, tgt, dist, fwd) {
 // Returns true when the enemy blew itself up.
 function updateMelee(e, dt, tgt, dist, fwd, side, sp, chase) {
   const ai = e.def.ai;
-  if (e.def.boss && !e.summoned && e.shield <= 0 && e.hp < e.maxHp * 0.5) {
-    e.summoned = true;
-    hud.banner(e.def.name.toUpperCase() + ' CALLS FOR BACKUP', '');
-    for (let i = 0; i < 4; i++) game.queueSpawn(i % 2 ? 'psycho' : 'suicide', true);
-  }
+  if (e.bf && bossFightThink(e, dt, tgt, dist, fwd, sp)) return false; // boss rounds, stagger and signature moves (js/bossfight.js)
   e.yellT -= dt;
   if (e.yellT <= 0) { e.yellT = rand(3, 7); SFX.yell(clamp(1.2 - dist / 40, 0, 1)); }
   if (ai === 'suicide' && dist < 1.9) {
@@ -1031,7 +1030,7 @@ function updateEnemy(e, dt) {
   const px = e.pos.x, pz = e.pos.z;
 
   // movement
-  if (e.state === 'leap' && !e.leapLanded) { e.vel.x = _want.x; e.vel.z = _want.z; }
+  if ((e.state === 'leap' && !e.leapLanded) || e.state === 'bfSlamAir') { e.vel.x = _want.x; e.vel.z = _want.z; }
   else if (e.state !== 'charge' && e.state !== 'dash') {
     const k = e.grounded ? 1 - Math.exp(-8 * dt) : 1 - Math.exp(-1 * dt);
     e.vel.x = lerp(e.vel.x, _want.x, k); e.vel.z = lerp(e.vel.z, _want.z, k);

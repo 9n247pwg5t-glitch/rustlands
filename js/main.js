@@ -461,7 +461,8 @@ function show(name) {
 
 // Empty the arena of everything a run leaves behind.
 function clearStageWorld() {
-  hideEnterArrow(); // js/suburb.js
+  bossFightClear();
+  clearWaypoint(); // js/waypoint.js
   clearEnemies();
   for (const d of drops.slice()) removeDrop(d);
   for (const p of playerProj) scene.remove(p.mesh);
@@ -765,6 +766,8 @@ function update(dt) {
   updateCompound(dt);
   updateFireFx(dt); // js/firefx.js: Fire Axe's flames
   updateSuburb(dt); // js/suburb.js
+  updateWaypoint(dt); // js/waypoint.js
+  updateBossFight(dt); // js/bossfight.js
   updateDrone(dt); // js/drone.js
   updateRigCorpses(dt);
   if (!hub) { updateWaves(dt); campaign.runT += dt; }

@@ -34,7 +34,7 @@ const hud = (() => {
     gunName: $('gunName'), gunSub: $('gunSub'), mag: $('ammoMag'), pool: $('ammoPool'), slots: $('slots'), gren: $('grenCount'),
     skill: $('skill'), skillFill: $('skillFill'), skillTxt: $('skillTxt'),
     target: $('target'), tName: $('tName'), tShield: $('tShield'), tHp: $('tHp'),
-    boss: $('boss'), bossName: $('bossName'), bossShield: $('bossShield'), bossHp: $('bossHp'),
+    boss: $('boss'), bossName: $('bossName'), bossPoise: $('bossPoise'), bossPoiseBar: $('bossPoiseBar'), bossShield: $('bossShield'), bossHp: $('bossHp'),
     ffyl: $('ffyl'), ffylFill: $('ffylFill'),
     prompt: $('prompt'), card: $('card'), banner: $('banner'), bTitle: $('bTitle'), bSub: $('bSub'),
     log: $('log'), blood: $('vBlood'), hurt: $('vHurt'), shield: $('vShield'), low: $('vLow'), xpPop: $('xpPop'),
@@ -158,7 +158,9 @@ const hud = (() => {
       el.target.classList.toggle('below-boss', !!boss);
       if (boss) {
         el.boss.hidden = false;
-        el.bossName.textContent = boss.def.name + '  ·  Lv ' + boss.level;
+        el.bossName.textContent = boss.def.name + '  ·  Lv ' + boss.level + (boss.bf ? '  ·  ' + (boss.bf.round >= 3 ? 'FINAL ROUND' : 'ROUND ' + boss.bf.round) : '');
+        el.bossPoiseBar.hidden = !boss.bf;
+        if (boss.bf) el.bossPoise.style.transform = `scaleX(${boss.state === 'down' ? 1 : boss.bf.poise / BF_TUNE.poiseMax})`;
         el.bossShield.style.transform = `scaleX(${boss.shield / boss.maxShield})`;
         el.bossHp.style.transform = `scaleX(${clamp(boss.hp / boss.maxHp, 0, 1)})`;
       } else el.boss.hidden = true;
@@ -317,7 +319,7 @@ const hud = (() => {
         octx.restore();
       };
       for (const e of enemies) if (e.alive) edge(e.pos, e.def.boss ? '#ff8a1c' : '#ff3b2a', e.def.boss ? 13 : 9);
-      if (game.exitAt) edge(game.exitAt, '#c060ff', 14); // the way on to the next area
+      if (waypointAt()) edge(waypointAt(), '#ffd23a', 14); // the mission waypoint (js/waypoint.js)
       for (const d of drops) if (d.kind === 'item' && d.item.rarity >= 2) edge(d.pos, RARITY[d.item.rarity].css, 9);
       if (game.chest && !game.chest.opened) edge(game.chest.pos, '#ffd23a', 11);
     },

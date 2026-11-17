@@ -139,6 +139,9 @@
   #boss .tbar { height: 10px; }
   #bossHp { background: var(--armor); }
   #bossShield { background: var(--shield); }
+  #boss .tbar.poise { height: 8px; width: 60%; margin: 3px auto 0; }
+  #bossPoise { background: #ffd23a; }
+  #boss .poise span { position: absolute; right: 3px; top: -1px; font: 8px/10px var(--display); color: var(--ink); letter-spacing: 0.08em; }
 
   #ffyl { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); text-align: center; width: min(420px, 80vw); }
   #ffyl h2 { margin: 0 0 6px; font: 34px/1 var(--display); color: #ff4a3a; letter-spacing: 0.06em; text-shadow: 3px 3px 0 var(--ink); }
@@ -422,6 +425,7 @@
     <div id="bossName"></div>
     <div class="tbar"><div id="bossShield"></div></div>
     <div class="tbar"><div id="bossHp"></div></div>
+    <div class="tbar poise" id="bossPoiseBar" hidden><div id="bossPoise"></div><span>STAGGER</span></div>
   </div>
   <div id="ffyl" hidden>
     <h2>FIGHT FOR YOUR LIFE</h2>
@@ -586,14 +590,14 @@
 <script src="js/util.js?v=92"></script>
 <script src="js/world.js?v=92"></script>
 <script src="js/loot.js?v=92"></script>
-<script src="js/arsenal.js?v=92"></script>
+<script src="js/arsenal.js?v=93"></script>
 <script src="js/rigs.js?v=94"></script>
-<script src="js/enemies.js?v=94"></script>
+<script src="js/enemies.js?v=95"></script>
 <script src="js/player.js?v=92"></script>
 <script src="js/fparms.js?v=92"></script>
 <script src="js/topdown.js?v=92"></script>
-<script src="js/hud.js?v=92"></script>
-<script src="js/stages.js?v=92"></script>
+<script src="js/hud.js?v=93"></script>
+<script src="js/stages.js?v=93"></script>
 <script src="js/hub.js?v=92"></script>
 <script src="js/map.js?v=92"></script>
 <script src="js/blood.js?v=92"></script>
@@ -603,6 +607,8 @@
 <script src="js/compound.js?v=92"></script>
 <script src="js/firefx.js?v=92"></script>
 <script src="js/suburb-detail.js?v=94"></script>
-<script src="js/suburb.js?v=95"></script>
+<script src="js/waypoint.js?v=1"></script>
+<script src="js/bossfight.js?v=1"></script>
+<script src="js/suburb.js?v=96"></script>
 <script src="js/drone.js?v=92"></script>
-<script src="js/main.js?v=92"></script>
+<script src="js/main.js?v=93"></script>
