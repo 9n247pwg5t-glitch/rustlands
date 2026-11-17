@@ -265,6 +265,7 @@ function subLitter(fx, rng, free, area) {
   const spot = (edge) => {
     for (let k = 0; k < 20; k++) {
       let x, z;
+      if (area.ring) { const an = r() * TAU, rr = edge && r() < 0.7 ? area.ring - r() * 0.8 : Math.sqrt(r()) * (area.ring + 4); x = Math.sin(an) * rr; z = Math.cos(an) * rr; if (free(x, z)) return [x, z]; continue; }
       if (edge && r() < 0.7) { const s = Math.floor(r() * 4), t = r(); [x, z] = s === 0 ? [area.minX + t * (area.maxX - area.minX), area.minZ + r() * 0.8] : s === 1 ? [area.minX + t * (area.maxX - area.minX), area.maxZ - r() * 0.8] : s === 2 ? [area.minX + r() * 0.8, area.minZ + t * (area.maxZ - area.minZ)] : [area.maxX - r() * 0.8, area.minZ + t * (area.maxZ - area.minZ)]; }
       else { x = area.minX + r() * (area.maxX - area.minX); z = area.minZ + r() * (area.maxZ - area.minZ); }
       if (free(x, z)) return [x, z];
@@ -298,90 +299,124 @@ function subLitter(fx, rng, free, area) {
   });
 }
 
-// The square's painted asphalt (W x Dd metres, centred): aggregate, utility-cut patches, sealed
-// "tar snake" cracks, branching crack networks and alligator cracking, potholes (some holding
-// water), puddles, oil stains, manholes, a concrete gutter pan round the edge with drain grates
-// and leaves, skid marks, faded parking lines, the giant clown face (chipped), blood, and soft
-// contact shadows under every prop standing on it (`boxes`). A fine grain is multiplied over it up
+// The cul-de-sac's painted ground (W x Dd metres, centred; 2026-11-17, "looks more like a parking
+// lot"): dead lawns everywhere (worn paths, bald dirt, tyre ruts), the round asphalt turnaround
+// (L.R) and the road out south (L.road wide) with their aggregate, patches, sealed and branching
+// cracks, potholes holding water, oil, skid marks, a concrete gutter with drains and leaves; a
+// sidewalk ring round it in slabs; a concrete driveway and a front walk from every house (L.drives,
+// L.walks), stained and cracked, chalk on one; the clown face chipped into the middle of the
+// turnaround; blood; soft contact shadows under everything (`boxes`). Grain multiplied over it up
 // close. Returns the mesh (unmerged, under everything).
-function suburbRoad(W, Dd, boxes) {
-  const T = subTextures(), K = IS_TOUCH ? 20 : 26, CW = Math.round(W * K), CH = Math.round(Dd * K);
+function suburbGround(W, Dd, boxes, L) {
+  const T = subTextures(), K = IS_TOUCH ? 18 : 24, CW = Math.round(W * K), CH = Math.round(Dd * K);
   const rng = makeRng(5150), r = () => rng();
   const X = (x) => (x + W / 2) * K, Z = (z) => (z + Dd / 2) * K;
+  const R = L.R, RW = L.road, SW = L.walkW;
   const tex = cmpCanvas(CW, CH, (g, w, h) => {
     const blot = (x, z, rad, c0, c1 = 'rgba(0,0,0,0)') => { const gr = g.createRadialGradient(X(x), Z(z), 0, X(x), Z(z), rad * K); gr.addColorStop(0, c0); gr.addColorStop(1, c1); g.fillStyle = gr; g.beginPath(); g.arc(X(x), Z(z), rad * K, 0, TAU); g.fill(); };
     const rx = () => (r() - 0.5) * W, rz = () => (r() - 0.5) * Dd;
+    const asphaltPath = () => { g.beginPath(); g.arc(X(0), Z(0), R * K, 0, TAU); g.rect(X(-RW), Z(0), RW * 2 * K, (Dd / 2) * K + 2); };
+    const strip = (pts, wid, style) => { g.strokeStyle = style; g.lineWidth = wid * K; g.lineJoin = 'round'; g.lineCap = 'butt'; g.beginPath(); pts.forEach(([x, z], i) => (i ? g.lineTo(X(x), Z(z)) : g.moveTo(X(x), Z(z)))); g.stroke(); };
+    // --- dead lawns
+    g.fillStyle = '#4e5030'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 160; i++) blot(rx(), rz(), 1 + r() * 4, r() < 0.5 ? `rgba(${110 + r() * 30},${92 + r() * 20},${48 + r() * 15},0.45)` : `rgba(${50 + r() * 20},${40 + r() * 14},${26 + r() * 10},0.5)`);
+    for (let i = 0; i < 40; i++) blot(rx(), rz(), 0.6 + r() * 1.6, 'rgba(70,52,34,0.75)'); // bald dirt
+    for (let i = 0; i < CW * CH / 26; i++) { const v = r(); g.strokeStyle = `rgba(${80 + v * 70},${82 + v * 50},${36 + v * 26},0.75)`; g.lineWidth = 1; const x = r() * w, y = r() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 3, y - 2 - r() * 4); g.stroke(); }
+    for (let i = 0; i < CW * CH / 60; i++) { const x = r() * w, y = r() * h; g.strokeStyle = `rgba(${150 + r() * 50},${130 + r() * 40},${60 + r() * 30},0.55)`; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 5, y - 3 - r() * 6); g.stroke(); } // dry yellow blades
+    for (let i = 0; i < 70; i++) blot(rx(), rz(), 0.4 + r() * 1.2, 'rgba(34,48,22,0.55)'); // greener clumps where it's damp
+    for (let i = 0; i < 2600; i++) { const x = r() * w, y = r() * h; g.fillStyle = `rgba(${110 + r() * 60},${60 + r() * 40},${20 + r() * 20},0.85)`; g.save(); g.translate(x, y); g.rotate(r() * 3); g.beginPath(); g.ellipse(0, 0, 1.5 + r() * 2, 0.8 + r(), 0, 0, TAU); g.fill(); g.restore(); } // fallen leaves
+    for (let i = 0; i < 900; i++) { const v = 90 + r() * 70; g.fillStyle = `rgba(${v},${v * 0.95},${v * 0.88},0.8)`; g.beginPath(); g.arc(r() * w, r() * h, 0.7 + r() * 1.3, 0, TAU); g.fill(); } // stones
+    for (let i = 0; i < 14; i++) { const x = rx(), z = rz(); blot(x, z, 0.35, 'rgba(60,44,30,0.9)'); blot(x, z, 0.18, 'rgba(90,70,50,0.8)'); } // molehills
+    for (let i = 0; i < 6; i++) { // tyre ruts cut across the lawns
+      const a = r() * TAU, x0 = rx(), z0 = rz(), len = 6 + r() * 8;
+      for (const o of [-0.8, 0.8]) { g.strokeStyle = 'rgba(40,30,20,0.5)'; g.lineWidth = 0.3 * K; g.beginPath(); g.moveTo(X(x0 + Math.cos(a + 1.57) * o), Z(z0 + Math.sin(a + 1.57) * o)); g.quadraticCurveTo(X(x0 + Math.cos(a) * len * 0.5 + Math.cos(a + 1.57) * o + 1.5), Z(z0 + Math.sin(a) * len * 0.5 + Math.sin(a + 1.57) * o), X(x0 + Math.cos(a) * len + Math.cos(a + 1.57) * o), Z(z0 + Math.sin(a) * len + Math.sin(a + 1.57) * o)); g.stroke(); }
+    }
+    // --- driveways and front walks (concrete), then the sidewalk ring over them
+    const conc = (v) => `rgb(${v},${Math.round(v * 0.96)},${Math.round(v * 0.9)})`;
+    for (const d of L.drives) { strip(d.pts, 3.0, conc(92)); strip(d.pts, 2.7, conc(104)); }
+    for (const wk of L.walks) strip(wk, 1.1, conc(98));
+    for (const d of L.drives) {
+      // oil stains, cracks and expansion joints along each driveway
+      const [a, b] = d.pts, c = d.pts[2];
+      for (let k = 0; k < 3; k++) { const t = 0.3 + r() * 0.6; blot(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, 0.4 + r() * 0.6, 'rgba(14,12,14,0.55)'); }
+      for (let t = 0.25; t < 1; t += 0.25) { const px = b[0] + (c[0] - b[0]) * t, pz = b[1] + (c[1] - b[1]) * t, dx = c[0] - b[0], dz = c[1] - b[1], dl = Math.hypot(dx, dz) || 1; g.strokeStyle = 'rgba(50,44,40,0.6)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(X(px - dz / dl * 1.4), Z(pz + dx / dl * 1.4)); g.lineTo(X(px + dz / dl * 1.4), Z(pz - dx / dl * 1.4)); g.stroke(); }
+      g.strokeStyle = 'rgba(40,36,32,0.7)'; g.lineWidth = 1.2; g.beginPath(); let x = X(b[0]), y = Z(b[1]); g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (r() - 0.5) * 30; y += (r() - 0.5) * 30; g.lineTo(x, y); } g.stroke();
+    }
+    { // chalk on one driveway: a hopscotch and a crude clown face
+      const d = L.drives[3]; if (d) { const [a, b] = d.pts, cx = (a[0] + b[0]) / 2, cz = (a[1] + b[1]) / 2; g.save(); g.translate(X(cx), Z(cz)); g.rotate(Math.atan2(b[1] - a[1], b[0] - a[0])); g.strokeStyle = 'rgba(240,180,220,0.7)'; g.lineWidth = 2; for (let k = 0; k < 5; k++) g.strokeRect(-1.6 * K + k * 0.6 * K, -0.3 * K, 0.6 * K, 0.6 * K); g.strokeStyle = 'rgba(160,220,255,0.7)'; g.beginPath(); g.arc(1.6 * K, 0, 0.45 * K, 0, TAU); g.stroke(); g.beginPath(); g.arc(1.6 * K, 0.1 * K, 0.25 * K, 0.2, Math.PI - 0.2); g.stroke(); g.restore(); }
+    }
+    // sidewalk ring and the walks either side of the road out, in slabs
+    g.save(); g.beginPath(); g.arc(X(0), Z(0), (R + SW) * K, 0, TAU); g.arc(X(0), Z(0), R * K, 0, TAU, true); g.fillStyle = conc(104); g.fill('evenodd');
+    for (const sx of [-1, 1]) { g.fillStyle = conc(104); g.fillRect(X(sx > 0 ? RW : -RW - SW), Z(Math.sqrt(R * R - RW * RW) - 0.5), SW * K, (Dd / 2) * K); }
+    g.strokeStyle = 'rgba(40,36,32,0.6)'; g.lineWidth = 1.5;
+    for (let a = 0; a < TAU; a += 1.5 / (R + SW / 2)) { g.beginPath(); g.moveTo(X(Math.sin(a) * R), Z(Math.cos(a) * R)); g.lineTo(X(Math.sin(a) * (R + SW)), Z(Math.cos(a) * (R + SW))); g.stroke(); }
+    for (let i = 0; i < 1600; i++) { const a = r() * TAU, rr = R + r() * SW, v = 70 + r() * 60; g.fillStyle = `rgba(${v},${v},${v * 0.92},0.35)`; g.fillRect(X(Math.sin(a) * rr), Z(Math.cos(a) * rr), 1.5, 1.5); }
+    for (let i = 0; i < 14; i++) { const a = r() * TAU; blot(Math.sin(a) * (R + SW / 2), Math.cos(a) * (R + SW / 2), 0.4 + r() * 0.5, 'rgba(30,26,20,0.4)'); }
+    g.restore();
+    // --- the asphalt (everything inside the turnaround and the road is clipped to it)
+    g.save(); asphaltPath(); g.clip();
     g.fillStyle = '#4a464c'; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 70; i++) blot(rx(), rz(), 2 + r() * 6, r() < 0.5 ? 'rgba(20,18,22,0.28)' : 'rgba(110,104,110,0.16)');
-    for (let i = 0; i < CW * CH / 30; i++) { const v = 40 + r() * 80; g.fillStyle = `rgba(${v},${v},${v + 6},${0.25 + r() * 0.35})`; const s = 0.8 + r() * 1.4; g.fillRect(r() * w, r() * h, s, s); }
-    // utility-cut patches: darker, newer, with a sealed edge
-    for (let i = 0; i < 9; i++) {
-      const x = rx(), z = rz(), pw = 1 + r() * 4, pd = 0.8 + r() * 2.5, a = (r() < 0.5 ? 0 : Math.PI / 2) + (r() - 0.5) * 0.1;
+    for (let i = 0; i < 60; i++) blot(rx() * 0.7, rz() * 0.8, 2 + r() * 6, r() < 0.5 ? 'rgba(20,18,22,0.28)' : 'rgba(110,104,110,0.16)');
+    for (let i = 0; i < CW * CH / 45; i++) { const v = 40 + r() * 80; g.fillStyle = `rgba(${v},${v},${v + 6},${0.25 + r() * 0.35})`; const sz = 0.8 + r() * 1.4; g.fillRect(r() * w, r() * h, sz, sz); }
+    for (let i = 0; i < 8; i++) { // utility-cut patches
+      const x = rx() * 0.5, z = rz() * 0.6, pw = 1 + r() * 4, pd = 0.8 + r() * 2.5, a = (r() < 0.5 ? 0 : Math.PI / 2) + (r() - 0.5) * 0.1;
       g.save(); g.translate(X(x), Z(z)); g.rotate(a); g.fillStyle = 'rgba(30,28,34,0.75)'; g.fillRect(-pw * K / 2, -pd * K / 2, pw * K, pd * K);
-      for (let k = 0; k < pw * pd * 40; k++) { const v = 50 + r() * 50; g.fillStyle = `rgba(${v},${v},${v},0.4)`; g.fillRect((r() - 0.5) * pw * K, (r() - 0.5) * pd * K, 1.2, 1.2); }
       g.strokeStyle = 'rgba(12,10,14,0.9)'; g.lineWidth = 0.08 * K; g.strokeRect(-pw * K / 2, -pd * K / 2, pw * K, pd * K); g.restore();
     }
-    // faded parking lines along the east and west sides
-    g.strokeStyle = 'rgba(210,205,190,0.35)'; g.lineWidth = 0.1 * K;
-    for (const sx of [-1, 1]) for (let z = -15; z <= 15; z += 2.7) { g.beginPath(); g.moveTo(X(sx * (W / 2 - 0.5)), Z(z)); g.lineTo(X(sx * (W / 2 - 5.3)), Z(z)); g.stroke(); }
-    // the giant clown face: X eyes, a red nose, a jagged grin with drips (worn paint)
+    // the road out: a faded double yellow line
+    for (const o of [-0.13, 0.13]) { g.strokeStyle = 'rgba(210,170,50,0.55)'; g.lineWidth = 0.1 * K; g.setLineDash([2.2 * K, 1.4 * K]); g.beginPath(); g.moveTo(X(o), Z(R - 1)); g.lineTo(X(o), Z(Dd / 2)); g.stroke(); }
+    g.setLineDash([]);
+    // the clown face, chipped
     { const cx = X(0), cy = Z(-1.2), s = K / 20; g.save(); g.globalAlpha = 0.9; g.lineCap = 'round';
       g.strokeStyle = '#d8d0c8'; g.lineWidth = 16 * s;
       for (const ex of [-90, 90]) { g.beginPath(); g.moveTo(cx + (ex - 38) * s, cy - 120 * s); g.lineTo(cx + (ex + 38) * s, cy - 50 * s); g.moveTo(cx + (ex + 38) * s, cy - 120 * s); g.lineTo(cx + (ex - 38) * s, cy - 50 * s); g.stroke(); }
       g.fillStyle = '#a8121a'; g.beginPath(); g.arc(cx, cy - 10 * s, 30 * s, 0, TAU); g.fill();
       g.fillStyle = '#d8d0c8'; g.beginPath(); g.moveTo(cx - 190 * s, cy + 10 * s); g.quadraticCurveTo(cx, cy + 210 * s, cx + 190 * s, cy + 10 * s); g.quadraticCurveTo(cx, cy + 120 * s, cx - 190 * s, cy + 10 * s); g.fill();
       g.fillStyle = '#7a0a10'; for (let i = 0; i < 12; i++) { const t = (i + 0.5) / 12, x = cx + (-170 + t * 340) * s, y = cy + (40 + Math.sin(t * Math.PI) * 70) * s; g.beginPath(); g.moveTo(x - 12 * s, y - 8 * s); g.lineTo(x, y + 18 * s); g.lineTo(x + 12 * s, y - 8 * s); g.fill(); }
-      for (let i = 0; i < 14; i++) { const t = r(), x = cx + (-160 + t * 320) * s, y = cy + (60 + Math.sin(t * Math.PI) * 90) * s, L = (15 + r() * 45) * s, gr = g.createLinearGradient(0, y, 0, y + L); gr.addColorStop(0, 'rgba(216,208,200,1)'); gr.addColorStop(1, 'rgba(216,208,200,0)'); g.fillStyle = gr; g.fillRect(x, y, 2.5 * s, L); g.beginPath(); g.arc(x + 1.25 * s, y + L * 0.8, 2.2 * s, 0, TAU); g.fill(); } // drips
+      for (let i = 0; i < 14; i++) { const t = r(), x = cx + (-160 + t * 320) * s, y = cy + (60 + Math.sin(t * Math.PI) * 90) * s, Ld = (15 + r() * 45) * s, gr = g.createLinearGradient(0, y, 0, y + Ld); gr.addColorStop(0, 'rgba(216,208,200,1)'); gr.addColorStop(1, 'rgba(216,208,200,0)'); g.fillStyle = gr; g.fillRect(x, y, 2.5 * s, Ld); }
       g.restore();
-      // chipped: asphalt showing through in specks and flakes
       for (let i = 0; i < 2600; i++) { const v = 50 + r() * 40; g.fillStyle = `rgba(${v},${v - 4},${v + 2},${0.6 + r() * 0.4})`; const fx = cx + (r() - 0.5) * 420 * s, fy = cy + (r() - 0.6) * 300 * s, fs = 1 + r() * (r() < 0.1 ? 7 : 2.5); g.fillRect(fx, fy, fs, fs * (0.5 + r())); }
     }
-    // crack networks: wandering trunks that branch, thin dark lines with a pale lip
+    // cracks, tar snakes, alligator cracking
     const crack = (x, y, a, len, wdt, depth) => {
       let px = x, py = y; const pts = [[px, py]];
       for (let k = 0; k < len; k++) { a += (r() - 0.5) * 0.55; px += Math.cos(a) * 0.35 * K; py += Math.sin(a) * 0.35 * K; pts.push([px, py]); if (depth > 0 && r() < 0.12) crack(px, py, a + (r() < 0.5 ? 1 : -1) * (0.6 + r() * 0.8), len * 0.5, wdt * 0.65, depth - 1); }
       for (const [col, lw, off] of [['rgba(150,145,150,0.25)', wdt + 1, 1], ['rgba(10,8,12,0.85)', wdt, 0]]) { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); pts.forEach(([a1, b1], i) => (i ? g.lineTo(a1 + off, b1 + off) : g.moveTo(a1 + off, b1 + off))); g.stroke(); }
     };
     g.lineJoin = 'round'; g.lineCap = 'round';
-    for (let i = 0; i < 26; i++) crack(r() * w, r() * h, r() * TAU, 10 + r() * 30, 1 + r() * 1.1, 2);
-    // tar snakes: sealant poured over old cracks, wide, glossy black
-    for (let i = 0; i < 9; i++) { let x = r() * w, y = r() * h, a = r() * TAU; g.strokeStyle = 'rgba(14,12,16,0.92)'; g.lineWidth = 0.1 * K + r() * 0.06 * K; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 18; k++) { a += (r() - 0.5) * 0.7; x += Math.cos(a) * 0.4 * K; y += Math.sin(a) * 0.4 * K; g.lineTo(x, y); } g.stroke(); g.strokeStyle = 'rgba(140,140,160,0.18)'; g.lineWidth = 1; g.stroke(); }
-    // alligator cracking: patches broken into small cells
-    for (let i = 0; i < 6; i++) { const cx0 = rx(), cz0 = rz(), rad = 1 + r() * 1.6; g.strokeStyle = 'rgba(14,12,16,0.7)'; g.lineWidth = 1;
+    for (let i = 0; i < 22; i++) crack(X(rx() * 0.6), Z(rz() * 0.8), r() * TAU, 10 + r() * 30, 1 + r() * 1.1, 2);
+    for (let i = 0; i < 7; i++) { let x = X(rx() * 0.5), y = Z(rz() * 0.6), a = r() * TAU; g.strokeStyle = 'rgba(14,12,16,0.92)'; g.lineWidth = 0.1 * K + r() * 0.06 * K; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 18; k++) { a += (r() - 0.5) * 0.7; x += Math.cos(a) * 0.4 * K; y += Math.sin(a) * 0.4 * K; g.lineTo(x, y); } g.stroke(); }
+    for (let i = 0; i < 5; i++) { const cx0 = rx() * 0.5, cz0 = rz() * 0.6, rad = 1 + r() * 1.6; g.strokeStyle = 'rgba(14,12,16,0.7)'; g.lineWidth = 1;
       for (let k = 0; k < 40; k++) { const a = r() * TAU, d = Math.sqrt(r()) * rad, x = X(cx0 + Math.cos(a) * d), y = Z(cz0 + Math.sin(a) * d); g.beginPath(); g.moveTo(x, y); let px = x, py = y; for (let q = 0; q < 3; q++) { px += (r() - 0.5) * 0.4 * K; py += (r() - 0.5) * 0.4 * K; g.lineTo(px, py); } g.stroke(); } }
-    // potholes: a broken rim, a dark bowl, gravel, some holding water
-    for (let i = 0; i < 14; i++) {
-      const x = rx() * 0.92, z = rz() * 0.92, rad = 0.35 + r() * 0.6, wet = r() < 0.4;
+    // potholes (some holding water), puddles, oil, skid marks, manholes
+    for (let i = 0; i < 12; i++) {
+      const a0 = r() * TAU, d0 = Math.sqrt(r()) * (R - 2), x = Math.sin(a0) * d0, z = Math.cos(a0) * d0, rad = 0.35 + r() * 0.6, wet = r() < 0.4;
       blot(x, z, rad * 1.6, 'rgba(20,18,22,0.5)');
       const poly = (rr, col) => { g.fillStyle = col; g.beginPath(); for (let k = 0; k <= 14; k++) { const a = k / 14 * TAU, q = rr * (0.75 + r() * 0.35); g.lineTo(X(x + Math.cos(a) * q), Z(z + Math.sin(a) * q * 0.8)); } g.fill(); };
       poly(rad * 1.15, 'rgba(96,90,96,0.9)'); poly(rad, '#141216');
-      for (let k = 0; k < 20; k++) { g.fillStyle = `rgba(${80 + r() * 50},${76 + r() * 50},${80 + r() * 50},0.9)`; g.fillRect(X(x + (r() - 0.5) * rad), Z(z + (r() - 0.5) * rad * 0.7), 2, 2); }
       if (wet) { const gr = g.createRadialGradient(X(x - rad * 0.3), Z(z - rad * 0.3), 1, X(x), Z(z), rad * 0.8 * K); gr.addColorStop(0, 'rgba(150,150,190,0.65)'); gr.addColorStop(0.5, 'rgba(40,40,60,0.8)'); gr.addColorStop(1, 'rgba(40,40,60,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(X(x), Z(z), rad * 0.8 * K, rad * 0.6 * K, 0, 0, TAU); g.fill(); }
     }
-    // puddles and oil stains
-    for (let i = 0; i < 9; i++) { const x = rx(), z = rz(), rad = 0.8 + r() * 1.8, gr = g.createRadialGradient(X(x - rad * 0.3), Z(z - rad * 0.3), 2, X(x), Z(z), rad * K); gr.addColorStop(0, 'rgba(130,130,170,0.45)'); gr.addColorStop(0.6, 'rgba(26,26,40,0.6)'); gr.addColorStop(1, 'rgba(26,26,40,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(X(x), Z(z), rad * K, rad * 0.6 * K, r(), 0, TAU); g.fill(); }
-    for (let i = 0; i < 14; i++) { const x = rx(), z = rz(); blot(x, z, 0.5 + r() * 1.1, 'rgba(8,6,10,0.55)'); if (r() < 0.4) blot(x + 0.2, z, 0.35, 'rgba(90,60,120,0.18)'); }
-    // skid marks: pairs of dark arcs
-    for (let i = 0; i < 5; i++) { const cx0 = rx() * 0.6, cz0 = rz() * 0.6, rad = 3 + r() * 4, a0 = r() * TAU, a1 = a0 + 0.8 + r(); for (const o of [0, 1.5]) { g.strokeStyle = 'rgba(10,8,8,0.4)'; g.lineWidth = 0.22 * K; g.beginPath(); g.arc(X(cx0), Z(cz0), (rad + o) * K, a0, a1); g.stroke(); } }
-    // manholes and the gutter pan round the edge with drain grates, leaves and grit
-    for (const [mx, mz] of [[-10, 9], [11, -8]]) { blot(mx, mz, 0.7, 'rgba(10,8,10,0.6)'); g.fillStyle = '#2a2628'; g.beginPath(); g.arc(X(mx), Z(mz), 0.42 * K, 0, TAU); g.fill(); g.strokeStyle = '#4a464c'; g.lineWidth = 1.5; for (let q = 0.1; q < 0.42; q += 0.07) { g.beginPath(); g.arc(X(mx), Z(mz), q * K, 0, TAU); g.stroke(); } for (let q = 0; q < 8; q++) { g.beginPath(); g.moveTo(X(mx), Z(mz)); g.lineTo(X(mx + Math.cos(q * 0.785) * 0.42), Z(mz + Math.sin(q * 0.785) * 0.42)); g.stroke(); } }
-    const GP = 0.45 * K;
-    g.fillStyle = '#7a756c'; g.fillRect(0, 0, w, GP); g.fillRect(0, 0, GP, h); g.fillRect(w - GP, 0, GP, h); g.fillRect(0, h - GP, X(-4.5), GP); g.fillRect(X(4.5), h - GP, w - X(4.5), GP);
-    for (let i = 0; i < 4000; i++) { const s0 = Math.floor(r() * 4), t = r(); const [px, py] = s0 === 0 ? [t * w, r() * GP] : s0 === 1 ? [t * w, h - r() * GP] : s0 === 2 ? [r() * GP, t * h] : [w - r() * GP, t * h]; if (s0 === 1 && px > X(-4.5) && px < X(4.5)) continue; const v = 60 + r() * 70; g.fillStyle = `rgba(${v},${v * 0.95},${v * 0.85},0.6)`; g.fillRect(px, py, 1.5, 1.5); }
-    g.fillStyle = 'rgba(20,18,16,0.7)'; for (let x = 0; x < w; x += 1.5 * K) { g.fillRect(x, 0, 1.5, GP); if (x < X(-4.5) || x > X(4.5)) g.fillRect(x, h - GP, 1.5, GP); } for (let y = 0; y < h; y += 1.5 * K) { g.fillRect(0, y, GP, 1.5); g.fillRect(w - GP, y, GP, 1.5); }
-    g.fillStyle = 'rgba(30,28,24,0.6)'; g.fillRect(GP, 0, 2, h); g.fillRect(w - GP - 2, 0, 2, h); g.fillRect(0, GP, w, 2);
-    for (const [dx, dz] of [[-W / 2 + 0.22, -8], [-W / 2 + 0.22, 9], [W / 2 - 0.22, -8], [W / 2 - 0.22, 9], [-14, -Dd / 2 + 0.22], [14, -Dd / 2 + 0.22]]) { const hz = Math.abs(dx) > W / 2 - 1; g.fillStyle = '#0e0c0e'; const gw = (hz ? 0.4 : 0.9) * K, gh = (hz ? 0.9 : 0.4) * K; g.fillRect(X(dx) - gw / 2, Z(dz) - gh / 2, gw, gh); g.fillStyle = '#5a5654'; for (let k = 1; k < 7; k++) hz ? g.fillRect(X(dx) - gw / 2, Z(dz) - gh / 2 + k * gh / 7, gw, 1.5) : g.fillRect(X(dx) - gw / 2 + k * gw / 7, Z(dz) - gh / 2, 1.5, gh); blot(dx, dz, 1.2, 'rgba(14,10,8,0.35)'); }
-    for (let i = 0; i < 500; i++) { const s0 = Math.floor(r() * 4), t = r(), d = Math.pow(r(), 2) * 0.9; const [x, z] = s0 === 0 ? [(t - 0.5) * W, -Dd / 2 + d] : s0 === 1 ? [(t - 0.5) * W, Dd / 2 - d] : s0 === 2 ? [-W / 2 + d, (t - 0.5) * Dd] : [W / 2 - d, (t - 0.5) * Dd]; g.fillStyle = `rgba(${90 + r() * 50},${60 + r() * 30},${20 + r() * 20},0.8)`; g.save(); g.translate(X(x), Z(z)); g.rotate(r() * 3); g.beginPath(); g.ellipse(0, 0, 2 + r() * 2.5, 1 + r() * 1.2, 0, 0, TAU); g.fill(); g.restore(); }
-    // blood: soaked pools with soft edges, satellite drops, spatter streaks, drag smears
-    for (let i = 0; i < 46; i++) {
-      const x = rx(), z = (r() < 0.5 ? rz() * 0.6 - 3 : rz()), rad = 0.3 + r() * 1.1;
+    for (let i = 0; i < 8; i++) { const a0 = r() * TAU, d0 = Math.sqrt(r()) * (R - 2), x = Math.sin(a0) * d0, z = Math.cos(a0) * d0, rad = 0.8 + r() * 1.6, gr = g.createRadialGradient(X(x - rad * 0.3), Z(z - rad * 0.3), 2, X(x), Z(z), rad * K); gr.addColorStop(0, 'rgba(130,130,170,0.45)'); gr.addColorStop(0.6, 'rgba(26,26,40,0.6)'); gr.addColorStop(1, 'rgba(26,26,40,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(X(x), Z(z), rad * K, rad * 0.6 * K, r(), 0, TAU); g.fill(); }
+    for (let i = 0; i < 12; i++) blot(rx() * 0.55, rz() * 0.7, 0.5 + r() * 1.1, 'rgba(8,6,10,0.55)');
+    for (let i = 0; i < 6; i++) { const rad = 4 + r() * 8, a0 = r() * TAU; for (const o of [0, 1.5]) { g.strokeStyle = 'rgba(10,8,8,0.4)'; g.lineWidth = 0.22 * K; g.beginPath(); g.arc(X(0), Z(0), (rad + o) * K, a0, a0 + 0.8 + r()); g.stroke(); } } // donuts round the turnaround
+    for (const [mx, mz] of [[-6, 7], [7, -6], [0, 21]]) { blot(mx, mz, 0.7, 'rgba(10,8,10,0.6)'); g.fillStyle = '#2a2628'; g.beginPath(); g.arc(X(mx), Z(mz), 0.42 * K, 0, TAU); g.fill(); g.strokeStyle = '#4a464c'; g.lineWidth = 1.5; for (let q = 0.1; q < 0.42; q += 0.07) { g.beginPath(); g.arc(X(mx), Z(mz), q * K, 0, TAU); g.stroke(); } }
+    // the gutter pan round the curb, leaves and grit in it, drain grates
+    g.beginPath(); g.arc(X(0), Z(0), R * K, 0, TAU); g.arc(X(0), Z(0), (R - 0.45) * K, 0, TAU, true); g.fillStyle = '#7a756c'; g.fill('evenodd');
+    for (const sx of [-1, 1]) { g.fillStyle = '#7a756c'; g.fillRect(X(sx > 0 ? RW - 0.45 : -RW), Z(0), 0.45 * K, (Dd / 2) * K); }
+    for (let i = 0; i < 700; i++) { const a = r() * TAU, rr = R - Math.pow(r(), 2) * 0.9; g.fillStyle = `rgba(${90 + r() * 50},${60 + r() * 30},${20 + r() * 20},0.8)`; g.save(); g.translate(X(Math.sin(a) * rr), Z(Math.cos(a) * rr)); g.rotate(r() * 3); g.beginPath(); g.ellipse(0, 0, 2 + r() * 2.5, 1 + r() * 1.2, 0, 0, TAU); g.fill(); g.restore(); }
+    for (const a of [0.9, 2.0, -2.0, -0.9, 3.14]) { const x = Math.sin(a) * (R - 0.25), z = Math.cos(a) * (R - 0.25); g.save(); g.translate(X(x), Z(z)); g.rotate(-a); g.fillStyle = '#0e0c0e'; g.fillRect(-0.45 * K, -0.2 * K, 0.9 * K, 0.4 * K); g.fillStyle = '#5a5654'; for (let k = 1; k < 7; k++) g.fillRect(-0.45 * K + k * 0.9 * K / 7, -0.2 * K, 1.5, 0.4 * K); g.restore(); blot(x, z, 1.1, 'rgba(14,10,8,0.35)'); }
+    // blood: soaked pools, droplets, spatter, drag smears (mostly round the middle)
+    for (let i = 0; i < 40; i++) {
+      const a0 = r() * TAU, d0 = Math.sqrt(r()) * (R - 1), x = Math.sin(a0) * d0, z = Math.cos(a0) * d0 * 0.9 - 2, rad = 0.3 + r() * 1.1;
       blot(x, z, rad * 1.5, `rgba(90,4,8,${0.25 + r() * 0.2})`);
       g.fillStyle = `rgba(${100 + r() * 40},4,8,${0.7 + r() * 0.25})`; g.beginPath(); for (let k = 0; k <= 18; k++) { const a = k / 18 * TAU, q = rad * (0.6 + r() * 0.45); g.lineTo(X(x + Math.cos(a) * q), Z(z + Math.sin(a) * q * 0.85)); } g.fill();
       for (let k = 0; k < 14; k++) { const a = r() * TAU, d = rad * (1.1 + r() * 1.8); g.beginPath(); g.arc(X(x + Math.cos(a) * d), Z(z + Math.sin(a) * d), (0.02 + r() * 0.05) * K, 0, TAU); g.fill(); }
-      const sa = r() * TAU; for (let k = 0; k < 6; k++) { const a = sa + (r() - 0.5) * 0.6, d = rad * (1 + r() * 2); g.save(); g.translate(X(x + Math.cos(a) * d), Z(z + Math.sin(a) * d)); g.rotate(a); g.beginPath(); g.ellipse(0, 0, (0.1 + r() * 0.15) * K, 0.03 * K, 0, 0, TAU); g.fill(); g.restore(); }
     }
-    for (let i = 0; i < 7; i++) { let x = rx(), z = rz(); g.strokeStyle = 'rgba(100,4,8,0.45)'; g.lineWidth = (0.3 + r() * 0.3) * K; g.beginPath(); g.moveTo(X(x), Z(z)); for (let k = 0; k < 5; k++) { x += (r() - 0.5) * 6; z += (r() - 0.5) * 6; g.lineTo(X(x), Z(z)); } g.stroke(); }
-    // soft contact shadows under everything standing on the road
+    for (let i = 0; i < 6; i++) { let x = rx() * 0.4, z = rz() * 0.5; g.strokeStyle = 'rgba(100,4,8,0.45)'; g.lineWidth = (0.3 + r() * 0.3) * K; g.beginPath(); g.moveTo(X(x), Z(z)); for (let k = 0; k < 5; k++) { x += (r() - 0.5) * 6; z += (r() - 0.5) * 6; g.lineTo(X(x), Z(z)); } g.stroke(); }
+    g.restore(); // (end of the asphalt clip)
+    // a little blood dragged up onto a lawn or two
+    for (let i = 0; i < 6; i++) { const a = r() * TAU, d = R + SW + 1 + r() * 5; blot(Math.sin(a) * d, Math.cos(a) * d, 0.5 + r() * 0.6, 'rgba(80,4,8,0.55)'); }
+    // soft contact shadows under everything standing on the ground
     g.save(); g.shadowColor = 'rgba(6,4,8,0.8)'; g.shadowBlur = 0.6 * K; g.shadowOffsetX = w * 2; g.fillStyle = '#000';
     for (const b of boxes) { if (b[4] > 0.3 || b[2] < -W / 2 - 1 || b[0] > W / 2 + 1 || b[3] < -Dd / 2 - 1 || b[1] > Dd / 2 + 1) continue; const pad = 0.12; g.fillRect(X(b[0] - pad) - w * 2, Z(b[1] - pad), (b[2] - b[0] + pad * 2) * K, (b[3] - b[1] + pad * 2) * K); }
     g.restore();
@@ -391,7 +426,7 @@ function suburbRoad(W, Dd, boxes) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.gritMap = { value: T.grit };
     sh.fragmentShader = 'uniform sampler2D gritMap;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
-      diffuseColor.rgb *= mix(vec3(1.0), texture2D(gritMap, vUv * vec2(${(W / 1.8).toFixed(1)}, ${(Dd / 1.8).toFixed(1)})).rgb * 2.0, 0.5);`);
+      diffuseColor.rgb *= mix(vec3(1.0), texture2D(gritMap, vUv * vec2(${(W / 1.8).toFixed(1)}, ${(Dd / 1.8).toFixed(1)})).rgb * 2.0, 0.45);`);
   };
   addCutaway(mat);
   const m = new THREE.Mesh(new THREE.PlaneGeometry(W, Dd).rotateX(-Math.PI / 2), mat);
