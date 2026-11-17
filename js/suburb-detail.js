@@ -304,8 +304,8 @@ function subLitter(fx, rng, free, area) {
 // (L.R) and the road out south (L.road wide) with their aggregate, patches, sealed and branching
 // cracks, potholes holding water, oil, skid marks, a concrete gutter with drains and leaves; a
 // sidewalk ring round it in slabs; a concrete driveway and a front walk from every house (L.drives,
-// L.walks), stained and cracked, chalk on one; the clown face chipped into the middle of the
-// turnaround; blood; soft contact shadows under everything (`boxes`). Grain multiplied over it up
+// L.walks), stained and cracked, chalk on one; (the creator's logo is painted over the middle as
+// its own decal); blood; soft contact shadows under everything (`boxes`). Grain multiplied over it up
 // close. Returns the mesh (unmerged, under everything).
 function suburbGround(W, Dd, boxes, L) {
   const T = subTextures(), K = IS_TOUCH ? 18 : 24, CW = Math.round(W * K), CH = Math.round(Dd * K);
@@ -366,17 +366,6 @@ function suburbGround(W, Dd, boxes, L) {
     // the road out: a faded double yellow line
     for (const o of [-0.13, 0.13]) { g.strokeStyle = 'rgba(210,170,50,0.55)'; g.lineWidth = 0.1 * K; g.setLineDash([2.2 * K, 1.4 * K]); g.beginPath(); g.moveTo(X(o), Z(R - 1)); g.lineTo(X(o), Z(Dd / 2)); g.stroke(); }
     g.setLineDash([]);
-    // the clown face, chipped
-    { const cx = X(0), cy = Z(-1.2), s = K / 20; g.save(); g.globalAlpha = 0.9; g.lineCap = 'round';
-      g.strokeStyle = '#d8d0c8'; g.lineWidth = 16 * s;
-      for (const ex of [-90, 90]) { g.beginPath(); g.moveTo(cx + (ex - 38) * s, cy - 120 * s); g.lineTo(cx + (ex + 38) * s, cy - 50 * s); g.moveTo(cx + (ex + 38) * s, cy - 120 * s); g.lineTo(cx + (ex - 38) * s, cy - 50 * s); g.stroke(); }
-      g.fillStyle = '#a8121a'; g.beginPath(); g.arc(cx, cy - 10 * s, 30 * s, 0, TAU); g.fill();
-      g.fillStyle = '#d8d0c8'; g.beginPath(); g.moveTo(cx - 190 * s, cy + 10 * s); g.quadraticCurveTo(cx, cy + 210 * s, cx + 190 * s, cy + 10 * s); g.quadraticCurveTo(cx, cy + 120 * s, cx - 190 * s, cy + 10 * s); g.fill();
-      g.fillStyle = '#7a0a10'; for (let i = 0; i < 12; i++) { const t = (i + 0.5) / 12, x = cx + (-170 + t * 340) * s, y = cy + (40 + Math.sin(t * Math.PI) * 70) * s; g.beginPath(); g.moveTo(x - 12 * s, y - 8 * s); g.lineTo(x, y + 18 * s); g.lineTo(x + 12 * s, y - 8 * s); g.fill(); }
-      for (let i = 0; i < 14; i++) { const t = r(), x = cx + (-160 + t * 320) * s, y = cy + (60 + Math.sin(t * Math.PI) * 90) * s, Ld = (15 + r() * 45) * s, gr = g.createLinearGradient(0, y, 0, y + Ld); gr.addColorStop(0, 'rgba(216,208,200,1)'); gr.addColorStop(1, 'rgba(216,208,200,0)'); g.fillStyle = gr; g.fillRect(x, y, 2.5 * s, Ld); }
-      g.restore();
-      for (let i = 0; i < 2600; i++) { const v = 50 + r() * 40; g.fillStyle = `rgba(${v},${v - 4},${v + 2},${0.6 + r() * 0.4})`; const fx = cx + (r() - 0.5) * 420 * s, fy = cy + (r() - 0.6) * 300 * s, fs = 1 + r() * (r() < 0.1 ? 7 : 2.5); g.fillRect(fx, fy, fs, fs * (0.5 + r())); }
-    }
     // cracks, tar snakes, alligator cracking
     const crack = (x, y, a, len, wdt, depth) => {
       let px = x, py = y; const pts = [[px, py]];
@@ -431,5 +420,15 @@ function suburbGround(W, Dd, boxes, L) {
   addCutaway(mat);
   const m = new THREE.Mesh(new THREE.PlaneGeometry(W, Dd).rotateX(-Math.PI / 2), mat);
   m.position.y = 0.03; m.receiveShadow = true; m.renderOrder = -1; m.name = 'Road';
+  // the creator's Slaughter House Universe logo painted big across the middle of the turnaround
+  // (2026-11-17, replacing the old clown face): ui/suburb-logo.webp, worn red paint, black cut away;
+  // it reads upright from the camera (its top toward the stage)
+  const logoTex = new THREE.TextureLoader().load('ui/suburb-logo.webp');
+  logoTex.anisotropy = IS_TOUCH ? 2 : 8;
+  const logoMat = new THREE.MeshToonMaterial({ map: logoTex, transparent: true, depthWrite: false, gradientMap: gradTex, color: 0xd8c8c8, emissive: 0x281616, emissiveMap: logoTex, polygonOffset: true, polygonOffsetFactor: -2 });
+  addCutaway(logoMat);
+  const logo = new THREE.Mesh(new THREE.PlaneGeometry(22, 22).rotateX(-Math.PI / 2), logoMat);
+  logo.position.set(0, 0.012, 0.6); logo.renderOrder = 0; logo.name = 'Road';
+  m.add(logo);
   return m;
 }
