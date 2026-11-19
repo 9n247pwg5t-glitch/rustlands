@@ -508,7 +508,7 @@ function enterSuburb() {
   respawnAt(SUB.spawn, 0);
   player.hp = player.maxHp; player.invuln = 2;
   game.phase = 'bossIntro'; game.introT = 3.2;
-  hud.banner('THE MAIN EVENT', 'Get ready…');
+  // (2026-11-19: no THE MAIN EVENT banner before the boss fight)
   savePlayer();
 }
 function spawnSuburbBoss() {
