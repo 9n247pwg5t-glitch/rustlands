@@ -163,7 +163,7 @@ const hud = (() => {
       el.target.classList.toggle('below-boss', !!boss);
       if (boss) {
         el.boss.hidden = false;
-        // the name: the creator's nameplate art for Bobbert (ui/bobbert-name.webp), text for other bosses; level and round beside it
+        // the name: the creator's nameplate art for Bobbert (ui/bobbert-name.webp), text for other bosses
         const info = 'Lv ' + boss.level + (boss.bf ? '  ·  ' + (boss.bf.round >= 3 ? 'FINAL ROUND' : 'ROUND ' + boss.bf.round) : '');
         const plate = boss.key === 'bearBoss';
         if (el.bossName.dataset.plate !== String(plate)) {
@@ -172,7 +172,7 @@ const hud = (() => {
           el.bossName.append(el.bossInfo = document.createElement('span'));
           el.bossName.classList.toggle('plate', plate);
         }
-        const txt = plate ? info : boss.def.name + '  ·  ' + info;
+        const txt = plate ? '' : boss.def.name; // (2026-11-19: no level or round text beside the bar)
         if (el.bossInfo.textContent !== txt) el.bossInfo.textContent = txt;
         el.bossPoiseBar.hidden = !boss.bf;
         { const pe = el.bossPortrait || (el.bossPortrait = $('bossPortrait')); const on = boss.key === 'bearBoss'; if (pe.hidden === on) pe.hidden = !on; } // his portrait beside the bar
