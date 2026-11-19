@@ -272,6 +272,8 @@ function buildSuburb() {
     const V = () => ({ porch: sr() < 0.6, sag: sr() < 0.5, tarp: false, hole: sr() < 0.3, chimney: sr() < 0.6, dish: sr() < 0.4, gutter: sr() < 0.5, garage: sr() < 0.35, face: sr() < 0.45, shutter: sr() < 0.5, mailLean: sr() < 0.5, bins: sr() < 0.6, couch: sr() < 0.3, pool: sr() < 0.25, sign: sr() < 0.35, light: sr() < 0.4, wing: sr() < 0.6 ? (sr() < 0.5 ? -1 : 1) : 0, dormer: sr() < 0.45, tag: sr() < 0.4, tag2: sr() < 0.4 });
     for (const zc of [-13.5, 0.5, 14.5]) { house(-35.5, zc, Math.PI / 2, colors[hi++ % 8], V()); house(35.5, zc, -Math.PI / 2, colors[hi++ % 8], V()); }
     for (const xc of [-17, 17]) { house(xc, -29.6, 0, colors[hi++ % 8], V()); house(xc, 29.6, Math.PI, colors[hi++ % 8], V()); }
+    // the house you go into once Bobbert is down (js/house.js): the middle one on the west side
+    SUB.door = new THREE.Vector3(CUL.walks[2][0][0], 0, CUL.walks[2][0][1]);
     // vacant corner lots: a car up on blocks, tyres, a busted fridge, weeds, a dead tree
     const lot = (x, z) => {
       add(new THREE.PlaneGeometry(7, 6).rotateX(-Math.PI / 2), lawnM, x, 0.045, z, 0, 'Terrain');

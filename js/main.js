@@ -38,7 +38,7 @@ const game = {
       dropLoot(e);
     }
     if (player.downed && opts.fromPlayer) player.secondWind();
-    if (e.def.boss) { hud.banner('KRAG IS SCRAP', 'Boss defeated'); SFX.levelUp(); this.hitstop = 0.35; }
+    if (e.def.boss) { hud.banner(e.def.name.split(' ')[0].toUpperCase() + ' IS DOWN', 'Boss defeated'); SFX.levelUp(); this.hitstop = 0.35; }
   },
 };
 
@@ -147,7 +147,7 @@ function updateCarnage(dt) {
 function endWave() {
   game.slowmo = 1.1; // the last kill, in slow motion
   // (no loot chests: removed 2026-11-15)
-  if (game.area === 'suburb') { stageCleared(); savePlayer(); return; } // the boss is down
+  if (game.area === 'suburb') { openHouseDoor(); savePlayer(); return; } // the boss is down: on into the house (js/house.js)
   if (campaign.stage && campaign.stage.bossArea && game.wave >= campaign.stage.waves) { openStageExit(); savePlayer(); return; } // on to the boss
   if (campaign.stage && game.wave >= campaign.stage.waves) { stageCleared(); savePlayer(); return; }
   game.phase = 'intermission';
@@ -166,7 +166,7 @@ function updateWaves(dt) {
     if (game.interT <= 0) startWave();
     return;
   }
-  if (game.phase === 'exit') { checkStageExit(); updateCarnage(dt); return; } // js/suburb.js
+  if (game.phase === 'exit') { checkStageExit(); checkHouseEnter(); updateCarnage(dt); return; } // js/suburb.js, js/house.js
   if (game.phase === 'bossIntro') { game.introT -= dt; if (game.introT <= 0) spawnSuburbBoss(); return; }
   const alive = enemies.filter((e) => e.alive).length;
   game.spawnT -= dt;
@@ -524,7 +524,7 @@ function respawn() {
   player.cash -= Math.floor(player.cash * 0.07);
   player.alive = true; player.downed = false;
   player.hp = player.maxHp; player.shield = player.shieldMax(); player.invuln = 3;
-  if (game.area === 'suburb') respawnAt(SUB.spawn, 0); else respawnAt(stageSpawn(), stageSpawnYaw());
+  if (game.area === 'suburb') respawnAt(SUB.spawn, 0); else if (game.area === 'house') respawnAt(HOUSE.spawn, 0); else respawnAt(stageSpawn(), stageSpawnYaw());
   for (const s of enemyShots) scene.remove(s.mesh);
   enemyShots.length = 0;
   burst(player.center(), 0x4fc6ff, 30, 5, 0.12, 0.8, 0.2, true);
@@ -766,6 +766,7 @@ function update(dt) {
   updateCompound(dt);
   updateFireFx(dt); // js/firefx.js: Fire Axe's flames
   updateSuburb(dt); // js/suburb.js
+  updateHouse(dt); // js/house.js
   updateWaypoint(dt); // js/waypoint.js
   updateBossFight(dt); // js/bossfight.js
   updateDrone(dt); // js/drone.js

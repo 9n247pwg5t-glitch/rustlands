@@ -108,3 +108,4 @@ and axe, toggled). Still open or placeholder:
 
 - No adjustable look sensitivity setting yet (fixed `SENS` in `js/main.js`).
 - **Stage 1's second area** (2026-11-16): a cul-de-sac with a stage, unnamed (placeholder). The boss there is the creator's bear-suit clown, named by the creator (2026-11-19) Bobbert the Gatekeeper (`bearBoss` in `js/enemies.js`). He fights with the melee enemies' moves plus his own boss fight (js/bossfight.js).
+- **Stage 1's house** (2026-11-19): what happens in the living room after Bobbert is OPEN (enemies, a boss, loot, lore, a way further in through the hallway?). For now getting inside clears the stage; the hallway and the front door are closed off.

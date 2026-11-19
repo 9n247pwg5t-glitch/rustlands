@@ -57,7 +57,8 @@ When something is approved, add a dated line to `docs/decisions.md` in the same 
   alternatives are kept but off: the creator's uploaded single-mesh map (`js/map-single.js`,
   `MS_USE`; convert with `tools/map-single.mjs`) and the painted picture (`js/painted.js`, `PM_USE`).
   All hand their data to `applyStage()`. Stage 1 has a second area, the boss's cul-de-sac
-  (`js/suburb.js`, its own world 'suburb' with its own nav grid; the arena's is restored on load). A map can also be an uploaded glTF; convert one with
+  (`js/suburb.js`, its own world 'suburb' with its own nav grid; the arena's is restored on load), and a third, the
+  living room of one of its houses (`js/house.js`, world 'house'), entered once Bobbert is down. A map can also be an uploaded glTF; convert one with
   `tools/map-optimize.mjs` (rendering) and `tools/map-bake.mjs` (ground, colliders, nav grid,
   spawn/loot markers); see `tools/README.md`. Collider queries go through `colsNear`/`rayWorld`
   (a spatial grid), never a loop over all of `boxCols`.
