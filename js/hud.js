@@ -165,6 +165,7 @@ const hud = (() => {
         el.boss.hidden = false;
         el.bossName.textContent = boss.def.name + '  ·  Lv ' + boss.level + (boss.bf ? '  ·  ' + (boss.bf.round >= 3 ? 'FINAL ROUND' : 'ROUND ' + boss.bf.round) : '');
         el.bossPoiseBar.hidden = !boss.bf;
+        { const pe = el.bossPortrait || (el.bossPortrait = $('bossPortrait')); const on = boss.key === 'bearBoss'; if (pe.hidden === on) pe.hidden = !on; } // his portrait beside the bar
         if (boss.bf) el.bossPoise.style.transform = `scaleX(${boss.state === 'down' ? 1 : boss.bf.poise / BF_TUNE.poiseMax})`;
         // one bar for health and shield together; the shield's share is the blue sheen at its end
         const tot = boss.maxHp + (boss.maxShield || 0), f = clamp((Math.max(0, boss.hp) + boss.shield) / tot, 0, 1), s = clamp(Math.max(0, boss.hp) / tot, 0, 1);

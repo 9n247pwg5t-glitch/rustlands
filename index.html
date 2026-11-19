@@ -137,6 +137,8 @@
   #tHp.armor { background: var(--armor); }
 
   #boss { position: absolute; left: 50%; top: calc(48px + var(--sat)); transform: translateX(-50%); width: min(500px, 62vw); text-align: center; }
+  /* the boss's portrait (the creator's animated bear-suit clown, 2026-11-19), just left of his bar */
+  #bossPortrait { position: absolute; right: 100%; top: 0; width: 19%; aspect-ratio: 1; margin-right: -2%; filter: drop-shadow(2px 3px 0 rgba(0,0,0,0.7)); pointer-events: none; }
   #bossName { font: 24px/1 var(--display); color: #ff8a1c; letter-spacing: 0.06em; text-shadow: 2px 2px 0 var(--ink); margin-bottom: 4px; }
   #boss .tbar { height: 10px; }
   /* the creator's bloody boss bar (2026-11-17): the art is the full bar; lost health is a dark recess
@@ -432,6 +434,7 @@
     <div class="tbar"><div id="tHp"></div></div>
   </div>
   <div id="boss" hidden>
+    <img id="bossPortrait" src="ui/bear-portrait.webp" alt="" hidden>
     <div id="bossName"></div>
     <div id="bossBar"><img src="ui/boss-bar.webp" alt=""><div id="bossShieldTint"></div><div id="bossTrail"></div><div id="bossLost"></div></div>
     <div class="tbar poise" id="bossPoiseBar" hidden><div id="bossPoise"></div><span>STAGGER</span></div>
@@ -605,7 +608,7 @@
 <script src="js/player.js?v=92"></script>
 <script src="js/fparms.js?v=92"></script>
 <script src="js/topdown.js?v=92"></script>
-<script src="js/hud.js?v=97"></script>
+<script src="js/hud.js?v=98"></script>
 <script src="js/stages.js?v=96"></script>
 <script src="js/hub.js?v=92"></script>
 <script src="js/map.js?v=92"></script>
