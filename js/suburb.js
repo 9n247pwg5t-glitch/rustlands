@@ -520,7 +520,7 @@ function spawnSuburbBoss() {
   e.maxHp = (e.maxHp + (e.maxShield || 0)) * 0.45; e.hp = e.maxHp; e.maxShield = 0; e.shield = 0;
   bossFightStart(e);
   game.waveTotal = 1; game.waveKilled = 0; game.toSpawn = [];
-  hud.banner(e.def.name.toUpperCase(), 'Round 1');
+  // (2026-11-19: no banner with his name as he arrives: it's on the nameplate above his health bar)
   SFX.wave(); game.shake(0.4);
 }
 

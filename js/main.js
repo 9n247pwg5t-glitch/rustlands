@@ -109,7 +109,7 @@ function startWave() {
   SFX.wave();
   game.pack = null;
   game.starsLeft = 1 + Math.floor(game.wave / 2);
-  hud.banner(game.waveLabel(), game.wave % 5 === 0 ? 'Krag the Scrapjaw has entered the arena' : game.waveTotal + ' incoming');
+  // (2026-11-19: no banner naming the area and the enemies incoming when a wave starts, on any stage)
 }
 // ---------------------------------------------------------------------------
 // Carnage (decisions.md 2026-11-08): kills in quick succession build a streak that multiplies XP
