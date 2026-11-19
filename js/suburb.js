@@ -116,7 +116,7 @@ function buildSuburb() {
     const stripes = cmpCanvas(128, 48, (g, w, h) => { g.fillStyle = '#e8e0d4'; g.fillRect(0, 0, w, h); g.fillStyle = '#b3121a'; for (let i = -2; i < 8; i++) { g.beginPath(); g.moveTo(i * 24, h); g.lineTo(i * 24 + 12, h); g.lineTo(i * 24 + 30, 0); g.lineTo(i * 24 + 18, 0); g.fill(); } grime(g, w, h, 20, 0.45); for (let i = 0; i < 3; i++) { g.fillStyle = 'rgba(110,4,8,0.7)'; g.fillRect(Math.random() * w, 0, 3, 10 + Math.random() * 30); } });
     const barM = cmpMat(0xffffff, stripes, 0, [1, 1]), drum = cmpMat(0x8a5030, TEX.rust, 0, [1, 1]), drum2 = cmpMat(0x3a4a3a, TEX.rust, 0, [1, 1]), crate = cmpMat(0x7a5a3a, TEX.fence, 0, [1, 1]);
     const barrier = (x, z, ry) => { const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; g.name = 'prop'; root.add(g); g.add(new THREE.Mesh(subJerseyGeo(), barM)); for (const lx of [-0.7, 0.7]) { const lp = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.015, 4, 8, Math.PI), drum); lp.position.set(lx, 0.84, 0); g.add(lp); } g.traverse((o) => { o.name = 'prop'; }); const q = Math.abs(Math.sin(ry)) > 0.5; col(x, z, q ? 0.8 : 2.5, q ? 2.5 : 0.8, 0.95); };
-    const drums = (x, z, n, fire) => { for (let i = 0; i < n; i++) { const a = i * 2.3, dx = Math.cos(a) * 0.55 * (i > 0 ? 1 : 0), dz = Math.sin(a) * 0.55 * (i > 0 ? 1 : 0); const open = fire && i === 0; add(subDrumGeo(i % 3, open), i % 2 ? drum2 : drum, x + dx, 0, z + dz, sr0() * TAU); if (open) add(new THREE.CircleGeometry(0.27, 10).rotateX(-Math.PI / 2), cmpMat(0x3a1004, null, 0xff5a10), x + dx, 0.62, z + dz, 0, 'Detail'); } col(x, z, 1.6, 1.6, 1); if (fire) { SUB.flames.push([x, z]); glow(x, z, 4.5, 0xff8a2a); } };
+    const drums = (x, z, n, fire) => { for (let i = 0; i < n; i++) { const a = i * 2.3, dx = Math.cos(a) * 0.55 * (i > 0 ? 1 : 0), dz = Math.sin(a) * 0.55 * (i > 0 ? 1 : 0); const open = fire && i === 0; add(subDrumGeo(i % 3, open), i % 2 ? drum2 : drum, x + dx, 0, z + dz, sr0() * TAU); } col(x, z, 1.6, 1.6, 1); }; // (no flames in them, 2026-11-19: they looked out of place)
     for (const [x, z, ry, fire] of [[-12, -4, 0.1, true], [12, -4, -0.1, false], [-13, 8, -0.05, false], [13, 8, 0.08, true], [0, 13, 0, true]]) {
       barrier(x + 1.5, z + 0.6, ry); barrier(x - 0.4, z - 1.3, ry + 0.25);
       drums(x - 2.2, z + 0.4, 4, fire);
@@ -326,7 +326,6 @@ function buildSuburb() {
     subVehicle(root, 'sedan', 8.6, 13.6, -0.5, 0x5a3a2a, true, vm); col(8.6, 13.6, 3.4, 4.4, 1.8);
     // trees: scraggly ones and dead ones behind the fences and between the houses
     for (const [x, z, h, leafy] of [[-33.8, -6.5, 8, true], [33.8, 7.5, 7.5, true], [33.8, -6.5, 7, false], [-33.8, 7.5, 8.5, true], [-3, -28.8, 9, true], [5.5, -28.6, 7, false], [7.2, 29.5, 8, true], [-7, 30.5, 7.5, true], [-24, -29, 6.5, false], [26, 29.5, 7, true]]) subTree(root, x, z, h, leafy, sr, treeM);
-    SUB.flames.push([8.3, 14.2]);
 
     // --- the street furniture of a cul-de-sac (2026-11-17)
     // the curb round the turnaround (cut where each driveway meets it) and along the road out
@@ -465,8 +464,7 @@ function buildSuburb() {
     const bl = bulbs.filter(Boolean), B = new THREE.InstancedMesh(new THREE.SphereGeometry(0.12, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }), bl.length);
     bl.forEach(([x, y, z, col2], i) => { B.setMatrixAt(i, m4.compose(pv.set(x, y, z), q.identity(), sc.set(1, 1, 1))); B.setColorAt(i, c.setHex(col2)); });
     B.frustumCulled = false; fx.add(B);
-    const flameMat = new THREE.SpriteMaterial({ map: TEX.flame, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
-    SUB.flameSprites = SUB.flames.map(([x, z]) => { const sp = new THREE.Sprite(flameMat); sp.position.set(x, 1.5, z); sp.scale.set(0.9, 1.4, 1); fx.add(sp); return { sp, t: Math.random() * 10 }; });
+    SUB.flameSprites = []; // (no flames on the drums or the wrecked car, 2026-11-19)
     group.add(fx);
     SUB.boxes = boxes;
   });

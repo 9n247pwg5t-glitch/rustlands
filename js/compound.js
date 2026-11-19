@@ -331,11 +331,11 @@ function cmpBuild() {
   };
   deadTree(-27, 17, 1.2); deadTree(25, 19, 1); deadTree(-44, 28, 1.1); deadTree(44, -31, 0.9); deadTree(-6, 26, 0.9);
 
-  // --- fire barrels: flames and warm pools of light
+  // --- the old fire barrels (2026-11-19: no flames on them, "the fire looks out of place"): just rusted drums
   for (const [x, z] of [[-36, -14], [-36, 6], [-30, 24], [30, 24], [-8, -31], [10, -31], [-10, 35], [10, 35], [40, 4], [44, 16], [-44, -32], [44, -28]]) {
     add(new THREE.CylinderGeometry(0.38, 0.38, 1, 10), cmpMat(0xffffff, TEX.rust), x, 0.5, z);
     col(x, z, 0.8, 0.8, 1);
-    CMP.fires.push([x, z]); glowAt(x, z, 5.5, 0xff8a2a);
+    CMP.fires.push([x, z]); // (their scorch marks stay on the ground)
   }
   // explosive red barrels (the game's own)
   D.barrels = [[-12, 12], [12, -12], [-28, -18], [30, 14], [6, 28]];
@@ -401,7 +401,7 @@ function cmpFx(group) {
     group.add(b);
   }
   const flameMat = new THREE.SpriteMaterial({ map: TEX.flame, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
-  CMP.flames = CMP.fires.map(([x, z]) => { const sp = new THREE.Sprite(flameMat); sp.position.set(x, 1.6, z); sp.scale.set(0.9, 1.4, 1); group.add(sp); return { sp, x, z, t: Math.random() * 10 }; });
+  void flameMat; CMP.flames = []; // (no flames on the barrels, 2026-11-19; the list stays so the per-frame effects keep running)
   CMP.pools = P;
   cmpDetailFx(group);
 }
@@ -749,8 +749,7 @@ function cmpDetailFx(group) {
     const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(bc, 3)); bg.computeVertexNormals(); bg.computeBoundingSphere();
     group.add(new THREE.Mesh(bg, addCutaway(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }))));
   }
-  const fireSrc = CMP.fires.map(([x, z]) => [x, 1.9, z, 0.55]);
-  cmpSmokeFx(group, fireSrc.concat(CMP.smoke), CMP.fires.map(([x, z]) => [x, 1.4, z, 0.6]));
+  cmpSmokeFx(group, CMP.smoke, []); // (no smoke or embers rising off the barrels any more)
 }
 const _swV = new THREE.Vector3(), _swD = new THREE.Vector3(), _swUp = new THREE.Vector3(0, -1, 0);
 function updateCompoundDetail(dt) {
