@@ -18,9 +18,9 @@ const ENEMY_DEFS = {
   // Stage 1's cul-de-sac boss (2026-11-16, the creator's sketch): a fat psycho clown in a bloody pink
   // teddy-bear costume with a cleaver, a little bigger than the player. He fights with the melee
   // moves and animations (chops, the spin, combos, the leap slam) plus his own boss fight (three
-  // rounds, a stagger meter, the cleaver throw and the belly slam: js/bossfight.js). The name is a
-  // placeholder.
-  bearBoss: { name: 'Bear-Suit Clown', body: 'human', hp: 5200, shield: 900, hpType: 'armor', speed: 4.2, xp: 600, ai: 'melee', dmg: 22, projSpeed: 30, scale: 1.15, boss: true, look: { shirt: 0xc4607e, pants: 0xc4607e, skin: 0xece4d6, weapon: 'hammer' } },
+  // rounds, a stagger meter, the cleaver throw and the belly slam: js/bossfight.js). Named by the
+  // creator (2026-11-19): Bobbert the Gatekeeper.
+  bearBoss: { name: 'Bobbert the Gatekeeper', body: 'human', hp: 5200, shield: 900, hpType: 'armor', speed: 4.2, xp: 600, ai: 'melee', dmg: 22, projSpeed: 30, scale: 1.15, boss: true, look: { shirt: 0xc4607e, pants: 0xc4607e, skin: 0xece4d6, weapon: 'hammer' } },
 };
 
 // How a gunner fires the weapon it carries (from its type's numbers): rifles use the type's own

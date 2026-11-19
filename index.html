@@ -140,6 +140,10 @@
   /* the boss's portrait (the creator's animated bear-suit clown, 2026-11-19), just left of his bar */
   #bossPortrait { position: absolute; right: 100%; top: 0; width: 19%; aspect-ratio: 1; margin-right: -2%; filter: drop-shadow(2px 3px 0 rgba(0,0,0,0.7)); pointer-events: none; }
   #bossName { font: 24px/1 var(--display); color: #ff8a1c; letter-spacing: 0.06em; text-shadow: 2px 2px 0 var(--ink); margin-bottom: 4px; }
+  /* Bobbert's nameplate (the creator's art, 2026-11-19) in place of his name, level and round small beside it */
+  #bossName.plate { display: flex; align-items: flex-end; justify-content: center; gap: 6px; margin-bottom: -2%; }
+  #bossName.plate img { height: clamp(40px, 13vw, 64px); width: auto; filter: drop-shadow(2px 3px 0 rgba(0,0,0,0.6)); }
+  #bossName.plate span { font-size: 13px; color: #ff9ad0; padding-bottom: 6px; white-space: nowrap; }
   #boss .tbar { height: 10px; }
   /* the creator's bloody boss bar (2026-11-17): the art is the full bar; lost health is a dark recess
      growing in from the right over its inner bar, the last hit's chunk flashes pale as it drains, and
@@ -604,11 +608,11 @@
 <script src="js/loot.js?v=93"></script>
 <script src="js/arsenal.js?v=93"></script>
 <script src="js/rigs.js?v=94"></script>
-<script src="js/enemies.js?v=95"></script>
+<script src="js/enemies.js?v=96"></script>
 <script src="js/player.js?v=92"></script>
 <script src="js/fparms.js?v=92"></script>
 <script src="js/topdown.js?v=92"></script>
-<script src="js/hud.js?v=98"></script>
+<script src="js/hud.js?v=99"></script>
 <script src="js/stages.js?v=96"></script>
 <script src="js/hub.js?v=92"></script>
 <script src="js/map.js?v=92"></script>

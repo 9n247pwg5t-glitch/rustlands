@@ -96,3 +96,4 @@ they conflict. Only the creator approves entries.
 | 2026-11-17 | The coin beside the cash count is a little bigger (28 → 38 px). | §10 HUD, user request |
 | 2026-11-19 | No title and status line at the top left (e.g. THE YARD / 20 ENEMIES LEFT · ENEMY LV 1) on any stage or in the hub; the cash count sits at the top. The objective still appears in the log and the waypoint marks where to go. | §10 HUD, user request |
 | 2026-11-19 | The bear-suit clown boss's portrait (the creator's animated GIF, `ui/bear-portrait.webp`) shows just left of his boss bar while he's in the fight; only for him. | §10 HUD, user request |
+| 2026-11-19 | The bear-suit clown boss is named **Bobbert the Gatekeeper** (CANON from the creator; replaces the placeholder "Bear-Suit Clown"). His boss-bar nameplate is the creator's art (`ui/bobbert-name.webp`), with his level and round in small text beside it. | §4 characters, §10 HUD, user request |
