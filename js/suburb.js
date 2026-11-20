@@ -503,6 +503,7 @@ function enterSuburb() {
   for (const d of drops.slice()) if (d.kind !== 'item') { tryAutoPickup(d); removeDrop(d); } // what's left on the ground comes along
   clearStageWorld();
   bloodStatic(false);
+  bloodClearFights(); // (the yard's fight stains stay in the yard)
   switchWorld('suburb');
   navInit(...SUB.nav);
   game.area = 'suburb'; game.exitAt = null;

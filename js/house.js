@@ -34,8 +34,26 @@ function buildHouse() {
       for (let y = 0; y < h; y += 17) for (let x = -(y * 7) % 260; x < w; ) { const L = 120 + r() * 220, v = 70 + r() * 30; g.fillStyle = `rgb(${v + 22},${v * 0.66 + 8},${v * 0.42})`; g.fillRect(x, y, L, 16); for (let k = 0; k < 6; k++) { g.fillStyle = `rgba(30,18,10,${0.15 + r() * 0.2})`; g.fillRect(x + r() * L, y + 2 + r() * 12, 20 + r() * 60, 1); } g.fillStyle = 'rgba(20,12,6,0.85)'; g.fillRect(x + L - 1, y, 2, 16); x += L; }
       for (let y = 0; y < h; y += 17) { g.fillStyle = 'rgba(16,10,6,0.9)'; g.fillRect(0, y + 16, w, 1.5); }
       void pw;
-      for (let i = 0; i < 40; i++) { const x = r() * w, y = r() * h, rr = 8 + r() * 30, gr = g.createRadialGradient(x, y, 0, x, y, rr); gr.addColorStop(0, `rgba(${r() < 0.3 ? '50,4,8' : '14,8,6'},0.55)`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); } // stains
+      for (let i = 0; i < 40; i++) { const x = r() * w, y = r() * h, rr = 8 + r() * 30, gr = g.createRadialGradient(x, y, 0, x, y, rr); gr.addColorStop(0, 'rgba(14,8,6,0.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); } // stains
       for (let i = 0; i < 9; i++) { const x = r() * w, y = r() * h; g.fillStyle = 'rgba(6,4,4,0.9)'; g.beginPath(); for (let k = 0; k <= 9; k++) { const a = k / 9 * TAU, q = (5 + r() * 8) * (0.6 + r() * 0.5); g.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q); } g.fill(); } // holes in the boards
+      const FX = (x) => (x + W / 2) / W * w, FZ = (z) => (z + D / 2) / D * h; // room metres to floor pixels
+      // dust and grit settled everywhere, heaviest along the walls and in the corners
+      for (let i = 0; i < 9000; i++) { const x = r() * w, y = r() * h, v = 120 + r() * 60; g.fillStyle = `rgba(${v},${v * 0.9},${v * 0.75},${0.08 + r() * 0.12})`; g.fillRect(x, y, 1.5, 1.5); }
+      for (const [x0, y0, x1, y1] of [[0, 0, w, 24], [0, h - 24, w, h], [0, 0, 26, h], [w - 26, 0, w, h]]) { const gr = g.createLinearGradient(x0, y0, x0 === 0 && x1 === 26 ? 26 : x1 === w && x0 === w - 26 ? w - 26 : x0, y0 === 0 && y1 === 24 ? 24 : y0 === h - 24 ? h - 24 : y0); gr.addColorStop(0, 'rgba(70,58,44,0.6)'); gr.addColorStop(1, 'rgba(70,58,44,0)'); g.fillStyle = gr; g.fillRect(x0, y0, x1 - x0, y1 - y0); }
+      // water damage under the windows, a big rotten patch by the left wall
+      for (const [x, z, rad] of [[-4.9, -5.3, 1.3], [4.7, -5.3, 1.1], [-7.4, 2.4, 1.6]]) { const gr = g.createRadialGradient(FX(x), FZ(z), 0, FX(x), FZ(z), rad / W * w); gr.addColorStop(0, 'rgba(20,24,12,0.75)'); gr.addColorStop(0.6, 'rgba(40,36,20,0.45)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(FX(x) - 80, FZ(z) - 80, 160, 160); }
+      // boards gone: dark gaps between the joists
+      for (const [x, z, L] of [[5.6, 4.2, 1.6], [-3.4, -4.6, 1.2], [7.4, -0.6, 1.0]]) { g.fillStyle = '#070504'; g.fillRect(FX(x), FZ(z), L / W * w, 16); g.fillStyle = 'rgba(60,40,24,0.9)'; for (let k = 0; k < 3; k++) g.fillRect(FX(x) + (k + 0.5) * L / 3 / W * w, FZ(z), 3, 16); }
+      // footprints in the dust, from the front door toward the hallway
+      for (let k = 0; k < 26; k++) { const t = k / 26, x = 0.3 * Math.sin(t * 6) + (t < 0.5 ? -4.6 * Math.sin(t * Math.PI) : -4.6 * Math.sin(t * Math.PI)), z = 5.4 - t * 11, side = k % 2 ? 0.14 : -0.14; g.fillStyle = 'rgba(30,20,12,0.45)'; g.beginPath(); g.ellipse(FX(x + side), FZ(z), 3.5, 6, 0.2, 0, TAU); g.fill(); }
+      // blood with a reason: something heavy dragged from the front door, round the rug, down the hallway;
+      // a dried pool where it lay by the hallway, drips, a smeared handprint where someone tried to hold on
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      const drag = [[-0.2, 5.9], [-0.9, 4.6], [-3.3, 3.6], [-4.9, 2.4], [-5.0, 0.2], [-4.6, -2.6], [-2.4, -3.9], [-0.4, -4.6], [0.1, -5.9]];
+      for (const [wid, col] of [[0.55, 'rgba(70,6,10,0.35)'], [0.32, 'rgba(90,8,12,0.55)'], [0.12, 'rgba(60,4,8,0.6)']]) { g.strokeStyle = col; g.lineWidth = wid / W * w; g.beginPath(); drag.forEach(([x, z], i) => (i ? g.lineTo(FX(x) + (r() - 0.5) * 6, FZ(z) + (r() - 0.5) * 6) : g.moveTo(FX(x), FZ(z)))); g.stroke(); }
+      for (let i = 0; i < 40; i++) { const seg = Math.floor(r() * (drag.length - 1)), t = r(), [ax, az] = drag[seg], [bx, bz] = drag[seg + 1]; g.fillStyle = 'rgba(80,6,10,0.75)'; g.beginPath(); g.arc(FX(ax + (bx - ax) * t + (r() - 0.5) * 0.9), FZ(az + (bz - az) * t + (r() - 0.5) * 0.9), 1.5 + r() * 2.5, 0, TAU); g.fill(); }
+      { const gr = g.createRadialGradient(FX(0.1), FZ(-5.5), 2, FX(0.1), FZ(-5.5), 46); gr.addColorStop(0, 'rgba(70,4,8,0.9)'); gr.addColorStop(0.7, 'rgba(60,4,8,0.7)'); gr.addColorStop(1, 'rgba(60,4,8,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(FX(0.1), FZ(-5.5), 46, 26, 0.2, 0, TAU); g.fill(); }
+      g.fillStyle = 'rgba(90,8,12,0.7)'; { const hx = FX(-0.6), hy = FZ(5.2); g.beginPath(); g.ellipse(hx, hy, 6, 7, 0, 0, TAU); g.fill(); for (let f = 0; f < 4; f++) { g.fillRect(hx - 6 + f * 3.5, hy - 16, 2.2, 9 + (f === 1 || f === 2 ? 3 : 0)); } }
       const vg = g.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, w * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.45)'); g.fillStyle = vg; g.fillRect(0, 0, w, h); // darker toward the walls
     });
     const wallTex = cmpCanvas(256, 256, (g, w, h) => {
@@ -44,6 +62,8 @@ function buildHouse() {
       for (let i = 0; i < 14; i++) { const x = r() * w, y = r() * h * 0.5, L = 40 + r() * 150, gr = g.createLinearGradient(0, y, 0, y + L); gr.addColorStop(0, 'rgba(90,64,30,0.35)'); gr.addColorStop(1, 'rgba(90,64,30,0)'); g.fillStyle = gr; g.fillRect(x, y, 6 + r() * 26, L); } // water stains
       for (let i = 0; i < 3; i++) { const x = r() * w, y = r() * h, rw = 8 + r() * 18, rh = 6 + r() * 12; g.fillStyle = '#9a8a74'; g.beginPath(); g.ellipse(x, y, rw, rh, r(), 0, TAU); g.fill(); g.strokeStyle = 'rgba(240,230,210,0.7)'; g.lineWidth = 1.5; g.stroke(); } // peeled to the plaster
       grime(g, w, h, 30, 0.3);
+      for (let i = 0; i < 18; i++) { const x = r() * w, y = h * (0.78 + r() * 0.22), rr = 6 + r() * 16, gr2 = g.createRadialGradient(x, y, 0, x, y, rr); gr2.addColorStop(0, 'rgba(30,40,20,0.6)'); gr2.addColorStop(1, 'rgba(30,40,20,0)'); g.fillStyle = gr2; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); } // mold creeping up from the floor
+      g.strokeStyle = 'rgba(60,46,34,0.8)'; g.lineWidth = 2; g.beginPath(); { let x = r() * w, y = 10; g.moveTo(x, y); for (let k = 0; k < 8; k++) { x += (r() - 0.5) * 20; y += 18; g.lineTo(x, y); } } g.stroke(); // a crack down the plaster
       const gr = g.createLinearGradient(0, h * 0.75, 0, h); gr.addColorStop(0, 'rgba(40,28,18,0)'); gr.addColorStop(1, 'rgba(40,28,18,0.6)'); g.fillStyle = gr; g.fillRect(0, h * 0.75, w, h * 0.25);
     });
     wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
@@ -88,7 +108,8 @@ function buildHouse() {
       for (const dy of [-0.55, 0.55]) blk(1.7, 0.08, 0.08, trim, wx, 1.65 + dy - 0.04, -D / 2 + 0.06, 0, 'Detail');
       for (const ddx of [-0.8, 0, 0.8]) blk(0.07, 1.1, 0.06, trim, wx + ddx, 1.1, -D / 2 + 0.06, 0, 'Detail');
       blk(1.5, 0.05, 0.05, trim, wx, 1.6, -D / 2 + 0.06, 0, 'Detail');
-      for (const s of [-1, 1]) add(new THREE.PlaneGeometry(0.5, 1.2), cmpMat(0xe0d8c0), wx + s * 0.62, 1.6, -D / 2 + 0.1, 0, 'Detail');
+      for (const s of [-1, 1]) { const cu = add(new THREE.PlaneGeometry(0.5, s > 0 && wx > 0 ? 0.7 : 1.2), cmpMat(0xc8bca0), wx + s * 0.62, s > 0 && wx > 0 ? 1.95 : 1.6, -D / 2 + 0.1, 0, 'Detail'); if (s > 0 && wx > 0) cu.rotation.z = 0.25; } // (one torn half off)
+      if (wx < 0) for (const [dy, rz] of [[0.25, 0.12], [-0.05, -0.08], [-0.32, 0.05]]) blk(1.75, 0.16, 0.04, cmpMat(0x7a5a3a, TEX.fence, 0, [1, 1]), wx, 1.65 + dy - 0.08, -D / 2 + 0.14, 0, 'Detail').rotation.z = rz; // boarded up
       add(new THREE.BoxGeometry(1.9, 0.05, 0.05), cmpMat(0x6a5a40), wx, 2.25, -D / 2 + 0.1, 0, 'Detail');
       glow(wx, -D / 2 + 1.2, 1.6, 0x4a5a8a);
     }
@@ -152,7 +173,7 @@ function buildHouse() {
     piece(-7.6, -0.1, 0, (put) => {
       put(new THREE.CylinderGeometry(0.18, 0.22, 0.05, 12), dark, 0, 0.03, 0);
       put(new THREE.CylinderGeometry(0.02, 0.02, 1.6, 6), cmpMat(0x6a5a40), 0, 0.82, 0);
-      put(new THREE.CylinderGeometry(0.18, 0.3, 0.32, 12, 1, true), cmpMat(0xe8d8a8, null, 0x6a5020), 0, 1.68, 0).material.side = THREE.DoubleSide;
+      put(new THREE.CylinderGeometry(0.18, 0.3, 0.32, 12, 1, true), cmpMat(0xe8d8a8, null, 0x6a5020), 0.04, 1.66, 0, 0.3, 0, 0.2).material.side = THREE.DoubleSide; // (knocked crooked)
     });
     col(-7.6, -0.1, 0.5, 0.5, 1.8);
     glow(-7.4, -0.1, 2.4, 0xffc070);
@@ -187,7 +208,7 @@ function buildHouse() {
       put(new THREE.CylinderGeometry(0.045, 0.045, 0.14, 10), can, -0.2, 0.85, -0.1); put(new THREE.PlaneGeometry(0.4, 0.3).rotateX(-Math.PI / 2), paper, 0.15, 0.785, 0.2, 0, 0.4, 0);
     });
     col(6.9, 2.0, 1.5, 1.5, 0.8);
-    for (const [a, tip] of [[2.6, 0], [0.9, 0], [-1.1, 0.25]]) {
+    for (const [a, tip] of [[2.6, 0], [0.9, 0], [-1.1, 0.12]]) {
       const cx = 6.9 + Math.sin(a) * 1.0, cz = 2.0 + Math.cos(a) * 1.0;
       piece(cx, cz, a + Math.PI, (put) => {
         put(new THREE.BoxGeometry(0.45, 0.05, 0.45), wood, 0, 0.45, 0, tip, 0, 0);
@@ -199,6 +220,59 @@ function buildHouse() {
     // papers, cans and stains scattered over the floor
     for (let i = 0; i < 16; i++) { const x = (r() - 0.5) * (W - 2), z = (r() - 0.5) * (D - 2); if (Math.abs(x) < 4 && Math.abs(z) < 2.5) continue; add(new THREE.PlaneGeometry(0.3, 0.22).rotateX(-Math.PI / 2), paper, x, 0.02, z, r() * 3, 'Detail'); }
     for (let i = 0; i < 5; i++) add(new THREE.CylinderGeometry(0.04, 0.04, 0.13, 8).rotateZ(Math.PI / 2), can, (r() - 0.5) * (W - 2), 0.04, (r() - 0.5) * (D - 2), r() * 3, 'Detail');
+
+    // --- decay and clutter (2026-11-20: "more run down", "not enough detail")
+    // holes kicked through the plaster down to the lath and studs
+    for (const [x, y, wd, ht, side] of [[-2.2, 1.0, 0.9, 0.7, 'b'], [6.0, 1.9, 0.7, 0.5, 'b'], [-W / 2, 1.2, 0.8, 0.6, 'l'], [W / 2, 0.8, 1.0, 0.7, 'r']]) {
+      const g2 = new THREE.Group(); g2.name = 'Detail'; root.add(g2);
+      if (side === 'b') g2.position.set(x, y, -D / 2 + 0.02); else { g2.position.set(x + (side === 'l' ? 0.02 : -0.02), y, side === 'l' ? 0.6 : -0.6); g2.rotation.y = side === 'l' ? Math.PI / 2 : -Math.PI / 2; }
+      const hole = new THREE.Mesh(new THREE.CircleGeometry(0.5, 9), cmpMat(0x0e0a08)); hole.scale.set(wd, ht, 1); g2.add(hole);
+      for (let k = -2; k <= 2; k++) { const lath = new THREE.Mesh(new THREE.BoxGeometry(wd * 0.9, 0.04, 0.02), cmpMat(0x6a4a2a)); lath.position.set(0, k * ht * 0.18, 0.01); lath.rotation.z = (r() - 0.5) * 0.1; g2.add(lath); }
+      const stud = new THREE.Mesh(new THREE.BoxGeometry(0.08, ht * 0.9, 0.03), cmpMat(0x5a3a22)); stud.position.set(wd * 0.15, 0, 0.005); g2.add(stud);
+      g2.traverse((o) => { o.name = 'Detail'; });
+      // plaster chunks fallen below it
+      const px = side === 'b' ? x : x + (side === 'l' ? 0.4 : -0.4), pz = side === 'b' ? -D / 2 + 0.4 : (side === 'l' ? 0.6 : -0.6);
+      for (let k = 0; k < 6; k++) add(new THREE.DodecahedronGeometry(0.05 + r() * 0.07, 0), cmpMat(0xd8ccb4), px + (r() - 0.5) * 0.7, 0.04, pz + (r() - 0.5) * 0.5, r() * 3, 'Detail');
+    }
+    // wallpaper peeling off in strips from the top of the walls
+    for (let i = 0; i < 10; i++) {
+      const onBack = i < 6, x = onBack ? -8 + r() * 16 : (i % 2 ? -1 : 1) * (W / 2 - 0.02), z = onBack ? -D / 2 + 0.05 : -4 + r() * 8, L = 0.5 + r() * 0.9;
+      const st = add(new THREE.PlaneGeometry(0.28 + r() * 0.2, L, 1, 4), cmpMat(0xb8a888, wallTex, 0, [0.3, 0.4]), x, H - L / 2 - 0.05, z, onBack ? 0 : (x < 0 ? Math.PI / 2 : -Math.PI / 2), 'Detail');
+      const P = st.geometry.attributes.position; for (let k = 0; k < P.count; k++) { const t = (L / 2 - P.getY(k)) / L; P.setZ(k, t * t * 0.35); } st.geometry.computeVertexNormals(); st.material.side = THREE.DoubleSide;
+    }
+    // the blood on the walls: a smear and a handprint by the hallway, spatter by the couch
+    { const bt = cmpCanvas(256, 256, (g) => { g.fillStyle = 'rgba(90,6,10,0.85)'; g.beginPath(); g.ellipse(70, 150, 22, 26, 0, 0, TAU); g.fill(); for (let f = 0; f < 4; f++) g.fillRect(52 + f * 11, 96, 7, 40 + (f === 1 || f === 2 ? 8 : 0)); g.fillRect(88, 140, 22, 9); // a handprint
+        const gr = g.createLinearGradient(130, 60, 230, 250); gr.addColorStop(0, 'rgba(90,6,10,0.85)'); gr.addColorStop(1, 'rgba(90,6,10,0)'); g.strokeStyle = gr; g.lineWidth = 28; g.lineCap = 'round'; g.beginPath(); g.moveTo(150, 70); g.quadraticCurveTo(170, 160, 200, 240); g.stroke(); // a smear dragged down
+        for (let i = 0; i < 9; i++) { g.fillStyle = 'rgba(90,6,10,0.8)'; g.fillRect(140 + r() * 70, 80 + r() * 60, 3, 20 + r() * 60); } });
+      const bm = cmpMat(0xffffff, bt); bm.transparent = true; bm.alphaTest = 0.1;
+      add(new THREE.PlaneGeometry(1.4, 1.4), bm, 1.9, 1.2, -D / 2 + 0.03, 0, 'Detail');
+      const sp = cmpCanvas(128, 128, (g) => { for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(${80 + r() * 30},6,10,0.8)`; g.beginPath(); g.arc(64 + (r() - 0.5) * 100, 64 + (r() - 0.5) * 80, 1 + r() * 5, 0, TAU); g.fill(); } });
+      const sm = cmpMat(0xfffffe, sp); sm.transparent = true; sm.alphaTest = 0.1;
+      add(new THREE.PlaneGeometry(1.2, 1.0), sm, -1.6, 1.4, -D / 2 + 0.03, 0, 'Detail'); }
+    // cobwebs in the corners
+    { const cw = cmpCanvas(128, 128, (g) => { g.strokeStyle = 'rgba(230,230,230,0.6)'; g.lineWidth = 1; for (let a = 0; a < 7; a++) { g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a / 6 * Math.PI / 2) * 128, Math.sin(a / 6 * Math.PI / 2) * 128); g.stroke(); } for (let rr = 18; rr < 128; rr += 16) { g.beginPath(); for (let a = 0; a <= 6; a++) { const q = rr * (0.9 + r() * 0.2); g.lineTo(Math.cos(a / 6 * Math.PI / 2) * q, Math.sin(a / 6 * Math.PI / 2) * q); } g.stroke(); } });
+      const cm = cmpMat(0xffffff, cw); cm.transparent = true; cm.alphaTest = 0.05; cm.side = THREE.DoubleSide;
+      for (const [x, ry] of [[-W / 2 + 0.03, 0], [W / 2 - 0.03, -Math.PI / 2]]) { const c = add(new THREE.PlaneGeometry(0.9, 0.9), cm, x + (ry ? -0.45 : 0.45), H - 0.45, -D / 2 + 0.05, 0, 'Detail'); if (ry) c.scale.x = -1; } }
+    // stuffing spilling out of the couch and the armchairs
+    for (const [x, y, z] of [[-1.6, 0.74, -1.65], [0.9, 0.74, -1.75], [1.7, 0.74, -2.05], [-3.0, 0.7, 1.6], [2.6, 0.7, 1.7], [-2.1, 0.5, -1.4]]) for (let k = 0; k < 3; k++) add(new THREE.IcosahedronGeometry(0.06 + r() * 0.05, 0), cmpMat(0xe8e0c8), x + (r() - 0.5) * 0.2, y + r() * 0.05, z + (r() - 0.5) * 0.2, 0, 'Detail');
+    // a fallen picture frame with its glass smashed, the empty nail above it
+    piece(-8.5, -2.6, Math.PI / 2 + 0.3, (put) => { put(new THREE.BoxGeometry(0.5, 0.04, 0.4), cmpMat(0x3a2418), 0, 0.03, 0, -0.1); put(new THREE.PlaneGeometry(0.4, 0.3).rotateX(-Math.PI / 2), cmpMat(0x5a4a6a), 0, 0.055, 0); for (let k = 0; k < 6; k++) put(new THREE.CircleGeometry(0.05, 3).rotateX(-Math.PI / 2), cmpMat(0xa8c0c8, null, 0x203038), (r() - 0.5) * 0.9, 0.02, (r() - 0.5) * 0.8, 0, r() * 3, 0); });
+    // pizza boxes, beer bottles, a pile of clothes, a stack of old newspapers, a kid's ball, a clown doll
+    for (const [x, z, ry, open] of [[1.6, 3.4, 0.4, true], [-5.8, 4.4, -0.3, false], [-5.75, 4.4, -0.1, false]]) piece(x, z, ry, (put) => { put(new THREE.BoxGeometry(0.45, 0.05, 0.45), cmpMat(0xc8b088), 0, open ? 0.025 : 0.025 + (x < -5.7 ? 0.05 : 0), 0); if (open) { put(new THREE.PlaneGeometry(0.45, 0.45), cmpMat(0xc8b088), 0, 0.25, -0.23, -0.2); put(new THREE.CircleGeometry(0.18, 10).rotateX(-Math.PI / 2), cmpMat(0x8a3a1a), 0, 0.055, 0); } });
+    for (let i = 0; i < 8; i++) { const x = (r() - 0.5) * (W - 3), z = (r() - 0.5) * (D - 3); if (Math.abs(x) < 3 && z > -2.5 && z < 1.5) continue; add(new THREE.CylinderGeometry(0.035, 0.035, 0.24, 7).rotateZ(r() < 0.6 ? Math.PI / 2 : 0), cmpMat(r() < 0.5 ? 0x3a5a2a : 0x6a4a1a, null, 0x101408), x, r() < 0.6 ? 0.035 : 0.12, z, r() * 3, 'Detail'); }
+    for (let k = 0; k < 7; k++) add(new THREE.IcosahedronGeometry(0.16 + r() * 0.1, 1), cmpMat([0x3a3a52, 0x5a2a2a, 0x8a8a7a, 0x2a3a2a][k % 4]), 7.6 + (r() - 0.5) * 0.7, 0.1, 4.6 + (r() - 0.5) * 0.6, r() * 3, 'Detail');
+    for (let k = 0; k < 6; k++) add(new THREE.BoxGeometry(0.42, 0.04, 0.32), cmpMat(k % 2 ? 0xd0c8b0 : 0xc0b89e), 7.9, 0.02 + k * 0.04, 0.6, (r() - 0.5) * 0.3, 'Detail');
+    add(new THREE.SphereGeometry(0.16, 12, 8), cmpMat(0xc8301a), 3.4, 0.16, 4.1); col(3.4, 4.1, 0.3, 0.3, 0.3);
+    piece(8.3, -1.8, -Math.PI / 2, (put) => { // a clown doll slumped against the wall
+      put(new THREE.SphereGeometry(0.16, 10, 8), cmpMat(0xc8301a), 0, 0.16, 0); put(new THREE.SphereGeometry(0.11, 10, 8), cmpMat(0xece4d6), 0, 0.38, 0.02, 0.2); put(new THREE.SphereGeometry(0.03, 6, 4), cmpMat(0xd81a1a), 0, 0.39, 0.13);
+      put(new THREE.ConeGeometry(0.09, 0.18, 8), cmpMat(0x3a6ac8), 0, 0.55, 0, 0.3); for (const s of [-1, 1]) { put(new THREE.SphereGeometry(0.07, 6, 4), cmpMat(0xf0b030), s * 0.11, 0.42, -0.03); put(new THREE.CylinderGeometry(0.04, 0.04, 0.22, 6), cmpMat(0xe8e0d0), s * 0.18, 0.12, 0.05, 0, 0, s * 1.2); }
+    });
+    // an extension cord from the TV across the floor to the wall, a dead ceiling-light fixture fallen by the couch
+    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([[-6.0, 0.02, -0.7], [-5.2, 0.02, 0.6], [-6.6, 0.02, 1.4], [-8.6, 0.02, 1.0]].map((q) => new THREE.Vector3(...q))), 20, 0.015, 4), cmpMat(0x141414), 0, 0, 0, 0, 'Detail');
+    piece(3.6, -0.4, 0.5, (put) => { put(new THREE.SphereGeometry(0.25, 12, 6, 0, TAU, 0, Math.PI / 2), cmpMat(0xd8d0b8), 0, 0.02, 0, Math.PI); for (let k = 0; k < 5; k++) put(new THREE.CircleGeometry(0.06, 3).rotateX(-Math.PI / 2), cmpMat(0xd8d0b8), (r() - 0.5) * 0.9, 0.015, (r() - 0.5) * 0.9, 0, r() * 3, 0); });
+    // a torn circus poster on the left wall (a grinning clown, no words)
+    { const pc = cmpCanvas(128, 180, (g, w, h) => { g.fillStyle = '#e8d8b8'; g.fillRect(0, 0, w, h); for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#b8201a' : '#e8d8b8'; g.beginPath(); g.moveTo(w / 2, 40); g.lineTo(i * 16, h); g.lineTo(i * 16 + 16, h); g.fill(); } drawClown(g, w / 2, 60, 34); grime(g, w, h, 20, 0.5); g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.moveTo(w, h * 0.55); g.lineTo(w * 0.6, h); g.lineTo(w, h); g.fill(); });
+      const pm = cmpMat(0xffffff, pc); pm.transparent = true; pm.alphaTest = 0.3; add(new THREE.PlaneGeometry(0.7, 1.0), pm, -W / 2 + 0.05, 1.5, 3.6, Math.PI / 2, 'Detail'); }
 
     // the bounds just inside the walls (a backstop)
     for (const [x, z, w, d] of [[0, HOUSE_B.minZ - 0.5, W + 2, 1], [0, HOUSE_B.maxZ + 0.5, W + 2, 1], [HOUSE_B.minX - 0.5, 0, 1, D + 2], [HOUSE_B.maxX + 0.5, 0, 1, D + 2]]) { boxes.push([x - w / 2, z - d / 2, x + w / 2, z + d / 2, -1, 4]); addBoxCol(x, z, w, d, -1, 4); }
@@ -250,6 +324,7 @@ function enterHouse() {
   buildHouse();
   for (const d of drops.slice()) if (d.kind !== 'item') { tryAutoPickup(d); removeDrop(d); } // what's left on the ground comes along
   clearStageWorld();
+  bloodClearFights(); // (the cul-de-sac's fight stains don't follow you in)
   switchWorld('house');
   navInit(...HOUSE.nav);
   game.area = 'house'; game.exitAt = null;

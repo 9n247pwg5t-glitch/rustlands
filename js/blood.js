@@ -94,6 +94,13 @@ function bloodStatic(on) {
     K.mesh.instanceMatrix.needsUpdate = true;
   }
 }
+// The stains left by fights (the ring after the map's own) are cleared on moving to another area of a
+// stage, so blood from the last area doesn't turn up at the same spots in the next (2026-11-20).
+function bloodClearFights() {
+  if (!BLOOD.ready) return;
+  const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  for (const K of Object.values(BLOOD.kinds)) { for (let i = BLOOD.staticN; i < BLOOD.cap; i++) K.mesh.setMatrixAt(i, zero); K.ring = BLOOD.staticN; K.mesh.instanceMatrix.needsUpdate = true; }
+}
 // A stain from gameplay: on the ground under `pos` (arena only).
 function bloodSplat(pos, size = 1, kind = 'splat') {
   if (!BLOOD.ready || WORLD.id === 'hub') return;
